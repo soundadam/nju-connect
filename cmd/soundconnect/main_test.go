@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"strings"
 	"testing"
@@ -18,6 +19,27 @@ func TestVersion(t *testing.T) {
 	}
 	if stderr.Len() != 0 {
 		t.Fatalf("stderr = %q", stderr.String())
+	}
+}
+
+func TestPromptLineReadsTrimmedLocalInput(t *testing.T) {
+	var output bytes.Buffer
+	value, err := promptLine(bufio.NewReader(strings.NewReader("  vpn.example.edu  \n")), &output, "Gateway: ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if value != "vpn.example.edu" {
+		t.Fatalf("value = %q", value)
+	}
+	if output.String() != "Gateway: " {
+		t.Fatalf("output = %q", output.String())
+	}
+}
+
+func TestPromptLineRejectsEmptyInput(t *testing.T) {
+	var output bytes.Buffer
+	if _, err := promptLine(bufio.NewReader(strings.NewReader("\n")), &output, "Account: "); err == nil {
+		t.Fatal("promptLine() accepted empty input")
 	}
 }
 

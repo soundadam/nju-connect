@@ -1,16 +1,23 @@
 package main
 
 import (
+	"bufio"
+	"context"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
 	"os"
+	"strings"
+	"time"
 
 	"github.com/soundadam/soundconnect/internal/config"
 	"github.com/soundadam/soundconnect/internal/credential"
 	"github.com/soundadam/soundconnect/internal/doctor"
+	"github.com/soundadam/soundconnect/internal/gatewayauth"
 	setupservice "github.com/soundadam/soundconnect/internal/setup"
+	"golang.org/x/term"
 )
 
 var version = "dev"
@@ -36,7 +43,9 @@ func run(arguments []string, stdout, stderr io.Writer) int {
 		return runSetup(arguments[1:], stdout, stderr)
 	case "doctor":
 		return runDoctor(arguments[1:], stdout, stderr)
-	case "connect", "status", "observe":
+	case "connect":
+		return runConnect(arguments[1:], stdout, stderr)
+	case "status", "observe":
 		fmt.Fprintf(stderr, "soundconnect %s is not implemented yet\n", arguments[0])
 		return 2
 	default:
@@ -44,6 +53,98 @@ func run(arguments []string, stdout, stderr io.Writer) int {
 		writeUsage(stderr)
 		return 2
 	}
+}
+
+func runConnect(arguments []string, stdout, stderr io.Writer) int {
+	flags := flag.NewFlagSet("connect", flag.ContinueOnError)
+	flags.SetOutput(stderr)
+	worktree := flags.String("worktree", ".", "soundconnect working tree")
+	resolveIP := flags.String("resolve-ip", "", "development-only numeric gateway address override")
+	if err := flags.Parse(arguments); err != nil {
+		return 2
+	}
+	if flags.NArg() != 0 {
+		fmt.Fprintln(stderr, "connect accepts no positional arguments")
+		return 2
+	}
+	paths, err := config.LocalPaths(*worktree)
+	if err != nil {
+		fmt.Fprintf(stderr, "resolve local state: %v\n", err)
+		return 1
+	}
+	configured, err := config.Load(paths.Config)
+	if err != nil {
+		fmt.Fprintf(stderr, "load configuration: %v\n", err)
+		return 1
+	}
+	passwordStore, err := credential.NewFileStore(paths.Credential, true)
+	if err != nil {
+		fmt.Fprintf(stderr, "open credential: %v\n", err)
+		return 1
+	}
+	password, err := passwordStore.Get()
+	if err != nil {
+		fmt.Fprintf(stderr, "read credential: %v\n", err)
+		return 1
+	}
+	defer credential.Clear(password)
+	client, err := gatewayauth.New(gatewayauth.Options{
+		Server: configured.Server, ResolveIP: *resolveIP,
+		TLSInsecure: configured.TLSInsecure, UpstreamProxy: configured.UpstreamProxy,
+		Timeout: 30 * time.Second,
+	})
+	if err != nil {
+		fmt.Fprintf(stderr, "prepare gateway authentication: %v\n", err)
+		return 1
+	}
+	result, err := client.AuthenticatePassword(context.Background(), configured.Username, password)
+	if err != nil {
+		fmt.Fprintf(stderr, "authenticate password: %v\n", err)
+		return 1
+	}
+	if result.NeedsSMS() {
+		code, promptErr := promptVerificationCode(os.Stdin, stderr)
+		if promptErr != nil {
+			fmt.Fprintf(stderr, "read verification code: %v\n", promptErr)
+			return 1
+		}
+		defer credential.Clear(code)
+		result, err = client.AuthenticateSMS(context.Background(), code)
+		if err != nil {
+			fmt.Fprintf(stderr, "authenticate verification code: %v\n", err)
+			return 1
+		}
+	}
+	if result.Accepted() {
+		fmt.Fprintln(stdout, "authentication: accepted")
+		fmt.Fprintln(stdout, "connection: not_started")
+		return 0
+	}
+	if result.NextService != "" {
+		fmt.Fprintf(stderr, "authentication requires unsupported next step %q (gateway code %d)\n", result.NextService, result.Code)
+	} else {
+		fmt.Fprintf(stderr, "authentication rejected by gateway code %d\n", result.Code)
+	}
+	return 1
+}
+
+func promptVerificationCode(input *os.File, output io.Writer) ([]byte, error) {
+	if input == nil || !term.IsTerminal(int(input.Fd())) {
+		return nil, credential.ErrNoTerminal
+	}
+	if _, err := io.WriteString(output, "Verification code: "); err != nil {
+		return nil, err
+	}
+	code, err := term.ReadPassword(int(input.Fd()))
+	fmt.Fprintln(output)
+	if err != nil {
+		return nil, err
+	}
+	code = []byte(strings.TrimSpace(string(code)))
+	if len(code) == 0 {
+		return nil, errors.New("verification code is required")
+	}
+	return code, nil
 }
 
 func runSetup(arguments []string, stdout, stderr io.Writer) int {
@@ -61,6 +162,23 @@ func runSetup(arguments []string, stdout, stderr io.Writer) int {
 	if flags.NArg() != 0 {
 		fmt.Fprintln(stderr, "setup accepts no positional arguments")
 		return 2
+	}
+	lineReader := bufio.NewReader(os.Stdin)
+	if strings.TrimSpace(*server) == "" {
+		value, err := promptLine(lineReader, stderr, "Gateway: ")
+		if err != nil {
+			fmt.Fprintf(stderr, "read gateway: %v\n", err)
+			return 1
+		}
+		*server = value
+	}
+	if strings.TrimSpace(*username) == "" {
+		value, err := promptLine(lineReader, stderr, "Account: ")
+		if err != nil {
+			fmt.Fprintf(stderr, "read account: %v\n", err)
+			return 1
+		}
+		*username = value
 	}
 	paths, err := config.LocalPaths(*worktree)
 	if err != nil {
@@ -85,6 +203,21 @@ func runSetup(arguments []string, stdout, stderr io.Writer) int {
 	}
 	fmt.Fprintf(stdout, "configuration: %s\ncredential: %s\n", paths.Config, paths.Credential)
 	return 0
+}
+
+func promptLine(input *bufio.Reader, output io.Writer, prompt string) (string, error) {
+	if _, err := io.WriteString(output, prompt); err != nil {
+		return "", err
+	}
+	value, err := input.ReadString('\n')
+	if err != nil && err != io.EOF {
+		return "", err
+	}
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return "", fmt.Errorf("value is required")
+	}
+	return value, nil
 }
 
 func runDoctor(arguments []string, stdout, stderr io.Writer) int {
@@ -125,7 +258,7 @@ func writeUsage(output io.Writer) {
 
 commands:
   setup      configure the account and long-lived password
-  connect    authenticate interactively and run the connection
+	connect    probe attended gateway authentication
   status     print sanitized runtime status
   doctor     inspect the local development environment
   observe    record a sanitized behavior timeline

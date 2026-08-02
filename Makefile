@@ -6,6 +6,7 @@ EASYCONNECT_UPSTREAM := $(RESEARCH_ROOT)/upstream/easyconnect
 EASYCONNECT_WORK := $(RESEARCH_ROOT)/work/easyconnect
 EASYCONNECT_LOCK := $(RESEARCH_ROOT)/lock.json
 PACKAGE ?= $(firstword $(wildcard $(EASYCONNECT_UPSTREAM)/package/*.deb))
+EASYCONNECT_DEPENDENCY ?= $(firstword $(wildcard $(EASYCONNECT_UPSTREAM)/dependencies/*.deb))
 
 .PHONY: build
 build:
@@ -39,7 +40,9 @@ dev-init:
 research-init:
 	install -d -m 0700 \
 		$(EASYCONNECT_UPSTREAM)/package \
+		$(EASYCONNECT_UPSTREAM)/dependencies \
 		$(EASYCONNECT_WORK)/rootfs \
+		$(EASYCONNECT_WORK)/dependencies \
 		$(EASYCONNECT_WORK)/runtime \
 		$(EASYCONNECT_WORK)/snapshots \
 		$(EASYCONNECT_WORK)/reports
@@ -54,7 +57,19 @@ easyconnect-import: research-init
 
 .PHONY: easyconnect-prepare
 easyconnect-prepare:
-	@./dev/easyconnect/prepare "$(PACKAGE)" "$(CURDIR)/$(EASYCONNECT_WORK)/rootfs"
+	@./dev/easyconnect/prepare \
+		"$(PACKAGE)" \
+		"$(CURDIR)/$(EASYCONNECT_WORK)/rootfs" \
+		"$(EASYCONNECT_DEPENDENCY)" \
+		"$(CURDIR)/$(EASYCONNECT_WORK)/dependencies" \
+		"$(CURDIR)/$(EASYCONNECT_LOCK)"
+
+.PHONY: easyconnect-probe
+easyconnect-probe:
+	@./dev/easyconnect/probe \
+		"$(CURDIR)/$(EASYCONNECT_WORK)/rootfs" \
+		"$(CURDIR)/$(EASYCONNECT_WORK)/dependencies" \
+		"$(CURDIR)/$(EASYCONNECT_WORK)/runtime"
 
 .PHONY: clean
 clean:
