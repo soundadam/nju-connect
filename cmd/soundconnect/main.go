@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/soundadam/soundconnect/internal/config"
+	"github.com/soundadam/soundconnect/internal/core"
 	"github.com/soundadam/soundconnect/internal/credential"
 	"github.com/soundadam/soundconnect/internal/doctor"
 	"github.com/soundadam/soundconnect/internal/gatewayauth"
@@ -130,10 +131,23 @@ func runConnect(arguments []string, stdout, stderr io.Writer) int {
 			return 1
 		}
 		if !bootstrap.ConfigurationAvailable || !bootstrap.ResourcesAvailable {
-			fmt.Fprintln(stderr, "probe gateway bootstrap: required configuration or resources are absent")
+			fmt.Fprintf(stderr, "probe gateway bootstrap: configuration_available=%t resources_available=%t\n",
+				bootstrap.ConfigurationAvailable, bootstrap.ResourcesAvailable)
 			return 1
 		}
 		fmt.Fprintln(stdout, "initialization: gateway_bootstrap_available")
+		fmt.Fprintf(stdout, "resources: web=%d tcp=%d l3vpn=%d unknown=%d\n",
+			bootstrap.Resources.Web, bootstrap.Resources.TCP, bootstrap.Resources.L3VPN, bootstrap.Resources.Unknown)
+		fmt.Fprintf(stdout, "services: tcp_required=%t l3vpn_required=%t local_agent_required=%t\n",
+			bootstrap.Services.TCP, bootstrap.Services.L3VPN, bootstrap.Services.LocalAgentRequired())
+		fmt.Fprintf(stdout, "policies: internal_dns=%t dedicated_line=%t security_check=%t\n",
+			bootstrap.Services.InternalDNS, bootstrap.Services.DedicatedLine, bootstrap.Services.SecurityCheck)
+		plan, planErr := core.BuildDataplanePlan(session.State(), bootstrap)
+		if planErr != nil {
+			fmt.Fprintf(stderr, "model dataplane boundary: %v\n", planErr)
+			return 1
+		}
+		fmt.Fprintf(stdout, "handoff: mode=%s ready=%t\n", plan.Mode, plan.BoundaryReady)
 		fmt.Fprintln(stdout, "dataplane: not_started")
 		return 0
 	}

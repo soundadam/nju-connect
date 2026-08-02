@@ -1,12 +1,7 @@
 package gatewayauth
 
 import (
-	"bytes"
-	"context"
-	"encoding/xml"
 	"errors"
-	"fmt"
-	"io"
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
@@ -26,11 +21,6 @@ type Session struct {
 type SessionState struct {
 	CookieCount int
 	HasID       bool
-}
-
-type Bootstrap struct {
-	ConfigurationAvailable bool
-	ResourcesAvailable     bool
 }
 
 // TakeSession transfers the authenticated HTTP client and its cookie jar out of
@@ -59,55 +49,6 @@ func (session *Session) State() SessionState {
 		CookieCount: len(session.http.Jar.Cookies(session.baseURL)),
 		HasID:       len(session.sessionID) != 0,
 	}
-}
-
-// ProbeBootstrap verifies the read-only gateway initialization immediately after
-// authentication. It stops before any local agent, tunnel, route, or DNS change.
-func (session *Session) ProbeBootstrap(ctx context.Context) (Bootstrap, error) {
-	if session == nil || session.http == nil {
-		return Bootstrap{}, ErrNoAuthenticatedSession
-	}
-	configuration, err := session.probeXML(ctx, "/por/conf.csp?apiversion=1", "Auth", "Conf")
-	if err != nil {
-		return Bootstrap{}, fmt.Errorf("read gateway configuration: %w", err)
-	}
-	resources, err := session.probeXML(ctx, "/por/rclist.csp?apiversion=1", "Auth", "Resource")
-	if err != nil {
-		return Bootstrap{}, fmt.Errorf("read gateway resources: %w", err)
-	}
-	return Bootstrap{ConfigurationAvailable: configuration, ResourcesAvailable: resources}, nil
-}
-
-func (session *Session) probeXML(ctx context.Context, path string, required ...string) (bool, error) {
-	data, err := requestBytes(ctx, session.http, session.baseURL, http.MethodGet, path, nil)
-	if err != nil {
-		return false, err
-	}
-	wanted := make(map[string]bool, len(required))
-	for _, name := range required {
-		wanted[name] = false
-	}
-	decoder := xml.NewDecoder(bytes.NewReader(data))
-	for {
-		token, decodeErr := decoder.Token()
-		if decodeErr != nil {
-			if errors.Is(decodeErr, io.EOF) {
-				break
-			}
-			return false, fmt.Errorf("decode gateway XML: %w", decodeErr)
-		}
-		if start, ok := token.(xml.StartElement); ok {
-			if _, exists := wanted[start.Name.Local]; exists {
-				wanted[start.Name.Local] = true
-			}
-		}
-	}
-	for _, found := range wanted {
-		if !found {
-			return false, nil
-		}
-	}
-	return true, nil
 }
 
 // Close removes references to all retained authentication material.

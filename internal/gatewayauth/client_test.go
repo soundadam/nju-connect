@@ -85,10 +85,10 @@ func TestPasswordAndSMSAuthentication(t *testing.T) {
 			fmt.Fprint(writer, "<Auth><ErrorCode>1</ErrorCode></Auth>")
 		case "/por/conf.csp":
 			assertSessionCookie(t, request)
-			fmt.Fprint(writer, "<Response><Auth/><Conf><Policy/></Conf></Response>")
+			fmt.Fprint(writer, "<Conf><Policy/></Conf>")
 		case "/por/rclist.csp":
 			assertSessionCookie(t, request)
-			fmt.Fprint(writer, "<Response><Auth/><Resource><Group/></Resource></Response>")
+			fmt.Fprint(writer, "<Resource><Group/></Resource>")
 		default:
 			http.NotFound(writer, request)
 		}
