@@ -46,8 +46,10 @@ func (result Result) Accepted() bool {
 }
 
 type Client struct {
-	baseURL *url.URL
-	http    *http.Client
+	baseURL       *url.URL
+	http          *http.Client
+	authenticated bool
+	sessionID     []byte
 }
 
 type authXML struct {
@@ -56,6 +58,7 @@ type authXML struct {
 	RSAKey       string `xml:"RSA_ENCRYPT_KEY"`
 	RSAExponent  string `xml:"RSA_ENCRYPT_EXP"`
 	CSRFRandCode string `xml:"CSRF_RAND_CODE"`
+	SessionID    string `xml:"TwfID"`
 }
 
 func New(options Options) (*Client, error) {
@@ -114,6 +117,7 @@ func (client *Client) AuthenticatePassword(ctx context.Context, username string,
 	if initialized.ErrorCode != 1 {
 		return Result{}, fmt.Errorf("initialize authentication: gateway code %d", initialized.ErrorCode)
 	}
+	client.rememberSession(initialized.SessionID)
 	encrypted, err := encryptPassword(password, initialized.CSRFRandCode, initialized.RSAKey, initialized.RSAExponent)
 	if err != nil {
 		return Result{}, err
@@ -129,7 +133,7 @@ func (client *Client) AuthenticatePassword(ctx context.Context, username string,
 	if err != nil {
 		return Result{}, fmt.Errorf("password authentication: %w", err)
 	}
-	return resultFromXML(response), nil
+	return client.observe(response), nil
 }
 
 func (client *Client) AuthenticateSMS(ctx context.Context, code []byte) (Result, error) {
@@ -138,47 +142,70 @@ func (client *Client) AuthenticateSMS(ctx context.Context, code []byte) (Result,
 	if err != nil {
 		return Result{}, fmt.Errorf("SMS authentication: %w", err)
 	}
-	return resultFromXML(response), nil
+	return client.observe(response), nil
+}
+
+func (client *Client) observe(response authXML) Result {
+	client.rememberSession(response.SessionID)
+	result := resultFromXML(response)
+	client.authenticated = result.Accepted()
+	return result
+}
+
+func (client *Client) rememberSession(id string) {
+	if id == "" {
+		return
+	}
+	clear(client.sessionID)
+	client.sessionID = append(client.sessionID[:0], id...)
 }
 
 func (client *Client) request(ctx context.Context, method, path string, form url.Values) (authXML, error) {
-	parsed, err := url.Parse(path)
-	if err != nil {
-		return authXML{}, fmt.Errorf("parse gateway endpoint: %w", err)
-	}
-	endpoint := client.baseURL.ResolveReference(parsed)
-	var body io.Reader
-	if form != nil {
-		body = strings.NewReader(form.Encode())
-	}
-	request, err := http.NewRequestWithContext(ctx, method, endpoint.String(), body)
+	data, err := requestBytes(ctx, client.http, client.baseURL, method, path, form)
 	if err != nil {
 		return authXML{}, err
-	}
-	if form != nil {
-		request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	}
-	response, err := client.http.Do(request)
-	if err != nil {
-		return authXML{}, err
-	}
-	defer response.Body.Close()
-	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		return authXML{}, fmt.Errorf("unexpected HTTP status %d", response.StatusCode)
-	}
-	limited := io.LimitReader(response.Body, maxResponseBytes+1)
-	data, err := io.ReadAll(limited)
-	if err != nil {
-		return authXML{}, err
-	}
-	if len(data) > maxResponseBytes {
-		return authXML{}, errors.New("gateway response exceeds size limit")
 	}
 	var envelope authXML
 	if err := xml.Unmarshal(data, &envelope); err != nil {
 		return authXML{}, fmt.Errorf("decode gateway XML: %w", err)
 	}
 	return envelope, nil
+}
+
+func requestBytes(ctx context.Context, httpClient *http.Client, baseURL *url.URL, method, path string, form url.Values) ([]byte, error) {
+	parsed, err := url.Parse(path)
+	if err != nil {
+		return nil, fmt.Errorf("parse gateway endpoint: %w", err)
+	}
+	endpoint := baseURL.ResolveReference(parsed)
+	var body io.Reader
+	if form != nil {
+		body = strings.NewReader(form.Encode())
+	}
+	request, err := http.NewRequestWithContext(ctx, method, endpoint.String(), body)
+	if err != nil {
+		return nil, err
+	}
+	if form != nil {
+		request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	}
+	response, err := httpClient.Do(request)
+	if err != nil {
+		return nil, err
+	}
+	defer response.Body.Close()
+	if response.StatusCode < 200 || response.StatusCode >= 300 {
+		return nil, fmt.Errorf("unexpected HTTP status %d", response.StatusCode)
+	}
+	limited := io.LimitReader(response.Body, maxResponseBytes+1)
+	data, err := io.ReadAll(limited)
+	if err != nil {
+		return nil, err
+	}
+	if len(data) > maxResponseBytes {
+		return nil, errors.New("gateway response exceeds size limit")
+	}
+	return data, nil
 }
 
 func encryptPassword(password []byte, csrf, modulusHex, exponentText string) (string, error) {

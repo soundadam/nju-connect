@@ -55,7 +55,7 @@ func TestPasswordAndSMSAuthentication(t *testing.T) {
 		switch request.URL.Path {
 		case "/por/login_auth.csp":
 			http.SetCookie(writer, &http.Cookie{Name: "session", Value: "present", Path: "/"})
-			fmt.Fprintf(writer, "<Auth><ErrorCode>1</ErrorCode><RSA_ENCRYPT_KEY>%s</RSA_ENCRYPT_KEY><RSA_ENCRYPT_EXP>65537</RSA_ENCRYPT_EXP><CSRF_RAND_CODE>%s</CSRF_RAND_CODE></Auth>", privateKey.N.Text(16), csrf)
+			fmt.Fprintf(writer, "<Auth><ErrorCode>1</ErrorCode><TwfID>gateway-session</TwfID><RSA_ENCRYPT_KEY>%s</RSA_ENCRYPT_KEY><RSA_ENCRYPT_EXP>65537</RSA_ENCRYPT_EXP><CSRF_RAND_CODE>%s</CSRF_RAND_CODE></Auth>", privateKey.N.Text(16), csrf)
 		case "/por/login_psw.csp":
 			if cookie, cookieErr := request.Cookie("session"); cookieErr != nil || cookie.Value != "present" {
 				t.Errorf("session cookie missing: %v", cookieErr)
@@ -83,6 +83,12 @@ func TestPasswordAndSMSAuthentication(t *testing.T) {
 				t.Errorf("SMS code = %q", got)
 			}
 			fmt.Fprint(writer, "<Auth><ErrorCode>1</ErrorCode></Auth>")
+		case "/por/conf.csp":
+			assertSessionCookie(t, request)
+			fmt.Fprint(writer, "<Response><Auth/><Conf><Policy/></Conf></Response>")
+		case "/por/rclist.csp":
+			assertSessionCookie(t, request)
+			fmt.Fprint(writer, "<Response><Auth/><Resource><Group/></Resource></Response>")
 		default:
 			http.NotFound(writer, request)
 		}
@@ -109,5 +115,30 @@ func TestPasswordAndSMSAuthentication(t *testing.T) {
 	}
 	if !result.Accepted() {
 		t.Fatalf("SMS result = %+v", result)
+	}
+	session, err := client.TakeSession()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer session.Close()
+	if state := session.State(); state.CookieCount != 1 || !state.HasID {
+		t.Fatalf("session state = %+v", state)
+	}
+	bootstrap, err := session.ProbeBootstrap(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bootstrap.ConfigurationAvailable || !bootstrap.ResourcesAvailable {
+		t.Fatalf("bootstrap = %+v", bootstrap)
+	}
+	if _, err := client.TakeSession(); err != ErrNoAuthenticatedSession {
+		t.Fatalf("second TakeSession error = %v", err)
+	}
+}
+
+func assertSessionCookie(t *testing.T, request *http.Request) {
+	t.Helper()
+	if cookie, err := request.Cookie("session"); err != nil || cookie.Value != "present" {
+		t.Errorf("session cookie missing: %v", err)
 	}
 }

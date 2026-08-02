@@ -71,6 +71,10 @@ easyconnect-probe:
 		"$(CURDIR)/$(EASYCONNECT_WORK)/dependencies" \
 		"$(CURDIR)/$(EASYCONNECT_WORK)/runtime"
 
+.PHONY: easyconnect-stop
+easyconnect-stop:
+	@./dev/easyconnect/stop "$(CURDIR)/$(EASYCONNECT_WORK)/runtime"
+
 .PHONY: clean
 clean:
 	$(GO) clean

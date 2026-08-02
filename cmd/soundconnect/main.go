@@ -117,7 +117,24 @@ func runConnect(arguments []string, stdout, stderr io.Writer) int {
 	}
 	if result.Accepted() {
 		fmt.Fprintln(stdout, "authentication: accepted")
-		fmt.Fprintln(stdout, "connection: not_started")
+		session, sessionErr := client.TakeSession()
+		if sessionErr != nil {
+			fmt.Fprintf(stderr, "retain authenticated session: %v\n", sessionErr)
+			return 1
+		}
+		defer session.Close()
+		fmt.Fprintln(stdout, "session: retained_in_memory")
+		bootstrap, probeErr := session.ProbeBootstrap(context.Background())
+		if probeErr != nil {
+			fmt.Fprintf(stderr, "probe gateway bootstrap: %v\n", probeErr)
+			return 1
+		}
+		if !bootstrap.ConfigurationAvailable || !bootstrap.ResourcesAvailable {
+			fmt.Fprintln(stderr, "probe gateway bootstrap: required configuration or resources are absent")
+			return 1
+		}
+		fmt.Fprintln(stdout, "initialization: gateway_bootstrap_available")
+		fmt.Fprintln(stdout, "dataplane: not_started")
 		return 0
 	}
 	if result.NextService != "" {
