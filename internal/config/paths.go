@@ -2,6 +2,7 @@ package config
 
 import (
 	"errors"
+	"os"
 	"path/filepath"
 )
 
@@ -12,6 +13,15 @@ type Paths struct {
 	Root       string
 	Config     string
 	Credential string
+}
+
+// DefaultPaths resolves development state from the current working directory.
+func DefaultPaths() (Paths, error) {
+	worktree, err := os.Getwd()
+	if err != nil {
+		return Paths{}, err
+	}
+	return LocalPaths(worktree)
 }
 
 // LocalPaths resolves development state beneath worktree without consulting
