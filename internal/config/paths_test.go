@@ -38,3 +38,13 @@ func TestApplicationPathsUseStableFiles(t *testing.T) {
 		t.Fatalf("Credential = %q", paths.Credential)
 	}
 }
+
+func TestDefaultPathsUseUserConfigDirectory(t *testing.T) {
+	paths, err := DefaultPaths()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if filepath.Base(paths.Root) != applicationDirectory {
+		t.Fatalf("Root = %q, want suffix %q", paths.Root, applicationDirectory)
+	}
+}

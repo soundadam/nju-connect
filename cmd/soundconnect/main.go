@@ -323,7 +323,7 @@ func writeUsage(output io.Writer) {
 	fmt.Fprintln(output, `usage: soundconnect <command>
 
 commands:
-  setup      configure the account and long-lived password
+  setup      configure or update the account and long-lived password
   connect    probe attended gateway authentication without starting dataplane
   native-connect
              authenticate and run the native userspace VPN core
