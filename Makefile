@@ -56,6 +56,11 @@ fmt-check:
 .PHONY: check
 check: fmt-check test test-race leak-check
 
+.PHONY: package-macos
+package-macos:
+	@test -n "$(VERSION)" || { echo "VERSION is required (for example: make package-macos VERSION=0.1.0)" >&2; exit 64; }
+	./scripts/package_macos_release.zsh "$(VERSION)"
+
 .PHONY: research-init
 research-init:
 	install -d -m 0700 \

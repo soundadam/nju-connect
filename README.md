@@ -42,3 +42,8 @@ xattr -d com.apple.quarantine /path/to/soundconnect
 
 This is a local testing workaround, not a release installation step. Release
 artifacts should be signed and notarized.
+
+The current Homebrew Cask packages an explicitly labeled macOS design preview
+plus the native universal CLI. Build it with `make package-macos VERSION=X.Y.Z`;
+the public Cask must continue to disclose that the UI is not yet connected to
+the CLI and that ad-hoc signing is not Apple notarization.

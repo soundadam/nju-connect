@@ -30,3 +30,10 @@ swift run
 先看“已连接”，确认主路径；再依次看“首次设置”“等待验证码”“重连中”和“传输失败”。每个状态优先讨论四件事：信息是否太密、用户下一步是否明确、诊断信息是否应该默认展示、按钮/开关是否符合 macOS 习惯。
 
 后续第二阶段再把 `DesignModel` 换成真实的 soundconnect 控制适配层，并保留这里已经确认的视觉结构。
+
+## Homebrew 预览包
+
+仓库根目录的 `scripts/package_macos_release.zsh` 会生成包含菜单栏 App 和
+通用架构 CLI 的 Cask ZIP。当前只允许按“设计预览”发布：UI 仍使用模拟状态，
+未接入 CLI；产物使用 ad-hoc 签名且未经过 Apple notarization。Cask 和 Release
+说明必须保留这三个边界，不能把可构建或可安装表述为生产可用。

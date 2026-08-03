@@ -1,0 +1,37 @@
+# frozen_string_literal: true
+
+cask "soundconnect" do
+  version "__VERSION__"
+  sha256 "__SHA256__"
+
+  url "https://github.com/soundadam/homebrew-dist/releases/download/soundconnect-v#{version}/soundconnect-#{version}-macos-universal.zip"
+  name "soundconnect"
+  desc "Design-preview menu-bar client and native campus-connectivity CLI"
+  homepage "https://github.com/soundadam/homebrew-dist/releases/tag/soundconnect-v#{version}"
+
+  depends_on macos: :ventura
+
+  app "soundconnect.app"
+  binary "#{appdir}/soundconnect.app/Contents/Helpers/soundconnect"
+
+  uninstall quit: "io.github.soundadam.soundconnect.menu"
+
+  zap trash: [
+    "~/Library/Application Support/soundconnect",
+    "~/Library/Caches/io.github.soundadam.soundconnect.menu",
+    "~/Library/Preferences/io.github.soundadam.soundconnect.menu.plist",
+  ]
+
+  caveats <<~EOS
+    This cask is an ad-hoc signed, non-notarized preview from the maintainer's
+    personal tap. Homebrew preserves quarantine and this cask does not bypass
+    Gatekeeper. The menu-bar UI is currently a design preview and is not wired
+    to the bundled native CLI; its displayed connection state is simulated.
+
+    The source repository is private and the bundled software is proprietary.
+    Public availability of the archive does not grant a license: install or use
+    it only with explicit authorization from the copyright holder. Review the
+    immutable Release, SHA-256, build manifest, notices, and security state
+    before making a local macOS security decision.
+  EOS
+end
