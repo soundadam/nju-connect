@@ -3,7 +3,6 @@
 package setup
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 
@@ -12,8 +11,6 @@ import (
 )
 
 type SecretReader func(prompt string) ([]byte, error)
-
-var ErrPasswordMismatch = errors.New("password confirmation does not match")
 
 func Save(paths config.Paths, configured config.Config, store credential.Store, read SecretReader) error {
 	if read == nil {
@@ -31,14 +28,6 @@ func Save(paths config.Paths, configured config.Config, store credential.Store, 
 		return fmt.Errorf("read password: %w", err)
 	}
 	defer credential.Clear(password)
-	confirmation, err := read("soundconnect password (again): ")
-	if err != nil {
-		return fmt.Errorf("read password confirmation: %w", err)
-	}
-	defer credential.Clear(confirmation)
-	if !bytes.Equal(password, confirmation) {
-		return ErrPasswordMismatch
-	}
 
 	if err := config.Replace(paths.Config, configured); err != nil {
 		return err

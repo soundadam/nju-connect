@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -73,6 +74,57 @@ func TestUnknownCommand(t *testing.T) {
 		t.Fatalf("stdout = %q", stdout.String())
 	}
 	if !strings.Contains(stderr.String(), `unknown command "unknown"`) {
+		t.Fatalf("stderr = %q", stderr.String())
+	}
+}
+
+func TestDefaultAndConnectDispatchToRuntimeWhileDryRunStaysExplicit(t *testing.T) {
+	previousConnect := connectCommand
+	previousDryRun := dryRunCommand
+	t.Cleanup(func() {
+		connectCommand = previousConnect
+		dryRunCommand = previousDryRun
+	})
+
+	connectCalls := 0
+	dryRunCalls := 0
+	connectCommand = func(arguments []string, _, _ io.Writer) int {
+		connectCalls++
+		if len(arguments) != 0 {
+			t.Fatalf("connect arguments = %v", arguments)
+		}
+		return 17
+	}
+	dryRunCommand = func(arguments []string, _, _ io.Writer) int {
+		dryRunCalls++
+		if len(arguments) != 0 {
+			t.Fatalf("dry-run arguments = %v", arguments)
+		}
+		return 23
+	}
+
+	var output bytes.Buffer
+	if code := run(nil, &output, &output); code != 17 {
+		t.Fatalf("run(default) = %d", code)
+	}
+	if code := run([]string{"connect"}, &output, &output); code != 17 {
+		t.Fatalf("run(connect) = %d", code)
+	}
+	if code := run([]string{"dry-run"}, &output, &output); code != 23 {
+		t.Fatalf("run(dry-run) = %d", code)
+	}
+	if connectCalls != 2 || dryRunCalls != 1 {
+		t.Fatalf("connect calls = %d, dry-run calls = %d", connectCalls, dryRunCalls)
+	}
+}
+
+func TestNativeConnectCommandWasReplaced(t *testing.T) {
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	if code := run([]string{"native-connect"}, &stdout, &stderr); code != 2 {
+		t.Fatalf("run(native-connect) = %d", code)
+	}
+	if !strings.Contains(stderr.String(), `unknown command "native-connect"`) {
 		t.Fatalf("stderr = %q", stderr.String())
 	}
 }

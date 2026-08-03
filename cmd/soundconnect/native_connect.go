@@ -51,14 +51,14 @@ func runNativeConnectContext(
 	newSession nativeSessionFactory,
 	startBackground nativeBackgroundStarter,
 ) int {
-	flags := flag.NewFlagSet("native-connect", flag.ContinueOnError)
+	flags := flag.NewFlagSet("connect", flag.ContinueOnError)
 	flags.SetOutput(stderr)
 	background := flags.Bool("background", false, "continue the native runtime as a detached process after authentication")
 	if err := flags.Parse(arguments); err != nil {
 		return 2
 	}
 	if flags.NArg() != 0 {
-		fmt.Fprintln(stderr, "native-connect accepts no positional arguments")
+		fmt.Fprintln(stderr, "connect accepts no positional arguments")
 		return 2
 	}
 	if !*background && newSession == nil {
@@ -172,7 +172,7 @@ func reportNativeRunResult(ctx context.Context, err error, stderr io.Writer) int
 		return 0
 	}
 	if errors.Is(err, runtime.ErrRenewalRequired) {
-		fmt.Fprintln(stderr, "renewal_required: run native-connect again to reauthenticate")
+		fmt.Fprintln(stderr, "renewal_required: run connect again to reauthenticate")
 		return 1
 	}
 	var failure *runtime.TransportFailure

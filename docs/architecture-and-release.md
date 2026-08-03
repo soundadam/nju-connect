@@ -123,7 +123,7 @@ state on every return path, clears partial input, and exits before a native
 runtime is created. The long-lived password and MFA code are never transferred
 to a background process.
 
-On Linux and macOS, \`native-connect --background\` performs authentication and
+On Linux and macOS, \`connect --background\` performs authentication and
 bootstrap in the foreground, then starts a detached copy of soundconnect for
 the native runtime. The parent transfers only \`Config\`, \`DataplanePlan\`, the
 typed 48-byte \`NativeGatewayToken\`, and the selected profile through an

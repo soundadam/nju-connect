@@ -81,7 +81,7 @@ func TestNativeConnectWiresAuthenticatedSessionWithoutLeakingMaterial(t *testing
 	var stderr bytes.Buffer
 	code := runNativeConnectContext(ctx, nil, &stdout, &stderr, factory, nil)
 	if code != 0 {
-		t.Fatalf("native-connect exit = %d, stderr = %q", code, stderr.String())
+		t.Fatalf("connect exit = %d, stderr = %q", code, stderr.String())
 	}
 	if !application.closed {
 		t.Fatal("native application session was not closed")
@@ -213,7 +213,7 @@ func TestNativeConnectReturnsActionableRenewalWithoutReauthentication(t *testing
 	var stderr bytes.Buffer
 	code := reportNativeRunResult(context.Background(),
 		&runtime.RenewalRequired{Reason: runtime.RenewalGatewayRejected}, &stderr)
-	if code != 1 || stderr.String() != "renewal_required: run native-connect again to reauthenticate\n" {
+	if code != 1 || stderr.String() != "renewal_required: run connect again to reauthenticate\n" {
 		t.Fatalf("exit=%d stderr=%q", code, stderr.String())
 	}
 }

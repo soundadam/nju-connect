@@ -19,6 +19,10 @@ soundconnect migrate --from /path/to/old/soundconnect-worktree
 The migration verifies and copies the old state and preserves the source for
 manual rollback or deletion after verification.
 
+Running `soundconnect` with no command is equivalent to `soundconnect connect`
+and starts the native userspace runtime. Use `soundconnect dry-run` to validate
+authentication and the gateway handoff without starting the dataplane.
+
 ## CLI release packaging
 
 From a clean worktree, package the two supported macOS CLI architectures with

@@ -24,14 +24,18 @@ import (
 
 var version = "dev"
 
+var (
+	connectCommand = runNativeConnect
+	dryRunCommand  = runDryRun
+)
+
 func main() {
 	os.Exit(run(os.Args[1:], os.Stdout, os.Stderr))
 }
 
 func run(arguments []string, stdout, stderr io.Writer) int {
 	if len(arguments) == 0 {
-		writeUsage(stdout)
-		return 0
+		return connectCommand(nil, stdout, stderr)
 	}
 
 	switch arguments[0] {
@@ -48,9 +52,9 @@ func run(arguments []string, stdout, stderr io.Writer) int {
 	case "doctor":
 		return runDoctor(arguments[1:], stdout, stderr)
 	case "connect":
-		return runConnect(arguments[1:], stdout, stderr)
-	case "native-connect":
-		return runNativeConnect(arguments[1:], stdout, stderr)
+		return connectCommand(arguments[1:], stdout, stderr)
+	case "dry-run":
+		return dryRunCommand(arguments[1:], stdout, stderr)
 	case "_native-runtime":
 		return runNativeRuntimeChild(arguments[1:], stdout, stderr)
 	case "status", "observe":
@@ -99,14 +103,14 @@ func runMigrate(arguments []string, stdout, stderr io.Writer) int {
 	return 0
 }
 
-func runConnect(arguments []string, stdout, stderr io.Writer) int {
-	flags := flag.NewFlagSet("connect", flag.ContinueOnError)
+func runDryRun(arguments []string, stdout, stderr io.Writer) int {
+	flags := flag.NewFlagSet("dry-run", flag.ContinueOnError)
 	flags.SetOutput(stderr)
 	if err := flags.Parse(arguments); err != nil {
 		return 2
 	}
 	if flags.NArg() != 0 {
-		fmt.Fprintln(stderr, "connect accepts no positional arguments")
+		fmt.Fprintln(stderr, "dry-run accepts no positional arguments")
 		return 2
 	}
 	paths, err := commandPaths()
@@ -437,16 +441,17 @@ func runDoctor(arguments []string, stdout, stderr io.Writer) int {
 }
 
 func writeUsage(output io.Writer) {
-	fmt.Fprintln(output, `usage: soundconnect <command>
+	fmt.Fprintln(output, `usage: soundconnect [command]
+
+With no command, soundconnect runs connect.
 
 commands:
   setup      configure or update the account and long-lived password
   migrate    import pre-release worktree configuration and credential state
-  connect    probe attended gateway authentication without starting dataplane
-  native-connect
-             authenticate and run the native userspace VPN core
+  connect    authenticate and run the native userspace VPN core (default)
+  dry-run    authenticate and validate gateway handoff without starting dataplane
   status     print sanitized runtime status
-	  doctor     inspect the local soundconnect configuration
+  doctor     inspect the local soundconnect configuration
   observe    record a sanitized behavior timeline
   version    print build identity`)
 }
