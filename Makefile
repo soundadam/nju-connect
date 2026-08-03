@@ -8,6 +8,9 @@ EASYCONNECT_LOCK := $(RESEARCH_ROOT)/lock.json
 PACKAGE ?= $(firstword $(wildcard $(EASYCONNECT_UPSTREAM)/package/*.deb))
 EASYCONNECT_DEPENDENCY ?= $(firstword $(wildcard $(EASYCONNECT_UPSTREAM)/dependencies/*.deb))
 RESOLVE_IP ?=
+BENCHTIME ?= 250ms
+BENCHCOUNT ?= 5
+LEAKCOUNT ?= 10
 
 .PHONY: build
 build:
@@ -22,6 +25,14 @@ test:
 test-race:
 	$(GO) test -race ./...
 
+.PHONY: bench
+bench:
+	$(GO) test ./internal/runtime ./internal/nativeapp -run '^$$' -bench . -benchmem -benchtime=$(BENCHTIME) -count=$(BENCHCOUNT)
+
+.PHONY: leak-check
+leak-check:
+	$(GO) test ./internal/runtime -run '^Test(NativeSessionOwnsAndJoinsCompleteRuntime|CohortJoinsPeerBeforeOpeningNextGeneration|OwnerWatchdogRenewsOnceAndJoinsAllWorkers|UserspaceRejectsInvalidInboundAndCloseUnblocksOutbound)$$' -count=$(LEAKCOUNT)
+
 .PHONY: fmt
 fmt:
 	gofmt -w $$(find cmd internal -type f -name '*.go' -print)
@@ -31,7 +42,7 @@ fmt-check:
 	@test -z "$$(gofmt -l $$(find cmd internal -type f -name '*.go' -print))"
 
 .PHONY: check
-check: fmt-check test test-race
+check: fmt-check test test-race leak-check
 
 .PHONY: dev-init
 dev-init:
