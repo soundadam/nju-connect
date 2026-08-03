@@ -71,9 +71,10 @@ func (decoder *IPv4Decoder) Feed(data []byte, emit func([]byte) error) error {
 	}
 	if len(decoder.pending) == 0 {
 		decoder.pending = nil
-	} else {
-		decoder.pending = append([]byte(nil), decoder.pending...)
 	}
+	// The pending slice is always backed by decoder-owned storage because Feed
+	// appends into it. Keep the bounded backing array for a short IPv4 header
+	// tail instead of allocating and copying that tail on every read boundary.
 	return nil
 }
 
