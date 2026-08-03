@@ -154,20 +154,17 @@ func TestNativeConnectPreflightsUpstreamBeforeReadingCredential(t *testing.T) {
 	}
 }
 
-func TestNativeConnectRejectsUnknownProfileBeforeSessionConstruction(t *testing.T) {
+func TestNativeConnectRejectsDevelopmentOnlyProfileFlag(t *testing.T) {
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 	called := false
-	code := runNativeConnectContext(context.Background(), []string{"--native-profile", "secret-unknown-profile"}, &stdout, &stderr,
+	code := runNativeConnectContext(context.Background(), []string{"--native-profile", "community-utls"}, &stdout, &stderr,
 		func(nativeapp.SessionConfig) (nativeApplicationSession, error) {
 			called = true
 			return nil, nil
 		})
-	if code != 2 || called || stderr.String() != "native profile: unsupported native profile\n" {
+	if code != 2 || called || !strings.Contains(stderr.String(), "flag provided but not defined: -native-profile") {
 		t.Fatalf("exit=%d called=%t stderr=%q", code, called, stderr.String())
-	}
-	if strings.Contains(stderr.String(), "secret-unknown-profile") {
-		t.Fatalf("unknown profile was echoed: %q", stderr.String())
 	}
 }
 

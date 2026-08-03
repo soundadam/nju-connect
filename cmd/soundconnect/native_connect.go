@@ -51,9 +51,6 @@ func runNativeConnectContext(
 	flags := flag.NewFlagSet("native-connect", flag.ContinueOnError)
 	flags.SetOutput(stderr)
 	worktree := flags.String("worktree", "", "development-only worktree override (default: user config)")
-	resolveIP := flags.String("resolve-ip", "", "development-only numeric gateway address override")
-	accessProbeURL := flags.String("access-probe-url", "", "disclosed campus HTTP(S) URL used for HEAD evidence")
-	nativeProfile := flags.String("native-profile", string(runtime.ProfileCommunityUTLSCompat), "native wire profile: community-utls or easyconnect-7.6.7")
 	if err := flags.Parse(arguments); err != nil {
 		return 2
 	}
@@ -65,12 +62,6 @@ func runNativeConnectContext(
 		fmt.Fprintln(stderr, "prepare native runtime: session factory is unavailable")
 		return 1
 	}
-	profileID, err := runtime.ParseProtocolProfileID(*nativeProfile)
-	if err != nil {
-		fmt.Fprintf(stderr, "native profile: %v\n", err)
-		return 2
-	}
-
 	paths, err := commandPaths(*worktree)
 	if err != nil {
 		fmt.Fprintf(stderr, "resolve local state: %v\n", err)
@@ -102,7 +93,7 @@ func runNativeConnectContext(
 	}
 	session, err := func() (*gatewayauth.Session, error) {
 		defer credential.Clear(password)
-		return authenticateAttendedGateway(ctx, configured, *resolveIP, password, func() ([]byte, error) {
+		return authenticateAttendedGateway(ctx, configured, password, func() ([]byte, error) {
 			return promptVerificationCode(os.Stdin, stderr)
 		})
 	}()
@@ -132,9 +123,7 @@ func runNativeConnectContext(
 			Settings:           configured,
 			Plan:               plan,
 			NativeGatewayToken: token,
-			NativeProfile:      profileID,
-			ResolveGatewayIP:   *resolveIP,
-			AccessProbeURL:     *accessProbeURL,
+			NativeProfile:      runtime.ProfileCommunityUTLSCompat,
 			Observer:           nativeCLIObserver(stdout),
 		})
 		return buildErr
@@ -177,13 +166,11 @@ func reportNativeRunResult(ctx context.Context, err error, stderr io.Writer) int
 func authenticateAttendedGateway(
 	ctx context.Context,
 	configured config.Config,
-	resolveIP string,
 	password []byte,
 	readVerificationCode func() ([]byte, error),
 ) (*gatewayauth.Session, error) {
 	client, err := gatewayauth.New(gatewayauth.Options{
 		Server:        configured.Server,
-		ResolveIP:     resolveIP,
 		TLSInsecure:   configured.TLSInsecure,
 		UpstreamProxy: configured.UpstreamProxy,
 		Timeout:       30 * time.Second,
