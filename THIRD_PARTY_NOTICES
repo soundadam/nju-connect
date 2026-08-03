@@ -1,0 +1,83 @@
+soundconnect third-party notices
+================================
+
+soundconnect is proprietary software. This notice applies only to third-party
+components linked into the soundconnect command binary. The proprietary
+LICENSE does not replace, restrict, or grant rights under these licenses.
+
+The versions below are pinned by go.mod/go.sum and were verified against
+'go list -deps ./cmd/soundconnect' and 'go version -m bin/soundconnect' on
+2026-08-03. “Indirect” means the module is linked transitively; it is still
+covered by the binary distribution notice.
+
+Component                                      Version                                      Link-time use  License
+---------------------------------------------- -------------------------------------------- --------------  -------------------------------
+github.com/andybalholm/brotli                  v1.0.6                                       indirect       MIT-style
+github.com/google/btree                         v1.1.2                                       indirect       Apache-2.0
+github.com/klauspost/compress                   v1.17.4                                      indirect       BSD-style plus component notices
+github.com/pelletier/go-toml/v2                v2.4.3                                       direct         MIT
+github.com/refraction-networking/utls          v1.8.2                                       direct         BSD-style; dicttls is BSD-3-Clause
+github.com/sagernet/gvisor                     v0.0.0-20250811-sing-box-mod.1              direct         Apache-2.0 plus embedded MIT/BSD notices
+golang.org/x/crypto                             v0.54.0                                      indirect       Go BSD-style
+golang.org/x/net                                v0.57.0                                      direct         Go BSD-style
+golang.org/x/sys                                v0.47.0                                      indirect       Go BSD-style
+golang.org/x/term                               v0.45.0                                      direct         Go BSD-style
+golang.org/x/time                               v0.7.0                                       indirect       Go BSD-style
+
+Required release obligations
+----------------------------
+
+1. MIT-style components require retaining the copyright, permission, and
+   disclaimer text.
+2. BSD-style components require reproducing the copyright, conditions, and
+   disclaimer text in binary-distribution documentation, and prohibit using
+   contributor names for endorsement without permission.
+3. Apache-2.0 components require providing the Apache License, retaining
+   copyright and attribution notices, reproducing any applicable NOTICE text,
+   and marking modified files. No root NOTICE or COPYING file was present in
+   the pinned module roots audited here, and soundconnect made no changes to
+   those modules.
+4. The root LICENSE files for klauspost/compress and sagernet/gvisor contain
+   additional component-specific MIT/BSD/Apache blocks. Their complete
+   upstream LICENSE files, not only this index, must be retained.
+5. The release bundle must include the unchanged upstream license texts listed
+   below in its documentation directory or equivalent “about licenses” view.
+   This compact index records provenance and obligations; it is not a waiver
+   of the text-reproduction requirements.
+
+Pinned license-file inventory
+-----------------------------
+
+The audit found these files in the exact pinned module roots:
+
+* github.com/andybalholm/brotli: LICENSE
+* github.com/google/btree: LICENSE
+* github.com/klauspost/compress: LICENSE
+* github.com/pelletier/go-toml/v2: LICENSE
+* github.com/refraction-networking/utls: LICENSE and dicttls/LICENSE
+* github.com/sagernet/gvisor: LICENSE
+* golang.org/x/crypto, x/net, x/sys, x/term, x/time: LICENSE
+
+The release packager should copy these files verbatim, preserving their
+copyright and disclaimer text. Do not place research/upstream or research/work
+vendor trees in the product or git history.
+
+Source and license references
+-----------------------------
+
+* brotli v1.0.6: https://github.com/andybalholm/brotli/blob/v1.0.6/LICENSE
+* btree v1.1.2: https://github.com/google/btree/blob/v1.1.2/LICENSE
+* compress v1.17.4: https://github.com/klauspost/compress/blob/v1.17.4/LICENSE
+* go-toml/v2 v2.4.3: https://github.com/pelletier/go-toml/blob/v2.4.3/LICENSE
+* utls v1.8.2: https://github.com/refraction-networking/utls/blob/v1.8.2/LICENSE
+* utls dicttls: https://github.com/refraction-networking/utls/tree/v1.8.2/dicttls
+* sagernet/gvisor pinned module metadata and license: https://pkg.go.dev/github.com/sagernet/gvisor@v0.0.0-20250811-sing-box-mod.1
+* x/crypto v0.54.0: https://github.com/golang/crypto/blob/v0.54.0/LICENSE
+* x/net v0.57.0: https://github.com/golang/net/blob/v0.57.0/LICENSE
+* x/sys v0.47.0: https://github.com/golang/sys/blob/v0.47.0/LICENSE
+* x/term v0.45.0: https://github.com/golang/term/blob/v0.45.0/LICENSE
+* x/time v0.7.0: https://github.com/golang/time/blob/v0.7.0/LICENSE
+
+'golang.org/x/text v0.40.0' is present in the module graph but is not linked
+by 'cmd/soundconnect' at this revision, so it is not included above. Re-run
+the link-time audit and update this file whenever imports or build tags change.
