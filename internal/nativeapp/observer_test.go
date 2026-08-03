@@ -36,6 +36,7 @@ func TestObserverAllowsOnlyNamedStateAndLoopbackListener(t *testing.T) {
 	observer.commandFailure(runtime.CommandFailure{Attempt: 2, Stage: runtime.StageSendIPReadFailed, At: fixedNow})
 	observer.commandFailure(runtime.CommandFailure{Attempt: 3, Stage: runtime.FailureStage("gateway-reply-secret"), At: fixedNow})
 	observer.dataFailure(runtime.StageRXHandshakeFailed)
+	observer.dataFailure(runtime.StageRXInvalidIPv4)
 	observer.dataFailure(runtime.FailureStage("gateway-reply-secret"))
 	observer.listen(testAddress("127.0.0.1:1081"))
 	observer.listen(testAddress("10.0.0.1:1081"))
@@ -47,7 +48,7 @@ func TestObserverAllowsOnlyNamedStateAndLoopbackListener(t *testing.T) {
 	if len(commandFailures) != 1 || commandFailures[0] != wantFailure {
 		t.Fatalf("command failures = %v", commandFailures)
 	}
-	if len(dataFailures) != 1 || dataFailures[0] != DataRXHandshakeFailed {
+	if len(dataFailures) != 2 || dataFailures[0] != DataRXHandshakeFailed || dataFailures[1] != DataRXInvalidIPv4 {
 		t.Fatalf("data failures = %v", dataFailures)
 	}
 	if len(listeners) != 1 || listeners[0] != "127.0.0.1:1081" {

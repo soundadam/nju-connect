@@ -138,6 +138,23 @@ func TestCohortPropagatesRenewalWithoutRetry(t *testing.T) {
 	}
 }
 
+func TestCohortFailureStagesAreDirectionSpecificAndSanitized(t *testing.T) {
+	for name, test := range map[string]struct {
+		err  error
+		want FailureStage
+	}{
+		"rx closed":  {err: &cohortBreak{kind: StreamRX, err: errors.New("secret reply")}, want: StageRXStreamClosed},
+		"rx invalid": {err: &cohortBreak{kind: StreamRX, err: ErrInvalidIPv4Packet}, want: StageRXInvalidIPv4},
+		"tx closed":  {err: &cohortBreak{kind: StreamTX, err: errors.New("secret packet")}, want: StageTXStreamClosed},
+	} {
+		t.Run(name, func(t *testing.T) {
+			if got := cohortFailureStage(test.err); got != test.want {
+				t.Fatalf("stage = %q, want %q", got, test.want)
+			}
+		})
+	}
+}
+
 func TestCohortStableWindowStartsAfterGenerationOpens(t *testing.T) {
 	stop := errors.New("stop test")
 	now := time.Unix(1000, 0)

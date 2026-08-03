@@ -30,6 +30,7 @@ type CohortConfig struct {
 	StableFor      time.Duration
 	Wait           WaitFunc
 	Now            func() time.Time
+	OnFailure      func(FailureStage)
 }
 
 type CohortSupervisor struct {
@@ -73,6 +74,9 @@ func (supervisor *CohortSupervisor) Run(ctx context.Context, report func(Compone
 				report(ComponentRX, false)
 				report(ComponentTX, false)
 			})
+			if ctx.Err() == nil && supervisor.config.OnFailure != nil {
+				supervisor.config.OnFailure(cohortFailureStage(err))
+			}
 		}
 		if errors.Is(err, ErrGatewayRejected) {
 			return &RenewalRequired{Reason: RenewalGatewayRejected}
@@ -92,6 +96,33 @@ func (supervisor *CohortSupervisor) Run(ctx context.Context, report func(Compone
 	}
 }
 
+type cohortWorkerResult struct {
+	kind StreamKind
+	err  error
+}
+
+type cohortBreak struct {
+	kind StreamKind
+	err  error
+}
+
+func (failure *cohortBreak) Error() string { return "data stream generation stopped" }
+func (failure *cohortBreak) Unwrap() error { return failure.err }
+
+func cohortFailureStage(err error) FailureStage {
+	var failure *cohortBreak
+	if !errors.As(err, &failure) || failure == nil {
+		return StageRXStreamClosed
+	}
+	if failure.kind == StreamTX {
+		return StageTXStreamClosed
+	}
+	if errors.Is(failure.err, ErrInvalidIPv4Packet) {
+		return StageRXInvalidIPv4
+	}
+	return StageRXStreamClosed
+}
+
 func (supervisor *CohortSupervisor) open(ctx context.Context) (StreamWorker, StreamWorker, error) {
 	rx, err := supervisor.config.Factory.Open(ctx, StreamRX)
 	if err != nil {
@@ -108,23 +139,23 @@ func (supervisor *CohortSupervisor) open(ctx context.Context) (StreamWorker, Str
 func runCohort(ctx context.Context, rx, tx StreamWorker, onBreak func()) error {
 	generation, cancel := context.WithCancel(ctx)
 	defer cancel()
-	results := make(chan error, 2)
+	results := make(chan cohortWorkerResult, 2)
 	var workers sync.WaitGroup
 	workers.Add(2)
-	start := func(worker StreamWorker) {
+	start := func(kind StreamKind, worker StreamWorker) {
 		defer workers.Done()
-		results <- worker.Run(generation)
+		results <- cohortWorkerResult{kind: kind, err: worker.Run(generation)}
 	}
-	go start(rx)
-	go start(tx)
+	go start(StreamRX, rx)
+	go start(StreamTX, tx)
 
-	var first error
+	var first cohortWorkerResult
 	received := 0
 	select {
 	case first = <-results:
 		received = 1
 	case <-ctx.Done():
-		first = ctx.Err()
+		first = cohortWorkerResult{err: ctx.Err()}
 	}
 	if onBreak != nil {
 		onBreak()
@@ -132,15 +163,15 @@ func runCohort(ctx context.Context, rx, tx StreamWorker, onBreak func()) error {
 	cancel()
 	_ = rx.Close()
 	_ = tx.Close()
-	rejected := errors.Is(first, ErrGatewayRejected)
+	rejected := errors.Is(first.err, ErrGatewayRejected)
 	for received < 2 {
 		result := <-results
-		rejected = rejected || errors.Is(result, ErrGatewayRejected)
+		rejected = rejected || errors.Is(result.err, ErrGatewayRejected)
 		received++
 	}
 	workers.Wait()
 	if rejected {
 		return ErrGatewayRejected
 	}
-	return first
+	return &cohortBreak{kind: first.kind, err: first.err}
 }

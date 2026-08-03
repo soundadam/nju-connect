@@ -249,6 +249,7 @@ func (session *NativeSession) initialize(identity CommandIdentity) error {
 			MaximumBackoff: session.config.ReconnectMaximumBackoff,
 			StableFor:      session.config.StableFor,
 			Now:            session.config.Now,
+			OnFailure:      session.config.OnDataFailure,
 		})
 		if err != nil {
 			_ = userspace.Close()

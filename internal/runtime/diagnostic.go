@@ -19,6 +19,9 @@ const (
 	StageSendIPRejected               FailureStage = "send_ip_rejected"
 	StageRXHandshakeFailed            FailureStage = "rx_handshake_failed"
 	StageTXHandshakeFailed            FailureStage = "tx_handshake_failed"
+	StageRXStreamClosed               FailureStage = "rx_stream_closed"
+	StageRXInvalidIPv4                FailureStage = "rx_invalid_ipv4"
+	StageTXStreamClosed               FailureStage = "tx_stream_closed"
 )
 
 // CommandFailure is safe to publish to CLI and UI observers. Attempt is
@@ -76,7 +79,10 @@ func validFailureStage(stage FailureStage) bool {
 		StageSendIPReadFailed,
 		StageSendIPRejected,
 		StageRXHandshakeFailed,
-		StageTXHandshakeFailed:
+		StageTXHandshakeFailed,
+		StageRXStreamClosed,
+		StageRXInvalidIPv4,
+		StageTXStreamClosed:
 		return true
 	default:
 		return false

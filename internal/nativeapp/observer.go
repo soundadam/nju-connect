@@ -42,6 +42,9 @@ type DataFailureStage string
 const (
 	DataRXHandshakeFailed DataFailureStage = DataFailureStage(runtime.StageRXHandshakeFailed)
 	DataTXHandshakeFailed DataFailureStage = DataFailureStage(runtime.StageTXHandshakeFailed)
+	DataRXStreamClosed    DataFailureStage = DataFailureStage(runtime.StageRXStreamClosed)
+	DataRXInvalidIPv4     DataFailureStage = DataFailureStage(runtime.StageRXInvalidIPv4)
+	DataTXStreamClosed    DataFailureStage = DataFailureStage(runtime.StageTXStreamClosed)
 )
 
 // TrafficSnapshot is deliberately limited to application payload and SOCKS
@@ -237,13 +240,20 @@ func sanitizedDataFailureStage(stage runtime.FailureStage) (DataFailureStage, bo
 		return DataRXHandshakeFailed, true
 	case runtime.StageTXHandshakeFailed:
 		return DataTXHandshakeFailed, true
+	case runtime.StageRXStreamClosed:
+		return DataRXStreamClosed, true
+	case runtime.StageRXInvalidIPv4:
+		return DataRXInvalidIPv4, true
+	case runtime.StageTXStreamClosed:
+		return DataTXStreamClosed, true
 	default:
 		return "", false
 	}
 }
 
 func validDataFailureStage(stage DataFailureStage) bool {
-	return stage == DataRXHandshakeFailed || stage == DataTXHandshakeFailed
+	return stage == DataRXHandshakeFailed || stage == DataTXHandshakeFailed ||
+		stage == DataRXStreamClosed || stage == DataRXInvalidIPv4 || stage == DataTXStreamClosed
 }
 
 func sanitizedLoopbackAddress(address net.Addr) (string, bool) {
