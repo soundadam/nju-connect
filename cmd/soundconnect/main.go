@@ -63,7 +63,7 @@ func run(arguments []string, stdout, stderr io.Writer) int {
 func runConnect(arguments []string, stdout, stderr io.Writer) int {
 	flags := flag.NewFlagSet("connect", flag.ContinueOnError)
 	flags.SetOutput(stderr)
-	worktree := flags.String("worktree", ".", "soundconnect working tree")
+	worktree := flags.String("worktree", "", "development-only worktree override (default: user config)")
 	resolveIP := flags.String("resolve-ip", "", "development-only numeric gateway address override")
 	agentControlPort := flags.Int("agent-control-port", 0, "development-only ECAgent NotStartService probe port")
 	agentCAPath := flags.String("agent-ca", "", "development-only ECAgent CA certificate")
@@ -74,7 +74,7 @@ func runConnect(arguments []string, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stderr, "connect accepts no positional arguments")
 		return 2
 	}
-	paths, err := config.LocalPaths(*worktree)
+	paths, err := commandPaths(*worktree)
 	if err != nil {
 		fmt.Fprintf(stderr, "resolve local state: %v\n", err)
 		return 1
@@ -215,7 +215,7 @@ func promptVerificationCode(input *os.File, output io.Writer) ([]byte, error) {
 func runSetup(arguments []string, stdout, stderr io.Writer) int {
 	flags := flag.NewFlagSet("setup", flag.ContinueOnError)
 	flags.SetOutput(stderr)
-	worktree := flags.String("worktree", ".", "soundconnect working tree")
+	worktree := flags.String("worktree", "", "development-only worktree override (default: user config)")
 	server := flags.String("server", "", "campus VPN gateway host or host:port")
 	username := flags.String("username", "", "campus account")
 	socksListen := flags.String("socks-listen", config.DefaultSOCKSListen, "numeric loopback SOCKS5 listener")
@@ -231,7 +231,7 @@ func runSetup(arguments []string, stdout, stderr io.Writer) int {
 	}
 	lineReader := bufio.NewReader(os.Stdin)
 	if strings.TrimSpace(*server) == "" {
-		value, err := promptLine(lineReader, stderr, "Gateway: ")
+		value, err := promptLineDefault(lineReader, stderr, "Gateway", config.DefaultServer)
 		if err != nil {
 			fmt.Fprintf(stderr, "read gateway: %v\n", err)
 			return 1
@@ -246,7 +246,7 @@ func runSetup(arguments []string, stdout, stderr io.Writer) int {
 		}
 		*username = value
 	}
-	paths, err := config.LocalPaths(*worktree)
+	paths, err := commandPaths(*worktree)
 	if err != nil {
 		fmt.Fprintf(stderr, "resolve local state: %v\n", err)
 		return 1
@@ -287,10 +287,35 @@ func promptLine(input *bufio.Reader, output io.Writer, prompt string) (string, e
 	return value, nil
 }
 
+func promptLineDefault(input *bufio.Reader, output io.Writer, label, defaultValue string) (string, error) {
+	if strings.TrimSpace(defaultValue) == "" {
+		return "", errors.New("prompt default is empty")
+	}
+	value, err := promptLineAllowEmpty(input, output, fmt.Sprintf("%s [%s]: ", label, defaultValue))
+	if err != nil {
+		return "", err
+	}
+	if value == "" {
+		return defaultValue, nil
+	}
+	return value, nil
+}
+
+func promptLineAllowEmpty(input *bufio.Reader, output io.Writer, prompt string) (string, error) {
+	if _, err := io.WriteString(output, prompt); err != nil {
+		return "", err
+	}
+	value, err := input.ReadString('\n')
+	if err != nil && err != io.EOF {
+		return "", err
+	}
+	return strings.TrimSpace(value), nil
+}
+
 func runDoctor(arguments []string, stdout, stderr io.Writer) int {
 	flags := flag.NewFlagSet("doctor", flag.ContinueOnError)
 	flags.SetOutput(stderr)
-	worktree := flags.String("worktree", ".", "soundconnect working tree")
+	worktree := flags.String("worktree", "", "development-only worktree override (default: user config)")
 	asJSON := flags.Bool("json", false, "print JSON")
 	if err := flags.Parse(arguments); err != nil {
 		return 2
@@ -299,7 +324,7 @@ func runDoctor(arguments []string, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stderr, "doctor accepts no positional arguments")
 		return 2
 	}
-	paths, err := config.LocalPaths(*worktree)
+	paths, err := commandPaths(*worktree)
 	if err != nil {
 		fmt.Fprintf(stderr, "resolve local state: %v\n", err)
 		return 1

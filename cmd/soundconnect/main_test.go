@@ -43,6 +43,20 @@ func TestPromptLineRejectsEmptyInput(t *testing.T) {
 	}
 }
 
+func TestPromptLineDefaultAcceptsEmptyInput(t *testing.T) {
+	var output bytes.Buffer
+	value, err := promptLineDefault(bufio.NewReader(strings.NewReader("\n")), &output, "Gateway", "vpn.nju.edu.cn")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if value != "vpn.nju.edu.cn" {
+		t.Fatalf("value = %q", value)
+	}
+	if output.String() != "Gateway [vpn.nju.edu.cn]: " {
+		t.Fatalf("output = %q", output.String())
+	}
+}
+
 func TestUnknownCommand(t *testing.T) {
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer

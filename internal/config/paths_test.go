@@ -23,3 +23,18 @@ func TestLocalPathsStayInsideWorktree(t *testing.T) {
 		t.Fatalf("Credential = %q", paths.Credential)
 	}
 }
+
+func TestApplicationPathsUseStableFiles(t *testing.T) {
+	root := filepath.Join(t.TempDir(), applicationDirectory)
+	paths := pathsAt(root)
+
+	if paths.Root != root {
+		t.Fatalf("Root = %q, want %q", paths.Root, root)
+	}
+	if paths.Config != filepath.Join(root, "config.toml") {
+		t.Fatalf("Config = %q", paths.Config)
+	}
+	if paths.Credential != filepath.Join(root, "credential") {
+		t.Fatalf("Credential = %q", paths.Credential)
+	}
+}

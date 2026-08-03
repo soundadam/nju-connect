@@ -35,6 +35,16 @@ func TestReplaceAndLoad(t *testing.T) {
 	}
 }
 
+func TestDefaultUsesNJUDefaultServer(t *testing.T) {
+	configured := Default()
+	if configured.Server != DefaultServer {
+		t.Fatalf("Server = %q, want %q", configured.Server, DefaultServer)
+	}
+	if configured.SOCKSListen != DefaultSOCKSListen {
+		t.Fatalf("SOCKSListen = %q, want %q", configured.SOCKSListen, DefaultSOCKSListen)
+	}
+}
+
 func TestParseRejectsSecretsAndUnknownFields(t *testing.T) {
 	_, err := Parse([]byte("server='vpn.example.edu'\nusername='student'\npassword='secret'\n"))
 	if err == nil {

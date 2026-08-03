@@ -15,6 +15,7 @@ import (
 )
 
 const (
+	DefaultServer      = "vpn.nju.edu.cn"
 	DefaultSOCKSListen = "127.0.0.1:1081"
 	maxConfigBytes     = 1 << 20
 )
@@ -32,7 +33,7 @@ type Config struct {
 }
 
 func Default() Config {
-	return Config{SOCKSListen: DefaultSOCKSListen}
+	return Config{Server: DefaultServer, SOCKSListen: DefaultSOCKSListen}
 }
 
 func (configured Config) Validate() error {

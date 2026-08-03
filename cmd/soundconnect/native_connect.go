@@ -50,7 +50,7 @@ func runNativeConnectContext(
 ) int {
 	flags := flag.NewFlagSet("native-connect", flag.ContinueOnError)
 	flags.SetOutput(stderr)
-	worktree := flags.String("worktree", ".", "soundconnect working tree")
+	worktree := flags.String("worktree", "", "development-only worktree override (default: user config)")
 	resolveIP := flags.String("resolve-ip", "", "development-only numeric gateway address override")
 	accessProbeURL := flags.String("access-probe-url", "", "disclosed campus HTTP(S) URL used for HEAD evidence")
 	nativeProfile := flags.String("native-profile", string(runtime.ProfileCommunityUTLSCompat), "native wire profile: community-utls or easyconnect-7.6.7")
@@ -71,7 +71,7 @@ func runNativeConnectContext(
 		return 2
 	}
 
-	paths, err := config.LocalPaths(*worktree)
+	paths, err := commandPaths(*worktree)
 	if err != nil {
 		fmt.Fprintf(stderr, "resolve local state: %v\n", err)
 		return 1
