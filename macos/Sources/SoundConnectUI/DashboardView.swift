@@ -5,7 +5,6 @@ struct DashboardView: View {
     @State private var oneTimeCode = ""
     @State private var schoolAccount = ""
     @State private var vpnPassword = ""
-    @State private var vpnPasswordConfirmation = ""
     @State private var setupValidationMessage: String?
     @FocusState private var codeFieldFocused: Bool
     @FocusState private var setupFieldFocused: SetupField?
@@ -13,7 +12,6 @@ struct DashboardView: View {
     private enum SetupField: Hashable {
         case schoolAccount
         case vpnPassword
-        case confirmation
     }
 
     var body: some View {
@@ -61,26 +59,26 @@ struct DashboardView: View {
                 retryRow
             }
         }
-        .frame(width: 320)
+        .frame(width: 292)
         .animation(.easeInOut(duration: 0.18), value: model.scenario)
     }
 
     private var header: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 8) {
             Circle()
                 .fill(statusColor)
-                .frame(width: 7, height: 7)
+                .frame(width: 6, height: 6)
 
             VStack(alignment: .leading, spacing: 1) {
                 Text("soundconnect")
-                    .font(.headline)
+                    .font(.system(size: 13, weight: .semibold))
                 Text(model.statusTitle)
-                    .font(.caption)
+                    .font(.caption2)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
             }
 
-            Spacer(minLength: 8)
+            Spacer(minLength: 6)
 
             if model.isPerformingAction {
                 ProgressView()
@@ -100,15 +98,15 @@ struct DashboardView: View {
             .disabled(!model.canControlService || model.isPerformingAction)
             .help(model.isServiceEnabled ? "停止 soundconnect 服务" : "启动 soundconnect 服务")
         }
-        .padding(.horizontal, 13)
-        .padding(.vertical, 10)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
     }
 
     private var statusDetailRow: some View {
-        HStack(alignment: .top, spacing: 8) {
+        HStack(alignment: .top, spacing: 7) {
             Image(systemName: statusDetailSymbol)
                 .foregroundStyle(statusColor)
-                .frame(width: 14)
+                .frame(width: 13)
 
             if model.phase == .connected {
                 VStack(alignment: .leading, spacing: 2) {
@@ -129,44 +127,44 @@ struct DashboardView: View {
 
             Spacer(minLength: 0)
         }
-        .padding(.horizontal, 13)
-        .padding(.vertical, 8)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 7)
     }
 
     private func actionMessageRow(_ message: String) -> some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 7) {
             Image(systemName: "info.circle")
-                .frame(width: 14)
+                .frame(width: 13)
             Text(message)
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .lineLimit(2)
             Spacer(minLength: 0)
         }
-        .padding(.horizontal, 13)
-        .padding(.vertical, 7)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
     }
 
     private func serviceControlNoticeRow(_ notice: String) -> some View {
-        HStack(alignment: .top, spacing: 8) {
+        HStack(alignment: .top, spacing: 7) {
             Image(systemName: "gearshape.2")
                 .foregroundStyle(.orange)
-                .frame(width: 14)
+                .frame(width: 13)
             Text(notice)
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: 0)
         }
-        .padding(.horizontal, 13)
-        .padding(.vertical, 8)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 7)
     }
 
     private var accessStatusRow: some View {
-        HStack(alignment: .top, spacing: 8) {
+        HStack(alignment: .top, spacing: 7) {
             Image(systemName: accessStatusSymbol)
                 .foregroundStyle(accessStatusColor)
-                .frame(width: 14)
+                .frame(width: 13)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(model.accessStatusTitle)
@@ -180,12 +178,12 @@ struct DashboardView: View {
 
             Spacer(minLength: 0)
         }
-        .padding(.horizontal, 13)
-        .padding(.vertical, 8)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 7)
     }
 
     private var setupRow: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 7) {
             TextField("学校账号", text: $schoolAccount)
                 .textFieldStyle(.roundedBorder)
                 .controlSize(.small)
@@ -196,12 +194,6 @@ struct DashboardView: View {
                 .textFieldStyle(.roundedBorder)
                 .controlSize(.small)
                 .focused($setupFieldFocused, equals: .vpnPassword)
-                .onSubmit { setupFieldFocused = .confirmation }
-
-            SecureField("确认 VPN 长期密码", text: $vpnPasswordConfirmation)
-                .textFieldStyle(.roundedBorder)
-                .controlSize(.small)
-                .focused($setupFieldFocused, equals: .confirmation)
                 .onSubmit(submitSetup)
 
             if let setupValidationMessage {
@@ -232,13 +224,12 @@ struct DashboardView: View {
                     .disabled(
                         schoolAccount.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                             || vpnPassword.isEmpty
-                            || vpnPasswordConfirmation.isEmpty
                             || model.isPerformingAction
                     )
             }
         }
-        .padding(.horizontal, 13)
-        .padding(.vertical, 10)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 9)
         .onAppear {
             setupFieldFocused = .schoolAccount
         }
@@ -257,8 +248,8 @@ struct DashboardView: View {
                 .controlSize(.small)
                 .disabled(oneTimeCode.isEmpty || model.isPerformingAction)
         }
-        .padding(.horizontal, 13)
-        .padding(.bottom, 10)
+        .padding(.horizontal, 12)
+        .padding(.bottom, 9)
         .onAppear {
             codeFieldFocused = true
         }
@@ -266,7 +257,7 @@ struct DashboardView: View {
     }
 
     private var trafficRow: some View {
-        VStack(alignment: .leading, spacing: 5) {
+        VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 6) {
                 Text("SOCKS5")
                     .fontWeight(.medium)
@@ -275,34 +266,34 @@ struct DashboardView: View {
                 Spacer(minLength: 0)
             }
 
-            HStack(spacing: 12) {
+            HStack(spacing: 9) {
                 Text("实时")
-                    .frame(width: 28, alignment: .leading)
+                    .frame(width: 26, alignment: .leading)
                 Label(formatRate(model.rates.downloadBytesPerSecond), systemImage: "arrow.down")
                 Label(formatRate(model.rates.uploadBytesPerSecond), systemImage: "arrow.up")
                 Spacer(minLength: 0)
             }
 
-            HStack(spacing: 12) {
+            HStack(spacing: 9) {
                 Text("本次")
-                    .frame(width: 28, alignment: .leading)
+                    .frame(width: 26, alignment: .leading)
                 Label(formatBytes(model.downloadBytes), systemImage: "arrow.down")
                 Label(formatBytes(model.uploadBytes), systemImage: "arrow.up")
                 Spacer(minLength: 0)
             }
 
-            HStack(spacing: 12) {
+            HStack(spacing: 9) {
                 Text("连接")
-                    .frame(width: 28, alignment: .leading)
+                    .frame(width: 26, alignment: .leading)
                 Text("活跃 \(model.activeConnections)")
                 Spacer(minLength: 0)
             }
         }
-        .font(.caption)
+        .font(.system(size: 11))
         .foregroundStyle(.secondary)
         .monospacedDigit()
-        .padding(.horizontal, 13)
-        .padding(.vertical, 8)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 7)
         .help("本次下载 \(formatBytes(model.downloadBytes))，上传 \(formatBytes(model.uploadBytes))，活跃连接 \(model.activeConnections)")
     }
 
@@ -323,8 +314,8 @@ struct DashboardView: View {
             .controlSize(.small)
             .disabled(model.isPerformingAction)
         }
-        .padding(.horizontal, 13)
-        .frame(minHeight: 38)
+        .padding(.horizontal, 12)
+        .frame(minHeight: 36)
     }
 
     private var statusColor: Color {
@@ -387,14 +378,8 @@ struct DashboardView: View {
             setupFieldFocused = .vpnPassword
             return
         }
-        guard vpnPassword == vpnPasswordConfirmation else {
-            setupValidationMessage = "两次输入的 VPN 密码不一致"
-            setupFieldFocused = .confirmation
-            return
-        }
         setupValidationMessage = nil
         model.completeSetup(schoolAccount: account, vpnPassword: vpnPassword)
         vpnPassword.removeAll(keepingCapacity: false)
-        vpnPasswordConfirmation.removeAll(keepingCapacity: false)
     }
 }

@@ -60,6 +60,8 @@ struct TrafficRates {
 
 @MainActor
 final class DesignModel: ObservableObject {
+    let gatewayServer: String
+
     @Published var scenario: DesignScenario {
         didSet {
             actionMessage = nil
@@ -78,9 +80,27 @@ final class DesignModel: ObservableObject {
     @Published private(set) var isReconfiguringCredentials = false
     @Published private(set) var isServiceEnabled: Bool
 
-    init(scenario: DesignScenario = .connected) {
+    init(
+        scenario: DesignScenario = .connected,
+        gatewayServer: String = "vpn.nju.edu.cn"
+    ) {
         self.scenario = scenario
+        self.gatewayServer = gatewayServer
         self.isServiceEnabled = scenario != .stopped && scenario != .setup
+    }
+
+    var menuBarGatewayLabel: String {
+        let serverURL = gatewayServer.contains("://")
+            ? URL(string: gatewayServer)
+            : URL(string: "https://\(gatewayServer)")
+        let labels = (serverURL?.host ?? gatewayServer).split(separator: ".")
+
+        guard let vpnIndex = labels.firstIndex(where: { $0.caseInsensitiveCompare("vpn") == .orderedSame }),
+              labels.indices.contains(vpnIndex + 1)
+        else {
+            return "VPN"
+        }
+        return labels[vpnIndex + 1].uppercased()
     }
 
     var phase: DesignPhase {

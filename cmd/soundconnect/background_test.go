@@ -32,6 +32,7 @@ func TestBackgroundHandoffRoundTripAndValidation(t *testing.T) {
 		},
 		Token:         token,
 		NativeProfile: runtime.ProfileCommunityUTLSCompat,
+		StatusPath:    runtimeStatusPath(t.TempDir()),
 	}
 	var wire bytes.Buffer
 	if err := writeBackgroundHandoff(&wire, &handoff); err != nil {

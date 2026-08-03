@@ -55,9 +55,11 @@ func run(arguments []string, stdout, stderr io.Writer) int {
 		return connectCommand(arguments[1:], stdout, stderr)
 	case "dry-run":
 		return dryRunCommand(arguments[1:], stdout, stderr)
+	case "status":
+		return runStatus(arguments[1:], stdout, stderr)
 	case "_native-runtime":
 		return runNativeRuntimeChild(arguments[1:], stdout, stderr)
-	case "status", "observe":
+	case "observe":
 		fmt.Fprintf(stderr, "soundconnect %s is not implemented yet\n", arguments[0])
 		return 2
 	default:

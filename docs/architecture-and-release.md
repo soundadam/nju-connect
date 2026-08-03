@@ -103,17 +103,24 @@ The portable core is the Go userspace path in \`internal/core\`, \`internal/gate
 
 | Capability | Linux | macOS | Windows |
 | --- | --- | --- | --- |
-| Offline compile (\`CGO_ENABLED=0\`) | amd64, arm64 | amd64, arm64 | amd64, arm64 |
+| Compile-only matrix (\`CGO_ENABLED=0\`) | amd64, arm64 | amd64, arm64; Keychain fails closed, while release builds enable native cgo | amd64, arm64 |
 | Owner/mode checks | Implemented through \`syscall.Stat_t\` and \`euid\` | Implemented through \`syscall.Stat_t\` and \`euid\` | Blocked: \`owner_other.go\` deliberately rejects ownership; ACL implementation is not present |
-| Credential storage | Explicitly opted-in plaintext 0600 file or hidden prompt; no Secret Service adapter | Explicitly opted-in plaintext 0600 file or hidden prompt; no Keychain adapter | No supported secure file ownership/ACL or credential adapter |
+| Credential storage | Explicitly opted-in plaintext 0600 file or hidden prompt; no Secret Service adapter | Login Keychain generic-password item through the Security framework; explicit migration preserves the legacy owner-only file | No supported secure file ownership/ACL or credential adapter |
 | Stop/signals | CLI handles interrupt and \`SIGTERM\` | CLI handles interrupt and \`SIGTERM\` | Binary compiles, but service stop semantics and a Windows service host are not implemented |
 | SOCKS exposure | Numeric IPv4 loopback only | Numeric IPv4 loopback only | Numeric IPv4 loopback only after the storage blocker is resolved |
 | Certificate storage | Go system roots; no installed certificate manager | Go system roots; no Keychain/trust-store integration | Go system roots at compile level; runtime packaging policy is unvalidated |
 | UI/service/package | Not present | Not present | Not present |
 
-The current build tags are intentionally narrow: \`owner_unix.go\` applies only to Linux and macOS, while \`owner_other.go\` fails closed on other systems. This makes a Windows build useful for API work without falsely claiming runtime release readiness. \`make build-platforms\` performs the compile-only matrix; it does not run a service or network connection.
+The current build tags are intentionally narrow: \`owner_unix.go\` applies only to Linux and macOS, while \`owner_other.go\` fails closed on other systems. The macOS Keychain adapter requires a cgo-enabled release build; the cgo-disabled Darwin variant compiles but fails closed if invoked. This makes a Windows build useful for API work without falsely claiming runtime release readiness. \`make build-platforms\` performs the compile-only matrix; it does not run a service or network connection.
 
-Release blockers are therefore explicit: a Windows ownership/ACL implementation, OS-native credential stores for each shipping platform, host-specific certificate/trust policy, packaging and service lifecycle adapters, and a future UI host. None should be solved by adding a TUN, routes, DNS, PF, or a vendor service to this core.
+Release blockers are therefore explicit: a Windows ownership/ACL implementation, native credential adapters for any additional shipping platforms, host-specific certificate/trust policy, packaging and service lifecycle adapters, and a production UI host. None should be solved by adding a TUN, routes, DNS, PF, or a vendor service to this core.
+
+The release CLI has no worktree override. \`setup\`, \`connect\`, \`dry-run\`,
+and \`doctor\` use only the operating-system user
+configuration directory. \`migrate --from PATH\` is the explicit bridge from
+the pre-release worktree \`.config\` layout. It validates and copies
+configuration, imports a missing credential into the platform store, never
+overwrites an existing destination, and preserves the source for rollback.
 
 ## Attended authentication and background runtime
 
@@ -131,13 +138,18 @@ anonymous inherited pipe. Token material is not placed in argv, environment,
 or a persistent file and is cleared on both sides of the handoff. The child
 acknowledges full connected readiness before the parent returns.
 Sanitized runtime output is appended to the owner-only \`runtime.log\` beside
-the active configuration.
+the active configuration. The foreground and detached Unix hosts also expose
+one read-only runtime-status socket in an owner-only temporary directory.
+\`soundconnect status\` reads a versioned, allowlisted snapshot from that live
+authority; socket ownership and permissions are validated, stale sockets are
+replaced only by a new runtime, and neither PID files nor logs are treated as
+liveness evidence.
 
-This is a detached CLI host, not the final cross-platform service authority.
-Windows background hosting remains unsupported until the Windows service and
-named-pipe control boundary exists. A later host-integration phase must add
-authenticated status/stop control and platform-native supervision rather than
-turning PID files or logs into a second runtime-state authority.
+This is still a detached CLI host, not the final cross-platform service
+authority. Windows background hosting remains unsupported until the Windows
+service and named-pipe control boundary exists. A later host-integration phase
+must add stop control and platform-native supervision without creating a
+second runtime-state authority.
 
 ## Dependency and release boundary
 

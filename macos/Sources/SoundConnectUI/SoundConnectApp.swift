@@ -28,7 +28,7 @@ private struct MenuBarLabel: View {
     var body: some View {
         HStack(spacing: 3) {
             MenuBarStatusIcon(state: model.menuBarIconState)
-            Text("SC")
+            Text(model.menuBarGatewayLabel)
                 .font(.system(size: 11, weight: .semibold))
         }
         .fixedSize()
@@ -68,7 +68,7 @@ private struct DesignPreviewView: View {
 
             Divider()
 
-            HStack(alignment: .top, spacing: 28) {
+            HStack(alignment: .top, spacing: 24) {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("面板预览")
                         .font(.headline)
@@ -85,7 +85,7 @@ private struct DesignPreviewView: View {
             }
         }
         .padding(24)
-        .frame(minWidth: 760, minHeight: 520)
+        .frame(minWidth: 720, minHeight: 500)
     }
 
     private var reviewNotes: some View {
@@ -103,7 +103,7 @@ private struct DesignPreviewView: View {
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
-        .frame(width: 300, alignment: .leading)
+        .frame(width: 280, alignment: .leading)
     }
 
     private func reviewItem(_ number: String, _ title: String, _ detail: String) -> some View {

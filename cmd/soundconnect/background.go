@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"path/filepath"
 	"sync"
 	"syscall"
 	"time"
@@ -34,6 +35,7 @@ type backgroundHandoff struct {
 	Plan          core.DataplanePlan              `json:"plan"`
 	Token         sessiontoken.NativeGatewayToken `json:"token"`
 	NativeProfile runtime.ProtocolProfileID       `json:"native_profile"`
+	StatusPath    string                          `json:"status_path"`
 }
 
 func startProductionNativeBackground(sessionConfig nativeapp.SessionConfig, logPath string) (int, error) {
@@ -83,6 +85,7 @@ func startProductionNativeBackground(sessionConfig nativeapp.SessionConfig, logP
 		Plan:          sessionConfig.Plan,
 		Token:         append(sessiontoken.NativeGatewayToken(nil), sessionConfig.NativeGatewayToken...),
 		NativeProfile: sessionConfig.NativeProfile,
+		StatusPath:    runtimeStatusPath(filepath.Dir(logPath)),
 	}
 	writeErr := writeBackgroundHandoff(writer, &handoff)
 	credential.Clear(handoff.Token)
@@ -137,7 +140,8 @@ func runNativeRuntimeChild(arguments []string, stdout, stderr io.Writer) int {
 	}
 	defer credential.Clear(handoff.Token)
 
-	observer := nativeCLIObserver(stdout)
+	statusTracker := newRuntimeStatusTracker(handoff.NativeProfile)
+	observer := runtimeStatusObserver(nativeCLIObserver(stdout), statusTracker)
 	stateObserver := observer.OnState
 	var readyOnce sync.Once
 	observer.OnState = func(state nativeapp.State) {
@@ -163,6 +167,12 @@ func runNativeRuntimeChild(arguments []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 	defer application.Close()
+	statusServer, err := startRuntimeStatusServer(handoff.StatusPath, statusTracker.Snapshot)
+	if err != nil {
+		fmt.Fprintln(stderr, "background runtime: status_control_failed")
+		return 1
+	}
+	defer statusServer.Close()
 	profile := application.Profile()
 	fmt.Fprintf(stdout, "native-profile: %s\n", profile.ID)
 	fmt.Fprintf(stdout, "native-evidence: %s\n", profile.Evidence)
@@ -213,7 +223,8 @@ func readBackgroundHandoff(reader io.Reader) (backgroundHandoff, error) {
 		credential.Clear(handoff.Token)
 		return backgroundHandoff{}, errors.New("decode background handoff")
 	}
-	if len(handoff.Token) != sessiontoken.NativeGatewayTokenSize || handoff.NativeProfile != runtime.ProfileCommunityUTLSCompat {
+	if len(handoff.Token) != sessiontoken.NativeGatewayTokenSize || handoff.NativeProfile != runtime.ProfileCommunityUTLSCompat ||
+		filepath.Ext(handoff.StatusPath) != ".sock" || !filepath.IsAbs(handoff.StatusPath) {
 		credential.Clear(handoff.Token)
 		return backgroundHandoff{}, errors.New("validate background handoff")
 	}

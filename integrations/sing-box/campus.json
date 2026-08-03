@@ -1,0 +1,59 @@
+{
+  "outbounds": [
+    {
+      "type": "socks",
+      "tag": "campus-local-socks",
+      "server": "127.0.0.1",
+      "server_port": 1081,
+      "version": "5",
+      "network": "tcp"
+    },
+    {
+      "type": "selector",
+      "tag": "campus",
+      "outbounds": [
+        "direct",
+        "campus-local-socks"
+      ],
+      "default": "direct",
+      "interrupt_exist_connections": false
+    }
+  ],
+  "route": {
+    "rules": [
+      {
+        "inbound": "desktop-tun",
+        "action": "sniff"
+      },
+      {
+        "inbound": "desktop-tun",
+        "port": 53,
+        "action": "hijack-dns"
+      },
+      {
+        "domain": [
+          "vpn.nju.edu.cn"
+        ],
+        "action": "route",
+        "outbound": "direct"
+      },
+      {
+        "network": "tcp",
+        "ip_cidr": [
+          "58.192.32.0/20",
+          "58.192.48.0/21",
+          "58.193.224.0/19",
+          "114.212.0.0/16",
+          "180.209.0.0/20",
+          "202.119.32.0/19",
+          "202.127.247.0/24",
+          "210.28.128.0/20",
+          "210.29.240.0/20",
+          "219.219.112.0/20"
+        ],
+        "action": "route",
+        "outbound": "campus"
+      }
+    ]
+  }
+}

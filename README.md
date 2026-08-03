@@ -23,6 +23,12 @@ Running `soundconnect` with no command is equivalent to `soundconnect connect`
 and starts the native userspace runtime. Use `soundconnect dry-run` to validate
 authentication and the gateway handoff without starting the dataplane.
 
+While a foreground or detached native runtime is active, `soundconnect status`
+queries its owner-only local control socket and prints only sanitized state.
+Use `soundconnect status --json` for the versioned machine-readable form. A
+stopped runtime is reported explicitly and returns a nonzero status; the
+command does not infer liveness from a PID file or `runtime.log`.
+
 ## CLI release packaging
 
 From a clean worktree, package the two supported macOS CLI architectures with

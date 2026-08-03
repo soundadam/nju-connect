@@ -74,6 +74,10 @@ func runNativeConnectContext(
 		fmt.Fprintf(stderr, "resolve local state: %v\n", err)
 		return 1
 	}
+	if err := ensureNoActiveRuntime(runtimeStatusPath(paths.Root)); err != nil {
+		fmt.Fprintf(stderr, "prepare runtime status: %v\n", err)
+		return 1
+	}
 	configured, err := config.Load(paths.Config)
 	if err != nil {
 		fmt.Fprintf(stderr, "load configuration: %v\n", err)
@@ -128,6 +132,7 @@ func runNativeConnectContext(
 
 	var application nativeApplicationSession
 	var backgroundPID int
+	statusTracker := newRuntimeStatusTracker(runtime.ProfileCommunityUTLSCompat)
 	err = session.WithNativeGatewayToken(func(token sessiontoken.NativeGatewayToken) error {
 		sessionConfig := nativeapp.SessionConfig{
 			Settings:           configured,
@@ -141,7 +146,7 @@ func runNativeConnectContext(
 			return startErr
 		}
 		var buildErr error
-		sessionConfig.Observer = nativeCLIObserver(stdout)
+		sessionConfig.Observer = runtimeStatusObserver(nativeCLIObserver(stdout), statusTracker)
 		application, buildErr = newSession(sessionConfig)
 		return buildErr
 	})
@@ -158,6 +163,12 @@ func runNativeConnectContext(
 		return 1
 	}
 	defer application.Close()
+	statusServer, err := startRuntimeStatusServer(runtimeStatusPath(paths.Root), statusTracker.Snapshot)
+	if err != nil {
+		fmt.Fprintf(stderr, "prepare runtime status: %v\n", err)
+		return 1
+	}
+	defer statusServer.Close()
 	profile := application.Profile()
 	fmt.Fprintf(stdout, "native-profile: %s\n", profile.ID)
 	fmt.Fprintf(stdout, "native-evidence: %s\n", profile.Evidence)
