@@ -54,6 +54,13 @@ func (factory *cohortFactory) Open(context.Context, StreamKind) (StreamWorker, e
 	return worker, nil
 }
 
+type immediateWorker struct {
+	err error
+}
+
+func (worker immediateWorker) Run(context.Context) error { return worker.err }
+func (immediateWorker) Close() error                     { return nil }
+
 func TestCohortJoinsPeerBeforeOpeningNextGeneration(t *testing.T) {
 	workers := []*controlledWorker{newControlledWorker(), newControlledWorker(), newControlledWorker(), newControlledWorker()}
 	factory := &cohortFactory{workers: workers, openedNext: make(chan struct{})}
@@ -128,5 +135,43 @@ func TestCohortPropagatesRenewalWithoutRetry(t *testing.T) {
 	}
 	if waited {
 		t.Fatal("cohort retried an explicit renewal")
+	}
+}
+
+func TestCohortStableWindowStartsAfterGenerationOpens(t *testing.T) {
+	stop := errors.New("stop test")
+	now := time.Unix(1000, 0)
+	openCount := 0
+	var delays []time.Duration
+	supervisor, err := NewCohortSupervisor(CohortConfig{
+		Factory: streamFactoryFunc(func(context.Context, StreamKind) (StreamWorker, error) {
+			openCount++
+			if openCount == 1 {
+				return nil, errors.New("temporary transport failure")
+			}
+			if openCount == 2 {
+				now = now.Add(2 * time.Minute)
+			}
+			return immediateWorker{err: errors.New("stream ended")}, nil
+		}),
+		StableFor: time.Minute,
+		Now:       func() time.Time { return now },
+		Wait: func(_ context.Context, duration time.Duration) error {
+			delays = append(delays, duration)
+			if len(delays) == 2 {
+				return stop
+			}
+			return nil
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := supervisor.Run(context.Background(), func(Component, bool) {}); !errors.Is(err, stop) {
+		t.Fatalf("run error = %v", err)
+	}
+	want := []time.Duration{4 * time.Second, 8 * time.Second}
+	if len(delays) != len(want) || delays[0] != want[0] || delays[1] != want[1] {
+		t.Fatalf("backoff delays = %v, want %v", delays, want)
 	}
 }

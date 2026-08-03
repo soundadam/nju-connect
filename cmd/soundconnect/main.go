@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -47,6 +48,8 @@ func run(arguments []string, stdout, stderr io.Writer) int {
 		return runDoctor(arguments[1:], stdout, stderr)
 	case "connect":
 		return runConnect(arguments[1:], stdout, stderr)
+	case "native-connect":
+		return runNativeConnect(arguments[1:], stdout, stderr)
 	case "status", "observe":
 		fmt.Fprintf(stderr, "soundconnect %s is not implemented yet\n", arguments[0])
 		return 2
@@ -101,6 +104,7 @@ func runConnect(arguments []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "prepare gateway authentication: %v\n", err)
 		return 1
 	}
+	defer client.Close()
 	result, err := client.AuthenticatePassword(context.Background(), configured.Username, password)
 	if err != nil {
 		fmt.Fprintf(stderr, "authenticate password: %v\n", err)
@@ -195,16 +199,17 @@ func promptVerificationCode(input *os.File, output io.Writer) ([]byte, error) {
 	if _, err := io.WriteString(output, "Verification code: "); err != nil {
 		return nil, err
 	}
-	code, err := term.ReadPassword(int(input.Fd()))
+	rawCode, err := term.ReadPassword(int(input.Fd()))
 	fmt.Fprintln(output)
 	if err != nil {
 		return nil, err
 	}
-	code = []byte(strings.TrimSpace(string(code)))
-	if len(code) == 0 {
+	defer clear(rawCode)
+	trimmed := bytes.TrimSpace(rawCode)
+	if len(trimmed) == 0 {
 		return nil, errors.New("verification code is required")
 	}
-	return code, nil
+	return append([]byte(nil), trimmed...), nil
 }
 
 func runSetup(arguments []string, stdout, stderr io.Writer) int {
@@ -318,7 +323,9 @@ func writeUsage(output io.Writer) {
 
 commands:
   setup      configure the account and long-lived password
-	connect    probe attended gateway authentication
+  connect    probe attended gateway authentication without starting dataplane
+  native-connect
+             authenticate and run the native userspace VPN core
   status     print sanitized runtime status
   doctor     inspect the local development environment
   observe    record a sanitized behavior timeline

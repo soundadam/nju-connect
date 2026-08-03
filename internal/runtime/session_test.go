@@ -75,6 +75,7 @@ func TestNativeSessionOwnsAndJoinsCompleteRuntime(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	runtimeOwnedToken := session.token
 	clear(token)
 	result := make(chan error, 1)
 	go func() { result <- session.Run(context.Background()) }()
@@ -85,6 +86,9 @@ func TestNativeSessionOwnsAndJoinsCompleteRuntime(t *testing.T) {
 	}
 	if err := <-result; !errors.Is(err, context.Canceled) {
 		t.Fatalf("native session error = %v", err)
+	}
+	if session.token != nil || !bytes.Equal(runtimeOwnedToken, make([]byte, len(runtimeOwnedToken))) {
+		t.Fatal("native session retained token material after close")
 	}
 	peersMu.Lock()
 	for _, peer := range peers {
@@ -126,8 +130,12 @@ func TestNativeSessionCloseBeforeRunPreventsLaterStart(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	runtimeOwnedToken := session.token
 	if err := session.Close(); err != nil {
 		t.Fatal(err)
+	}
+	if session.token != nil || !bytes.Equal(runtimeOwnedToken, make([]byte, len(runtimeOwnedToken))) {
+		t.Fatal("unstarted native session retained token material after close")
 	}
 	if err := session.Run(context.Background()); err == nil {
 		t.Fatal("closed native session was started")

@@ -61,9 +61,12 @@ func NewCohortSupervisor(config CohortConfig) (*CohortSupervisor, error) {
 func (supervisor *CohortSupervisor) Run(ctx context.Context, report func(Component, bool)) error {
 	backoff := newBoundedBackoff(supervisor.config.InitialBackoff, supervisor.config.MaximumBackoff)
 	for {
-		startedAt := supervisor.config.Now()
+		var startedAt time.Time
+		generationOpened := false
 		rx, tx, err := supervisor.open(ctx)
 		if err == nil {
+			startedAt = supervisor.config.Now()
+			generationOpened = true
 			report(ComponentRX, true)
 			report(ComponentTX, true)
 			err = runCohort(ctx, rx, tx, func() {
@@ -80,7 +83,7 @@ func (supervisor *CohortSupervisor) Run(ctx context.Context, report func(Compone
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
-		if supervisor.config.Now().Sub(startedAt) >= supervisor.config.StableFor {
+		if generationOpened && supervisor.config.Now().Sub(startedAt) >= supervisor.config.StableFor {
 			backoff.Reset()
 		}
 		if err := supervisor.config.Wait(ctx, backoff.Next()); err != nil {

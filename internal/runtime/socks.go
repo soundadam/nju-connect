@@ -75,9 +75,12 @@ func NewSOCKSSupervisor(config SOCKSSupervisorConfig) (*SOCKSSupervisor, error) 
 func (supervisor *SOCKSSupervisor) Run(ctx context.Context, report func(Component, bool)) error {
 	backoff := newBoundedBackoff(supervisor.config.InitialBackoff, supervisor.config.MaximumBackoff)
 	for {
-		startedAt := supervisor.config.Now()
+		var startedAt time.Time
+		serverOpened := false
 		server, err := NewSOCKSServer(supervisor.config.Server)
 		if err == nil {
+			startedAt = supervisor.config.Now()
+			serverOpened = true
 			if supervisor.config.OnListen != nil {
 				supervisor.config.OnListen(server.Addr())
 			}
@@ -86,7 +89,7 @@ func (supervisor *SOCKSSupervisor) Run(ctx context.Context, report func(Componen
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
-		if supervisor.config.Now().Sub(startedAt) >= supervisor.config.StableFor {
+		if serverOpened && supervisor.config.Now().Sub(startedAt) >= supervisor.config.StableFor {
 			backoff.Reset()
 		}
 		report(ComponentSOCKS, false)
@@ -278,10 +281,7 @@ func writeSOCKSReply(connection net.Conn, status byte) error {
 func relayPayload(client, upstream net.Conn, counters *traffic.Counters) {
 	completed := make(chan struct{}, 2)
 	copyDirection := func(destination, source net.Conn, account func(uint64)) {
-		written, _ := io.Copy(destination, source)
-		if written > 0 {
-			account(uint64(written))
-		}
+		_, _ = io.Copy(payloadAccountingWriter{Writer: destination, account: account}, source)
 		if closeWriter, ok := destination.(interface{ CloseWrite() error }); ok {
 			_ = closeWriter.CloseWrite()
 		}
@@ -291,6 +291,19 @@ func relayPayload(client, upstream net.Conn, counters *traffic.Counters) {
 	go copyDirection(client, upstream, counters.AddDownload)
 	<-completed
 	<-completed
+}
+
+type payloadAccountingWriter struct {
+	io.Writer
+	account func(uint64)
+}
+
+func (writer payloadAccountingWriter) Write(payload []byte) (int, error) {
+	written, err := writer.Writer.Write(payload)
+	if written > 0 && writer.account != nil {
+		writer.account(uint64(written))
+	}
+	return written, err
 }
 
 func validateLoopbackBind(bind string) error {

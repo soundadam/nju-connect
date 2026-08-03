@@ -8,6 +8,8 @@ import (
 	"net/netip"
 	"sync"
 	"time"
+
+	"github.com/soundadam/soundconnect/internal/sessiontoken"
 )
 
 func ExpectedStreamReply(kind StreamKind) (byte, error) {
@@ -249,7 +251,8 @@ func BuildICMPHeartbeat(source, destination netip.Addr, token []byte) ([]byte, e
 	packet[20] = 8
 	copy(packet[24:28], []byte{0x55, 0x55, 0x44, 0x33})
 	copy(packet[28:46], []byte("SANGFORSCSIPCLIENT"))
-	copy(packet[46:62], token[32:48])
+	fieldEnd := sessiontoken.NativeGatewaySessionFieldOffset + sessiontoken.NativeGatewaySessionFieldSize
+	copy(packet[46:62], token[sessiontoken.NativeGatewaySessionFieldOffset:fieldEnd])
 	copy(packet[62:75], []byte("L3VPNABCDEFGH"))
 	binary.BigEndian.PutUint16(packet[22:24], checksum(packet[20:]))
 	binary.BigEndian.PutUint16(packet[10:12], checksum(packet[:20]))

@@ -64,11 +64,11 @@ func (opener *AuthenticatedDataStreamOpener) Open(ctx context.Context, kind Stre
 	}
 	clear(request)
 	reply := []byte{0}
+	defer clear(reply)
 	if _, err := io.ReadFull(connection, reply); err != nil {
 		return nil, 0, &TransportFailure{Code: FailureTransportUnavailable}
 	}
 	value := reply[0]
-	clear(reply)
 	if err := ValidateStreamReply(kind, value); err != nil {
 		return nil, 0, &RenewalRequired{Reason: RenewalGatewayRejected}
 	}

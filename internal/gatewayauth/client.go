@@ -52,6 +52,28 @@ type Client struct {
 	sessionID     []byte
 }
 
+// Close clears authentication material retained before TakeSession and closes
+// idle gateway connections. It is safe to call after a successful transfer.
+func (client *Client) Close() error {
+	if client == nil {
+		return nil
+	}
+	clear(client.sessionID)
+	client.sessionID = nil
+	client.authenticated = false
+	if client.http != nil {
+		client.http.CloseIdleConnections()
+		jar, err := cookiejar.New(nil)
+		if err != nil {
+			return err
+		}
+		client.http.Jar = jar
+	}
+	client.http = nil
+	client.baseURL = nil
+	return nil
+}
+
 type authXML struct {
 	ErrorCode    int    `xml:"ErrorCode"`
 	NextService  string `xml:"NextService"`
@@ -180,6 +202,7 @@ func (client *Client) request(ctx context.Context, method, path string, form url
 	if err != nil {
 		return authXML{}, err
 	}
+	defer clear(data)
 	var envelope authXML
 	if err := xml.Unmarshal(data, &envelope); err != nil {
 		return authXML{}, fmt.Errorf("decode gateway XML: %w", err)

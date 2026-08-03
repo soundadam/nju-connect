@@ -58,7 +58,17 @@ type TransportFailure struct {
 	Code FailureCode
 }
 
-func (err *TransportFailure) Error() string { return string(err.Code) }
+func (err *TransportFailure) Error() string {
+	if err == nil {
+		return string(FailureRuntimeStopped)
+	}
+	switch err.Code {
+	case FailureTransportUnavailable, FailureProtocolInvalid, FailureRuntimeStopped:
+		return string(err.Code)
+	default:
+		return string(FailureRuntimeStopped)
+	}
+}
 
 type Readiness struct {
 	ready             [componentCount]bool

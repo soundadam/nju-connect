@@ -126,6 +126,89 @@ func TestCommandSupervisorUsesBoundedExponentialBackoff(t *testing.T) {
 	}
 }
 
+func TestCommandSupervisorStableWindowStartsAfterConnect(t *testing.T) {
+	token := make([]byte, agentTokenSize)
+	stop := errors.New("stop test")
+	now := time.Unix(1000, 0)
+	dials := 0
+	var delays []time.Duration
+	supervisor, err := NewCommandSupervisor(CommandConfig{
+		Dial: func(context.Context) (net.Conn, error) {
+			dials++
+			if dials == 1 {
+				return nil, errors.New("temporary transport failure")
+			}
+			now = now.Add(2 * time.Minute)
+			client, server := net.Pipe()
+			go serveCommand(t, server, token, [4]byte{10, 0, 0, 2}, [4]byte{10, 0, 0, 1}, true, nil, nil)
+			return client, nil
+		},
+		Token:             token,
+		HeartbeatInterval: time.Millisecond,
+		StableFor:         time.Minute,
+		Now:               func() time.Time { return now },
+		Wait: func(_ context.Context, duration time.Duration) error {
+			if duration == time.Millisecond {
+				return nil
+			}
+			delays = append(delays, duration)
+			if len(delays) == 2 {
+				return stop
+			}
+			return nil
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := supervisor.Run(context.Background(), func(Component, bool) {}); !errors.Is(err, stop) {
+		t.Fatalf("run error = %v", err)
+	}
+	want := []time.Duration{4 * time.Second, 8 * time.Second}
+	if len(delays) != len(want) || delays[0] != want[0] || delays[1] != want[1] {
+		t.Fatalf("backoff delays = %v, want %v", delays, want)
+	}
+}
+
+func TestCommandSupervisorHandlesInvalidDialResults(t *testing.T) {
+	t.Run("connection with error is closed", func(t *testing.T) {
+		client, server := net.Pipe()
+		defer server.Close()
+		recorded := &recordingConn{Conn: client}
+		stop := errors.New("stop test")
+		supervisor, err := NewCommandSupervisor(CommandConfig{
+			Dial:  func(context.Context) (net.Conn, error) { return recorded, errors.New("dial failed") },
+			Token: make([]byte, agentTokenSize),
+			Wait:  func(context.Context, time.Duration) error { return stop },
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := supervisor.Run(context.Background(), func(Component, bool) {}); !errors.Is(err, stop) {
+			t.Fatalf("run error = %v", err)
+		}
+		_, closes := recorded.snapshot()
+		if closes == 0 {
+			t.Fatal("connection returned with dial error was not closed")
+		}
+	})
+
+	t.Run("nil connection is transient", func(t *testing.T) {
+		stop := errors.New("stop test")
+		supervisor, err := NewCommandSupervisor(CommandConfig{
+			Dial:  func(context.Context) (net.Conn, error) { return nil, nil },
+			Token: make([]byte, agentTokenSize),
+			Wait:  func(context.Context, time.Duration) error { return stop },
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := supervisor.Run(context.Background(), func(Component, bool) {}); !errors.Is(err, stop) {
+			t.Fatalf("run error = %v", err)
+		}
+	})
+}
+
 func serveCommand(t *testing.T, connection net.Conn, token []byte, assigned, lan [4]byte, closeHeartbeat bool, mu *sync.Mutex, received *[][]byte) {
 	t.Helper()
 	defer connection.Close()

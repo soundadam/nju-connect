@@ -16,9 +16,10 @@ import (
 const emptyRenegotiationSCSV uint16 = 0x00ff
 
 type ProtocolTLSDialerConfig struct {
-	Dial       CommandDialer
-	ServerName string
-	RootCAs    *x509.CertPool
+	Dial        CommandDialer
+	ServerName  string
+	RootCAs     *x509.CertPool
+	TLSInsecure bool
 }
 
 // ProtocolTLSDialer is intentionally separate from every ordinary HTTPS/TLS
@@ -98,10 +99,11 @@ func (dialer *ProtocolTLSDialer) Dial(ctx context.Context) (net.Conn, error) {
 
 func (dialer *ProtocolTLSDialer) tlsConfig() *utls.Config {
 	return &utls.Config{
-		ServerName: dialer.config.ServerName,
-		RootCAs:    dialer.config.RootCAs,
-		MinVersion: utls.VersionTLS11,
-		MaxVersion: utls.VersionTLS11,
+		ServerName:         dialer.config.ServerName,
+		RootCAs:            dialer.config.RootCAs,
+		InsecureSkipVerify: dialer.config.TLSInsecure,
+		MinVersion:         utls.VersionTLS11,
+		MaxVersion:         utls.VersionTLS11,
 	}
 }
 

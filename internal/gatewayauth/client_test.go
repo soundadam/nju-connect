@@ -46,6 +46,20 @@ func TestResultState(t *testing.T) {
 	}
 }
 
+func TestClientCloseClearsUntransferredSessionMaterial(t *testing.T) {
+	owned := []byte("0123456789abcdef")
+	client := &Client{http: &http.Client{}, sessionID: owned, authenticated: true}
+	if err := client.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(owned, make([]byte, len(owned))) {
+		t.Fatal("client session material was not cleared")
+	}
+	if client.http != nil || client.baseURL != nil || client.authenticated {
+		t.Fatal("client retained closed authentication state")
+	}
+}
+
 func TestPasswordAndSMSAuthentication(t *testing.T) {
 	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {

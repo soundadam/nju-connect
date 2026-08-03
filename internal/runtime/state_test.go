@@ -2,9 +2,23 @@ package runtime
 
 import (
 	"errors"
+	"strings"
 	"testing"
 	"time"
 )
+
+func TestTransportFailureUsesFixedExternalAllowlist(t *testing.T) {
+	for _, code := range []FailureCode{FailureTransportUnavailable, FailureProtocolInvalid, FailureRuntimeStopped} {
+		if got := (&TransportFailure{Code: code}).Error(); got != string(code) {
+			t.Fatalf("failure %q rendered as %q", code, got)
+		}
+	}
+	const sensitive = "gateway-reply-secret"
+	got := (&TransportFailure{Code: FailureCode(sensitive)}).Error()
+	if got != string(FailureRuntimeStopped) || strings.Contains(got, sensitive) {
+		t.Fatalf("unknown failure rendered as %q", got)
+	}
+}
 
 func TestReadinessRequiresAllComponentsAndKeepsOriginalWatchdogDeadline(t *testing.T) {
 	start := time.Unix(100, 0)

@@ -76,6 +76,7 @@ func TestSOCKSTCPRelayCountsOnlyApplicationPayload(t *testing.T) {
 	if _, err := io.ReadFull(connection, payload); err != nil || string(payload) != "pong" {
 		t.Fatalf("payload = %q, %v", payload, err)
 	}
+	eventuallyTraffic(t, &counters, 4, 4, 1)
 	_ = connection.Close()
 	eventuallyTraffic(t, &counters, 4, 4, 0)
 	cancel()

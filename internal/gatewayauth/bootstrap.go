@@ -10,6 +10,8 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+
+	"github.com/soundadam/soundconnect/internal/sessiontoken"
 )
 
 const (
@@ -51,16 +53,25 @@ func (session *Session) ProbeBootstrap(ctx context.Context) (Bootstrap, error) {
 	if session == nil || session.http == nil {
 		return Bootstrap{}, ErrNoAuthenticatedSession
 	}
+	clear(session.nativeGatewayToken)
+	session.nativeGatewayToken = nil
 	var result Bootstrap
 	configuration, err := requestBytes(ctx, session.http, session.baseURL, http.MethodGet, "/por/conf.csp?apiversion=1", nil)
 	if err != nil {
 		return Bootstrap{}, fmt.Errorf("read gateway configuration: %w", err)
 	}
-	result.ConfigurationAvailable, result.Services.DedicatedLine, result.Services.SecurityCheck, err = inspectConfiguration(configuration)
+	var nativeGatewayToken sessiontoken.NativeGatewayToken
+	result.ConfigurationAvailable, result.Services.DedicatedLine, result.Services.SecurityCheck, nativeGatewayToken, err = inspectConfiguration(configuration)
 	clear(configuration)
 	if err != nil {
 		return Bootstrap{}, fmt.Errorf("inspect gateway configuration: %w", err)
 	}
+	transferToken := false
+	defer func() {
+		if !transferToken {
+			clear(nativeGatewayToken)
+		}
+	}()
 
 	resources, err := requestBytes(ctx, session.http, session.baseURL, http.MethodGet, "/por/rclist.csp?apiversion=1", nil)
 	if err != nil {
@@ -73,10 +84,13 @@ func (session *Session) ProbeBootstrap(ctx context.Context) (Bootstrap, error) {
 	}
 	result.Services.TCP = result.Resources.TCP != 0
 	result.Services.L3VPN = result.Resources.L3VPN != 0
+	clear(session.nativeGatewayToken)
+	session.nativeGatewayToken = nativeGatewayToken
+	transferToken = true
 	return result, nil
 }
 
-func inspectConfiguration(data []byte) (available, dedicatedLine, securityCheck bool, err error) {
+func inspectConfiguration(data []byte) (available, dedicatedLine, securityCheck bool, nativeGatewayToken sessiontoken.NativeGatewayToken, err error) {
 	stack := make([]string, 0, 8)
 	decoder := xml.NewDecoder(bytes.NewReader(data))
 	for {
@@ -85,7 +99,8 @@ func inspectConfiguration(data []byte) (available, dedicatedLine, securityCheck 
 			break
 		}
 		if decodeErr != nil {
-			return false, false, false, fmt.Errorf("decode gateway XML: %w", decodeErr)
+			clear(nativeGatewayToken)
+			return false, false, false, nil, fmt.Errorf("decode gateway XML: %w", decodeErr)
 		}
 		switch value := token.(type) {
 		case xml.StartElement:
@@ -100,12 +115,25 @@ func inspectConfiguration(data []byte) (available, dedicatedLine, securityCheck 
 				if attribute, ok := xmlAttribute(value, "sddn_enable"); ok {
 					dedicatedLine = numericEnabled(attribute)
 				}
+				if attribute, ok := xmlAttribute(value, "sslctx"); ok {
+					if nativeGatewayToken != nil {
+						clear(nativeGatewayToken)
+						return false, false, false, nil, errors.New("gateway configuration has duplicate SSL context")
+					}
+					encoded := []byte(attribute)
+					decoded, decodeErr := sessiontoken.DecodeNativeGatewayToken(encoded)
+					clear(encoded)
+					if decodeErr != nil {
+						return false, false, false, nil, decodeErr
+					}
+					nativeGatewayToken = decoded
+				}
 			}
 		case xml.EndElement:
 			stack = stack[:len(stack)-1]
 		}
 	}
-	return available, dedicatedLine, securityCheck, nil
+	return available, dedicatedLine, securityCheck, nativeGatewayToken, nil
 }
 
 func inspectResources(data []byte) (available bool, summary ResourceSummary, internalDNS bool, err error) {

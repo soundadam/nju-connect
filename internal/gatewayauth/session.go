@@ -5,18 +5,22 @@ import (
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
+
+	"github.com/soundadam/soundconnect/internal/sessiontoken"
 )
 
 var ErrNoAuthenticatedSession = errors.New("gateway authentication is not complete")
 var ErrNoSessionID = errors.New("gateway session identifier is unavailable")
+var ErrNoNativeGatewayToken = errors.New("native gateway token is unavailable")
 
 // Session owns the short-lived authenticated gateway state. It deliberately has
 // no persistence representation: cookies and the gateway session identifier live
 // only until Close or process exit.
 type Session struct {
-	baseURL   *url.URL
-	http      *http.Client
-	sessionID []byte
+	baseURL            *url.URL
+	http               *http.Client
+	sessionID          []byte
+	nativeGatewayToken sessiontoken.NativeGatewayToken
 }
 
 type SessionState struct {
@@ -66,6 +70,24 @@ func (session *Session) WithID(use func([]byte) error) error {
 	return use(id)
 }
 
+// WithNativeGatewayToken lends the complete 48-byte native command/data token
+// extracted from authenticated gateway configuration to one synchronous
+// operation. The lent copy is cleared immediately afterward.
+func (session *Session) WithNativeGatewayToken(use func(sessiontoken.NativeGatewayToken) error) error {
+	if session == nil || session.http == nil {
+		return ErrNoAuthenticatedSession
+	}
+	if len(session.nativeGatewayToken) == 0 {
+		return ErrNoNativeGatewayToken
+	}
+	if use == nil {
+		return sessiontoken.ErrTokenConsumerRequired
+	}
+	token := append(sessiontoken.NativeGatewayToken(nil), session.nativeGatewayToken...)
+	defer clear(token)
+	return use(token)
+}
+
 // Close removes references to all retained authentication material.
 func (session *Session) Close() error {
 	if session == nil {
@@ -73,6 +95,8 @@ func (session *Session) Close() error {
 	}
 	clear(session.sessionID)
 	session.sessionID = nil
+	clear(session.nativeGatewayToken)
+	session.nativeGatewayToken = nil
 	if session.http != nil {
 		if transport, ok := session.http.Transport.(interface{ CloseIdleConnections() }); ok {
 			transport.CloseIdleConnections()

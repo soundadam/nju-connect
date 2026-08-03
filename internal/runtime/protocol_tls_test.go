@@ -118,6 +118,20 @@ func TestProtocolTLSUsesNormalCertificateVerification(t *testing.T) {
 	}
 }
 
+func TestProtocolTLSInsecureCompatibilityIsExplicitAndScoped(t *testing.T) {
+	dialer, err := NewProtocolTLSDialer(ProtocolTLSDialerConfig{
+		Dial:        func(context.Context) (net.Conn, error) { return nil, errors.New("unused") },
+		ServerName:  "vpn.example.edu",
+		TLSInsecure: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !dialer.tlsConfig().InsecureSkipVerify {
+		t.Fatal("explicit gateway protocol TLS compatibility was not applied")
+	}
+}
+
 func TestProtocolTLSRawFailureIsClosedAndSanitized(t *testing.T) {
 	client, server := net.Pipe()
 	defer server.Close()
