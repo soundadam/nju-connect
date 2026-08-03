@@ -19,6 +19,22 @@ const (
 	StateReconnecting State = "reconnecting"
 )
 
+type CommandFailureStage string
+
+const (
+	CommandUpstreamConnectFailed      CommandFailureStage = CommandFailureStage(runtime.StageUpstreamConnectFailed)
+	CommandProtocolTLSHandshakeFailed CommandFailureStage = CommandFailureStage(runtime.StageProtocolTLSHandshakeFailed)
+	CommandSendIPWriteFailed          CommandFailureStage = CommandFailureStage(runtime.StageSendIPWriteFailed)
+	CommandSendIPReadFailed           CommandFailureStage = CommandFailureStage(runtime.StageSendIPReadFailed)
+	CommandSendIPRejected             CommandFailureStage = CommandFailureStage(runtime.StageSendIPRejected)
+)
+
+type CommandFailure struct {
+	Attempt uint64
+	Stage   CommandFailureStage
+	At      time.Time
+}
+
 // TrafficSnapshot is deliberately limited to application payload and SOCKS
 // connection counters. It cannot carry gateway identities or wire data.
 type TrafficSnapshot struct {
@@ -33,6 +49,7 @@ type TrafficSnapshot struct {
 // Implementations must tolerate callbacks from runtime-owned goroutines.
 type Observer interface {
 	StateChanged(State)
+	CommandFailed(CommandFailure)
 	SOCKSListening(string)
 	TrafficChanged(TrafficSnapshot)
 	AccessEvidence(bool)
@@ -41,6 +58,7 @@ type Observer interface {
 // ObserverFuncs adapts optional callbacks to Observer.
 type ObserverFuncs struct {
 	OnState          func(State)
+	OnCommandFailure func(CommandFailure)
 	OnSOCKSListen    func(string)
 	OnTraffic        func(TrafficSnapshot)
 	OnAccessEvidence func(bool)
@@ -49,6 +67,12 @@ type ObserverFuncs struct {
 func (observer ObserverFuncs) StateChanged(state State) {
 	if observer.OnState != nil {
 		observer.OnState(state)
+	}
+}
+
+func (observer ObserverFuncs) CommandFailed(failure CommandFailure) {
+	if failure.Attempt != 0 && !failure.At.IsZero() && validCommandFailureStage(failure.Stage) && observer.OnCommandFailure != nil {
+		observer.OnCommandFailure(failure)
 	}
 }
 
@@ -89,6 +113,20 @@ func (observer *serializedObserver) state(runtimeState runtime.State) {
 	observer.observer.StateChanged(state)
 }
 
+func (observer *serializedObserver) commandFailure(runtimeFailure runtime.CommandFailure) {
+	stage, valid := sanitizedCommandFailureStage(runtimeFailure.Stage)
+	if !valid || runtimeFailure.Attempt == 0 || runtimeFailure.At.IsZero() || observer.observer == nil {
+		return
+	}
+	observer.mu.Lock()
+	defer observer.mu.Unlock()
+	observer.observer.CommandFailed(CommandFailure{
+		Attempt: runtimeFailure.Attempt,
+		Stage:   stage,
+		At:      runtimeFailure.At.UTC(),
+	})
+}
+
 func (observer *serializedObserver) listen(address net.Addr) {
 	listen, valid := sanitizedLoopbackAddress(address)
 	if !valid || observer.observer == nil {
@@ -127,6 +165,36 @@ func sanitizedState(state runtime.State) (State, bool) {
 		return StateReconnecting, true
 	default:
 		return "", false
+	}
+}
+
+func sanitizedCommandFailureStage(stage runtime.FailureStage) (CommandFailureStage, bool) {
+	switch stage {
+	case runtime.StageUpstreamConnectFailed:
+		return CommandUpstreamConnectFailed, true
+	case runtime.StageProtocolTLSHandshakeFailed:
+		return CommandProtocolTLSHandshakeFailed, true
+	case runtime.StageSendIPWriteFailed:
+		return CommandSendIPWriteFailed, true
+	case runtime.StageSendIPReadFailed:
+		return CommandSendIPReadFailed, true
+	case runtime.StageSendIPRejected:
+		return CommandSendIPRejected, true
+	default:
+		return "", false
+	}
+}
+
+func validCommandFailureStage(stage CommandFailureStage) bool {
+	switch stage {
+	case CommandUpstreamConnectFailed,
+		CommandProtocolTLSHandshakeFailed,
+		CommandSendIPWriteFailed,
+		CommandSendIPReadFailed,
+		CommandSendIPRejected:
+		return true
+	default:
+		return false
 	}
 }
 

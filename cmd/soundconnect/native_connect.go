@@ -222,6 +222,10 @@ func nativeCLIObserver(output io.Writer) nativeapp.ObserverFuncs {
 		OnState: func(state nativeapp.State) {
 			fmt.Fprintf(output, "state: %s\n", state)
 		},
+		OnCommandFailure: func(failure nativeapp.CommandFailure) {
+			fmt.Fprintf(output, "command: at=%s attempt=%d stage=%s\n",
+				failure.At.UTC().Format(time.RFC3339Nano), failure.Attempt, failure.Stage)
+		},
 		OnSOCKSListen: func(address string) {
 			fmt.Fprintf(output, "socks: %s\n", address)
 		},

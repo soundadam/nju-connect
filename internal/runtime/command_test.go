@@ -7,6 +7,8 @@ import (
 	"errors"
 	"io"
 	"net"
+	"slices"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -123,6 +125,193 @@ func TestCommandSupervisorUsesBoundedExponentialBackoff(t *testing.T) {
 	want := []time.Duration{4 * time.Second, 8 * time.Second}
 	if len(delays) != len(want) || delays[0] != want[0] || delays[1] != want[1] {
 		t.Fatalf("backoff delays = %v, want %v", delays, want)
+	}
+}
+
+func TestCommandSupervisorBoundsInitialEstablishmentAndReportsSafeStages(t *testing.T) {
+	const attemptLimit = 3
+	const sensitive = "secret proxy node, token, and gateway reply"
+	fixedNow := time.Unix(1234, 0)
+	var dials int
+	var delays []time.Duration
+	var failures []CommandFailure
+	supervisor, err := NewCommandSupervisor(CommandConfig{
+		Dial: func(context.Context) (net.Conn, error) {
+			dials++
+			return nil, errors.New(sensitive)
+		},
+		Token:               make([]byte, agentTokenSize),
+		InitialAttemptLimit: attemptLimit,
+		Now:                 func() time.Time { return fixedNow },
+		Wait: func(_ context.Context, duration time.Duration) error {
+			delays = append(delays, duration)
+			return nil
+		},
+		OnFailure: func(failure CommandFailure) {
+			failures = append(failures, failure)
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = supervisor.Run(context.Background(), func(Component, bool) {})
+	var transport *TransportFailure
+	if !errors.As(err, &transport) || transport.Code != FailureTransportUnavailable {
+		t.Fatalf("initial establishment error = %v", err)
+	}
+	if dials != attemptLimit {
+		t.Fatalf("dial attempts = %d, want %d", dials, attemptLimit)
+	}
+	wantDelays := []time.Duration{4 * time.Second, 8 * time.Second}
+	if !slices.Equal(delays, wantDelays) {
+		t.Fatalf("backoff delays = %v, want %v", delays, wantDelays)
+	}
+	if len(failures) != attemptLimit {
+		t.Fatalf("command failures = %v", failures)
+	}
+	for index, failure := range failures {
+		if failure.Attempt != uint64(index+1) || failure.Stage != StageUpstreamConnectFailed || !failure.At.Equal(fixedNow) {
+			t.Fatalf("command failure %d = %+v", index, failure)
+		}
+	}
+	if strings.Contains(err.Error(), "secret") {
+		t.Fatalf("initial establishment exposed a raw error: %v", err)
+	}
+}
+
+func TestCommandSupervisorReportsFixedSendIPStages(t *testing.T) {
+	tests := []struct {
+		name  string
+		stage FailureStage
+		dial  CommandDialer
+	}{
+		{
+			name:  "write failed",
+			stage: StageSendIPWriteFailed,
+			dial: func(context.Context) (net.Conn, error) {
+				client, server := net.Pipe()
+				_ = server.Close()
+				return client, nil
+			},
+		},
+		{
+			name:  "read failed",
+			stage: StageSendIPReadFailed,
+			dial: func(context.Context) (net.Conn, error) {
+				client, server := net.Pipe()
+				go func() {
+					defer server.Close()
+					request := make([]byte, commandRequestSize)
+					_, _ = io.ReadFull(server, request)
+					clear(request)
+				}()
+				return client, nil
+			},
+		},
+		{
+			name:  "rejected",
+			stage: StageSendIPRejected,
+			dial: func(context.Context) (net.Conn, error) {
+				client, server := net.Pipe()
+				go func() {
+					defer server.Close()
+					request := make([]byte, commandRequestSize)
+					_, _ = io.ReadFull(server, request)
+					clear(request)
+					reply := make([]byte, commandReplySize)
+					binary.LittleEndian.PutUint32(reply[:4], 9)
+					_, _ = server.Write(reply)
+					clear(reply)
+				}()
+				return client, nil
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			fixedNow := time.Unix(2345, 0)
+			var failures []CommandFailure
+			waited := false
+			supervisor, err := NewCommandSupervisor(CommandConfig{
+				Dial:                test.dial,
+				Token:               make([]byte, agentTokenSize),
+				InitialAttemptLimit: 1,
+				Now:                 func() time.Time { return fixedNow },
+				Wait: func(context.Context, time.Duration) error {
+					waited = true
+					return nil
+				},
+				OnFailure: func(failure CommandFailure) {
+					failures = append(failures, failure)
+				},
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			err = supervisor.Run(context.Background(), func(Component, bool) {})
+			if test.stage == StageSendIPRejected {
+				var renewal *RenewalRequired
+				if !errors.As(err, &renewal) || renewal.Reason != RenewalGatewayRejected {
+					t.Fatalf("rejection error = %v", err)
+				}
+			} else {
+				var transport *TransportFailure
+				if !errors.As(err, &transport) || transport.Code != FailureTransportUnavailable {
+					t.Fatalf("establishment error = %v", err)
+				}
+			}
+			if waited {
+				t.Fatal("final initial failure scheduled another retry")
+			}
+			if len(failures) != 1 || failures[0].Attempt != 1 || failures[0].Stage != test.stage || !failures[0].At.Equal(fixedNow) {
+				t.Fatalf("command failures = %v", failures)
+			}
+		})
+	}
+}
+
+func TestCommandInitialAttemptTimeoutClosesPendingSendIPRead(t *testing.T) {
+	client, server := net.Pipe()
+	defer server.Close()
+	recorded := &recordingConn{Conn: client}
+	requestRead := make(chan struct{})
+	serverDone := make(chan struct{})
+	go func() {
+		defer close(serverDone)
+		request := make([]byte, commandRequestSize)
+		_, _ = io.ReadFull(server, request)
+		clear(request)
+		close(requestRead)
+		_, _ = io.Copy(io.Discard, server)
+	}()
+	var failures []CommandFailure
+	fixedNow := time.Unix(3456, 0)
+	supervisor, err := NewCommandSupervisor(CommandConfig{
+		Dial:                func(context.Context) (net.Conn, error) { return recorded, nil },
+		Token:               make([]byte, agentTokenSize),
+		AttemptTimeout:      20 * time.Millisecond,
+		InitialAttemptLimit: 1,
+		Now:                 func() time.Time { return fixedNow },
+		OnFailure: func(failure CommandFailure) {
+			failures = append(failures, failure)
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = supervisor.Run(context.Background(), func(Component, bool) {})
+	<-requestRead
+	<-serverDone
+	var transport *TransportFailure
+	if !errors.As(err, &transport) || transport.Code != FailureTransportUnavailable {
+		t.Fatalf("attempt timeout error = %v", err)
+	}
+	if len(failures) != 1 || failures[0].Stage != StageSendIPReadFailed || !failures[0].At.Equal(fixedNow) {
+		t.Fatalf("command failures = %v", failures)
+	}
+	_, closes := recorded.snapshot()
+	if closes == 0 {
+		t.Fatal("timed-out SEND_IP connection was not closed")
 	}
 }
 

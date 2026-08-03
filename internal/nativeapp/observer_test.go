@@ -4,13 +4,16 @@ import (
 	"net"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/soundadam/soundconnect/internal/runtime"
 	"github.com/soundadam/soundconnect/internal/traffic"
 )
 
 func TestObserverAllowsOnlyNamedStateAndLoopbackListener(t *testing.T) {
+	fixedNow := time.Date(2026, time.August, 3, 12, 0, 0, 0, time.FixedZone("secret-location", 8*60*60))
 	var states []State
+	var commandFailures []CommandFailure
 	var listeners []string
 	observer := newSerializedObserver(ObserverFuncs{
 		OnState: func(state State) {
@@ -19,18 +22,42 @@ func TestObserverAllowsOnlyNamedStateAndLoopbackListener(t *testing.T) {
 		OnSOCKSListen: func(address string) {
 			listeners = append(listeners, address)
 		},
+		OnCommandFailure: func(failure CommandFailure) {
+			commandFailures = append(commandFailures, failure)
+		},
 	})
 
 	observer.state(runtime.StateConnecting)
 	observer.state(runtime.State("gateway-reply-secret"))
+	observer.commandFailure(runtime.CommandFailure{Attempt: 2, Stage: runtime.StageSendIPReadFailed, At: fixedNow})
+	observer.commandFailure(runtime.CommandFailure{Attempt: 3, Stage: runtime.FailureStage("gateway-reply-secret"), At: fixedNow})
 	observer.listen(testAddress("127.0.0.1:1081"))
 	observer.listen(testAddress("10.0.0.1:1081"))
 
 	if len(states) != 1 || states[0] != StateConnecting {
 		t.Fatalf("states = %v", states)
 	}
+	wantFailure := CommandFailure{Attempt: 2, Stage: CommandSendIPReadFailed, At: fixedNow.UTC()}
+	if len(commandFailures) != 1 || commandFailures[0] != wantFailure {
+		t.Fatalf("command failures = %v", commandFailures)
+	}
 	if len(listeners) != 1 || listeners[0] != "127.0.0.1:1081" {
 		t.Fatalf("listeners = %v", listeners)
+	}
+}
+
+func TestObserverFuncsRejectsUntrustedCommandStage(t *testing.T) {
+	fixedNow := time.Unix(1000, 0)
+	var failures []CommandFailure
+	observer := ObserverFuncs{OnCommandFailure: func(failure CommandFailure) {
+		failures = append(failures, failure)
+	}}
+	observer.CommandFailed(CommandFailure{Attempt: 1, Stage: CommandSendIPReadFailed, At: fixedNow})
+	observer.CommandFailed(CommandFailure{Attempt: 2, Stage: CommandFailureStage("gateway-reply-secret"), At: fixedNow})
+	observer.CommandFailed(CommandFailure{Stage: CommandSendIPReadFailed, At: fixedNow})
+	observer.CommandFailed(CommandFailure{Attempt: 3, Stage: CommandSendIPReadFailed})
+	if len(failures) != 1 || failures[0] != (CommandFailure{Attempt: 1, Stage: CommandSendIPReadFailed, At: fixedNow}) {
+		t.Fatalf("command failures = %v", failures)
 	}
 }
 
@@ -52,6 +79,7 @@ func TestObserverSerializesRuntimeCallbacks(t *testing.T) {
 	}
 	observer := newSerializedObserver(ObserverFuncs{
 		OnState:          func(State) { callback() },
+		OnCommandFailure: func(CommandFailure) { callback() },
 		OnSOCKSListen:    func(string) { callback() },
 		OnTraffic:        func(TrafficSnapshot) { callback() },
 		OnAccessEvidence: func(bool) { callback() },
@@ -59,10 +87,14 @@ func TestObserverSerializesRuntimeCallbacks(t *testing.T) {
 
 	var workers sync.WaitGroup
 	for range callsPerKind {
-		workers.Add(4)
+		workers.Add(5)
 		go func() {
 			defer workers.Done()
 			observer.state(runtime.StateConnected)
+		}()
+		go func() {
+			defer workers.Done()
+			observer.commandFailure(runtime.CommandFailure{Attempt: 1, Stage: runtime.StageUpstreamConnectFailed, At: time.Unix(1000, 0)})
 		}()
 		go func() {
 			defer workers.Done()

@@ -14,9 +14,10 @@ import (
 )
 
 const (
-	commandRequestSize = 64
-	commandReplySize   = 36
-	agentTokenSize     = sessiontoken.NativeGatewayTokenSize
+	commandRequestSize                = 64
+	commandReplySize                  = 36
+	agentTokenSize                    = sessiontoken.NativeGatewayTokenSize
+	defaultCommandInitialAttemptLimit = 4
 )
 
 type CommandDialer func(context.Context) (net.Conn, error)
@@ -27,15 +28,18 @@ type CommandIdentity struct {
 }
 
 type CommandConfig struct {
-	Dial              CommandDialer
-	Token             []byte
-	HeartbeatInterval time.Duration
-	InitialBackoff    time.Duration
-	MaximumBackoff    time.Duration
-	StableFor         time.Duration
-	Wait              WaitFunc
-	Now               func() time.Time
-	OnIdentity        func(CommandIdentity) error
+	Dial                CommandDialer
+	Token               []byte
+	HeartbeatInterval   time.Duration
+	InitialBackoff      time.Duration
+	MaximumBackoff      time.Duration
+	StableFor           time.Duration
+	AttemptTimeout      time.Duration
+	InitialAttemptLimit int
+	Wait                WaitFunc
+	Now                 func() time.Time
+	OnIdentity          func(CommandIdentity) error
+	OnFailure           func(CommandFailure)
 }
 
 type CommandSupervisor struct {
@@ -61,6 +65,15 @@ func NewCommandSupervisor(config CommandConfig) (*CommandSupervisor, error) {
 	if config.StableFor <= 0 {
 		config.StableFor = time.Minute
 	}
+	if config.AttemptTimeout <= 0 {
+		config.AttemptTimeout = gatewayProtocolTimeout
+	}
+	if config.InitialAttemptLimit < 0 {
+		return nil, errors.New("initial command attempt limit cannot be negative")
+	}
+	if config.InitialAttemptLimit == 0 {
+		config.InitialAttemptLimit = defaultCommandInitialAttemptLimit
+	}
 	if config.Wait == nil {
 		config.Wait = waitContext
 	}
@@ -76,16 +89,34 @@ func (supervisor *CommandSupervisor) Run(ctx context.Context, report func(Compon
 	backoff := newBoundedBackoff(supervisor.config.InitialBackoff, supervisor.config.MaximumBackoff)
 	var identity CommandIdentity
 	identityEstablished := false
+	initialFailures := 0
+	var attempt uint64
 	for {
-		connection, current, err := supervisor.connect(ctx)
+		attempt++
+		attemptContext, cancelAttempt := context.WithTimeout(ctx, supervisor.config.AttemptTimeout)
+		connection, current, err := supervisor.connect(attemptContext)
+		cancelAttempt()
 		if err != nil {
-			if errors.Is(err, ErrGatewayRejected) {
-				return &RenewalRequired{Reason: RenewalGatewayRejected}
-			}
 			if ctx.Err() != nil {
 				return ctx.Err()
 			}
+			if stage, ok := failureStageOf(err); ok && supervisor.config.OnFailure != nil {
+				supervisor.config.OnFailure(CommandFailure{
+					Attempt: attempt,
+					Stage:   stage,
+					At:      supervisor.config.Now().UTC(),
+				})
+			}
 			report(ComponentCommand, false)
+			if errors.Is(err, ErrGatewayRejected) {
+				return &RenewalRequired{Reason: RenewalGatewayRejected}
+			}
+			if !identityEstablished {
+				initialFailures++
+				if initialFailures >= supervisor.config.InitialAttemptLimit {
+					return &TransportFailure{Code: FailureTransportUnavailable}
+				}
+			}
 			if err := supervisor.config.Wait(ctx, backoff.Next()); err != nil {
 				return err
 			}
@@ -148,11 +179,16 @@ func (supervisor *CommandSupervisor) connect(ctx context.Context) (net.Conn, Com
 		if connection != nil {
 			_ = connection.Close()
 		}
-		return nil, CommandIdentity{}, err
+		if _, ok := failureStageOf(err); ok {
+			return nil, CommandIdentity{}, err
+		}
+		return nil, CommandIdentity{}, newStageFailure(StageUpstreamConnectFailed, nil)
 	}
 	if connection == nil {
-		return nil, CommandIdentity{}, errors.New("command dialer returned no connection")
+		return nil, CommandIdentity{}, newStageFailure(StageUpstreamConnectFailed, nil)
 	}
+	stopMonitor := monitorContext(ctx, connection)
+	defer stopMonitor()
 	request := make([]byte, commandRequestSize)
 	copy(request[4:52], supervisor.config.Token)
 	binary.LittleEndian.PutUint32(request[60:64], 0xffffffff)
@@ -160,17 +196,17 @@ func (supervisor *CommandSupervisor) connect(ctx context.Context) (net.Conn, Com
 	clear(request)
 	if err != nil {
 		_ = connection.Close()
-		return nil, CommandIdentity{}, err
+		return nil, CommandIdentity{}, newStageFailure(StageSendIPWriteFailed, nil)
 	}
 	reply := make([]byte, commandReplySize)
 	defer clear(reply)
 	if _, err := io.ReadFull(connection, reply); err != nil {
 		_ = connection.Close()
-		return nil, CommandIdentity{}, err
+		return nil, CommandIdentity{}, newStageFailure(StageSendIPReadFailed, nil)
 	}
 	if binary.LittleEndian.Uint32(reply[0:4]) != 0 {
 		_ = connection.Close()
-		return nil, CommandIdentity{}, ErrGatewayRejected
+		return nil, CommandIdentity{}, newStageFailure(StageSendIPRejected, ErrGatewayRejected)
 	}
 	identity := CommandIdentity{
 		AssignedIPv4: netip.AddrFrom4([4]byte(reply[4:8])),

@@ -94,6 +94,7 @@ func NewSession(sessionConfig SessionConfig) (*Session, error) {
 		AccessURL:        sessionConfig.AccessProbeURL,
 		OnAccessEvidence: observer.accessEvidence,
 		OnState:          observer.state,
+		OnCommandFailure: observer.commandFailure,
 		OnListen:         observer.listen,
 	})
 	if err != nil {

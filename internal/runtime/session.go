@@ -32,17 +32,20 @@ type NativeSessionConfig struct {
 	AccessURL        string
 	OnAccessEvidence AccessEvidenceFunc
 
-	OnState  func(State)
-	OnListen func(net.Addr)
-	Now      func() time.Time
+	OnState          func(State)
+	OnListen         func(net.Addr)
+	Now              func() time.Time
+	OnCommandFailure func(CommandFailure)
 
-	Watchdog                time.Duration
-	CommandHeartbeat        time.Duration
-	DataHeartbeat           time.Duration
-	ReconnectInitialBackoff time.Duration
-	ReconnectMaximumBackoff time.Duration
-	StableFor               time.Duration
-	MaxPendingIPv4          int
+	Watchdog                   time.Duration
+	CommandHeartbeat           time.Duration
+	CommandAttemptTimeout      time.Duration
+	CommandInitialAttemptLimit int
+	DataHeartbeat              time.Duration
+	ReconnectInitialBackoff    time.Duration
+	ReconnectMaximumBackoff    time.Duration
+	StableFor                  time.Duration
+	MaxPendingIPv4             int
 }
 
 type nativeResources struct {
@@ -150,14 +153,17 @@ func (session *NativeSession) Run(ctx context.Context) error {
 	session.config.Counters.BeginSession(session.config.Now())
 
 	command, err := NewCommandSupervisor(CommandConfig{
-		Dial:              session.config.CommandDial,
-		Token:             session.token,
-		HeartbeatInterval: session.config.CommandHeartbeat,
-		InitialBackoff:    session.config.ReconnectInitialBackoff,
-		MaximumBackoff:    session.config.ReconnectMaximumBackoff,
-		StableFor:         session.config.StableFor,
-		Now:               session.config.Now,
-		OnIdentity:        session.initialize,
+		Dial:                session.config.CommandDial,
+		Token:               session.token,
+		HeartbeatInterval:   session.config.CommandHeartbeat,
+		InitialBackoff:      session.config.ReconnectInitialBackoff,
+		MaximumBackoff:      session.config.ReconnectMaximumBackoff,
+		StableFor:           session.config.StableFor,
+		AttemptTimeout:      session.config.CommandAttemptTimeout,
+		InitialAttemptLimit: session.config.CommandInitialAttemptLimit,
+		Now:                 session.config.Now,
+		OnIdentity:          session.initialize,
+		OnFailure:           session.config.OnCommandFailure,
 	})
 	if err != nil {
 		return &TransportFailure{Code: FailureRuntimeStopped}

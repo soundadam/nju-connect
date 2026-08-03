@@ -45,7 +45,10 @@ func TestProtocolTLSClientHelloExactLayoutAndHandshakeFailureClose(t *testing.T)
 	if connection != nil || err == nil {
 		t.Fatalf("connection=%v error=%v", connection, err)
 	}
-	if strings.Contains(err.Error(), "handshake") || strings.Contains(err.Error(), "vpn.example") {
+	if stage, ok := failureStageOf(err); !ok || stage != StageProtocolTLSHandshakeFailed {
+		t.Fatalf("handshake stage = %q, %t", stage, ok)
+	}
+	if strings.Contains(err.Error(), "vpn.example") {
 		t.Fatalf("handshake error exposed details: %v", err)
 	}
 	assertProtocolClientHello(t, <-hello)
@@ -148,6 +151,9 @@ func TestProtocolTLSRawFailureIsClosedAndSanitized(t *testing.T) {
 	_, err = dialer.Dial(context.Background())
 	if err == nil || strings.Contains(err.Error(), "secret") {
 		t.Fatalf("raw dial error = %v", err)
+	}
+	if stage, ok := failureStageOf(err); !ok || stage != StageUpstreamConnectFailed {
+		t.Fatalf("raw dial stage = %q, %t", stage, ok)
 	}
 	_, closes := recorded.snapshot()
 	if closes == 0 {

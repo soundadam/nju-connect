@@ -48,10 +48,10 @@ func (dialer *ProtocolTLSDialer) Dial(ctx context.Context) (net.Conn, error) {
 		if raw != nil {
 			_ = raw.Close()
 		}
-		return nil, &TransportFailure{Code: FailureTransportUnavailable}
+		return nil, newStageFailure(StageUpstreamConnectFailed, nil)
 	}
 	if raw == nil {
-		return nil, &TransportFailure{Code: FailureTransportUnavailable}
+		return nil, newStageFailure(StageUpstreamConnectFailed, nil)
 	}
 	keepOpen := false
 	defer func() {
@@ -62,7 +62,7 @@ func (dialer *ProtocolTLSDialer) Dial(ctx context.Context) (net.Conn, error) {
 	stopMonitor := monitorContext(ctx, raw)
 	defer stopMonitor()
 	if err := raw.SetDeadline(protocolDeadline(ctx, dialer.now())); err != nil {
-		return nil, &TransportFailure{Code: FailureTransportUnavailable}
+		return nil, newStageFailure(StageProtocolTLSHandshakeFailed, nil)
 	}
 
 	clientRandom := make([]byte, 32)
@@ -71,13 +71,13 @@ func (dialer *ProtocolTLSDialer) Dial(ctx context.Context) (net.Conn, error) {
 	dialer.mu.Unlock()
 	if randomErr != nil {
 		clear(clientRandom)
-		return nil, &TransportFailure{Code: FailureProtocolInvalid}
+		return nil, newStageFailure(StageProtocolTLSHandshakeFailed, nil)
 	}
 	config := dialer.tlsConfig()
 	connection := utls.UClient(raw, config, utls.HelloCustom)
 	if err := connection.ApplyPreset(protocolClientHelloSpec()); err != nil {
 		clear(clientRandom)
-		return nil, &TransportFailure{Code: FailureProtocolInvalid}
+		return nil, newStageFailure(StageProtocolTLSHandshakeFailed, nil)
 	}
 	copy(connection.HandshakeState.Hello.Random, clientRandom)
 	clear(clientRandom)
@@ -85,13 +85,13 @@ func (dialer *ProtocolTLSDialer) Dial(ctx context.Context) (net.Conn, error) {
 	copy(sessionID, []byte("L3IP"))
 	connection.HandshakeState.Hello.SessionId = sessionID
 	if err := connection.HandshakeContext(ctx); err != nil {
-		return nil, &TransportFailure{Code: FailureTransportUnavailable}
+		return nil, newStageFailure(StageProtocolTLSHandshakeFailed, nil)
 	}
 	if ctx.Err() != nil {
-		return nil, &TransportFailure{Code: FailureTransportUnavailable}
+		return nil, newStageFailure(StageProtocolTLSHandshakeFailed, nil)
 	}
 	if err := connection.SetDeadline(time.Time{}); err != nil {
-		return nil, &TransportFailure{Code: FailureTransportUnavailable}
+		return nil, newStageFailure(StageProtocolTLSHandshakeFailed, nil)
 	}
 	keepOpen = true
 	return connection, nil

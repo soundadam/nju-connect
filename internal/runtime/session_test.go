@@ -113,6 +113,39 @@ func TestNativeSessionRequiresReadyL3VPNPlan(t *testing.T) {
 	}
 }
 
+func TestNativeSessionInitialCommandFailureDoesNotRemainConnecting(t *testing.T) {
+	fixedNow := time.Unix(4567, 0)
+	var failures []CommandFailure
+	session, err := NewNativeSession(NativeSessionConfig{
+		Plan: core.DataplanePlan{
+			Mode:               core.DataplaneL3VPN,
+			LocalAgentRequired: true,
+			BoundaryReady:      true,
+		},
+		AgentToken: make([]byte, agentTokenSize),
+		CommandDial: func(context.Context) (net.Conn, error) {
+			return nil, errors.New("secret upstream failure")
+		},
+		CommandInitialAttemptLimit: 1,
+		SOCKSBind:                  "127.0.0.1:0",
+		Now:                        func() time.Time { return fixedNow },
+		OnCommandFailure: func(failure CommandFailure) {
+			failures = append(failures, failure)
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = session.Run(context.Background())
+	var transport *TransportFailure
+	if !errors.As(err, &transport) || transport.Code != FailureTransportUnavailable {
+		t.Fatalf("native startup error = %v", err)
+	}
+	if len(failures) != 1 || failures[0].Attempt != 1 || failures[0].Stage != StageUpstreamConnectFailed || !failures[0].At.Equal(fixedNow) {
+		t.Fatalf("command failures = %v", failures)
+	}
+}
+
 func TestNativeSessionCloseBeforeRunPreventsLaterStart(t *testing.T) {
 	token := make([]byte, agentTokenSize)
 	session, err := NewNativeSession(NativeSessionConfig{

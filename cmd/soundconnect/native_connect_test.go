@@ -12,6 +12,7 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/soundadam/soundconnect/internal/config"
 	"github.com/soundadam/soundconnect/internal/credential"
@@ -54,6 +55,11 @@ func TestNativeConnectWiresAuthenticatedSessionWithoutLeakingMaterial(t *testing
 			t.Fatalf("native session config = %+v", sessionConfig.Plan)
 		}
 		sessionConfig.Observer.StateChanged(nativeapp.StateConnecting)
+		sessionConfig.Observer.CommandFailed(nativeapp.CommandFailure{
+			Attempt: 1,
+			Stage:   nativeapp.CommandProtocolTLSHandshakeFailed,
+			At:      time.Date(2026, time.August, 3, 12, 0, 0, 0, time.UTC),
+		})
 		sessionConfig.Observer.SOCKSListening("127.0.0.1:1081")
 		sessionConfig.Observer.AccessEvidence(true)
 		sessionConfig.Observer.TrafficChanged(nativeapp.TrafficSnapshot{UploadBytes: 7, DownloadBytes: 9})
@@ -75,6 +81,7 @@ func TestNativeConnectWiresAuthenticatedSessionWithoutLeakingMaterial(t *testing
 	for _, expected := range []string{
 		"authentication: accepted\n",
 		"state: connecting\n",
+		"command: at=2026-08-03T12:00:00Z attempt=1 stage=protocol_tls_handshake_failed\n",
 		"socks: 127.0.0.1:1081\n",
 		"access: available=true\n",
 		"traffic: upload=7 download=9 active=0 total=0\n",
