@@ -192,7 +192,7 @@ func gatewayTargetFor(server string, resolveIP string) (gatewayTarget, error) {
 	}, nil
 }
 
-func commandDialer(outbound dial.ContextFunc, address string) runtime.CommandDialer {
+func commandDialer(outbound func(context.Context, string, string) (net.Conn, error), address string) runtime.CommandDialer {
 	return func(ctx context.Context) (net.Conn, error) {
 		return outbound(ctx, "tcp", address)
 	}

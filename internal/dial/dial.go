@@ -16,9 +16,7 @@ import (
 
 var ErrUpstreamUnavailable = errors.New("upstream proxy is unavailable")
 
-type ContextFunc func(context.Context, string, string) (net.Conn, error)
-
-func New(proxyURL string, timeout time.Duration) (ContextFunc, error) {
+func New(proxyURL string, timeout time.Duration) (func(context.Context, string, string) (net.Conn, error), error) {
 	base := &net.Dialer{Timeout: timeout, KeepAlive: 30 * time.Second}
 	address, configured, err := upstreamAddress(proxyURL)
 	if err != nil {
