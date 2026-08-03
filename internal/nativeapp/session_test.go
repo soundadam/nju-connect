@@ -52,6 +52,16 @@ func TestGatewayTargetPreservesServerNameWhenAddressIsResolved(t *testing.T) {
 	}
 }
 
+func TestSystemResolveIPv4SupportsProductionSOCKSDomains(t *testing.T) {
+	address, err := systemResolveIPv4(context.Background(), "localhost")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !address.Is4() || !address.IsLoopback() {
+		t.Fatalf("localhost IPv4 = %v", address)
+	}
+}
+
 func TestGatewayTargetRejectsNonNumericResolutionWithoutEchoingIt(t *testing.T) {
 	const sensitive = "not-an-ip-secret"
 	_, err := gatewayTargetFor("vpn.example.edu", sensitive)

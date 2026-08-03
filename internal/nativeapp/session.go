@@ -82,12 +82,16 @@ func NewSession(sessionConfig SessionConfig) (*Session, error) {
 	}
 
 	observer := newSerializedObserver(sessionConfig.Observer)
+	resolveIPv4 := sessionConfig.ResolveIPv4
+	if resolveIPv4 == nil {
+		resolveIPv4 = systemResolveIPv4
+	}
 	native, err := runtime.NewNativeSession(runtime.NativeSessionConfig{
 		Plan:             sessionConfig.Plan,
 		AgentToken:       sessionConfig.NativeGatewayToken,
 		Profile:          profile,
 		SOCKSBind:        sessionConfig.Settings.SOCKSListen,
-		ResolveIPv4:      sessionConfig.ResolveIPv4,
+		ResolveIPv4:      resolveIPv4,
 		MaxSOCKSClients:  sessionConfig.MaxSOCKSClients,
 		AccessURL:        sessionConfig.AccessProbeURL,
 		OnAccessEvidence: observer.accessEvidence,
@@ -100,6 +104,20 @@ func NewSession(sessionConfig SessionConfig) (*Session, error) {
 		return nil, err
 	}
 	return &Session{native: native, observer: observer, profile: runtime.ProtocolProfileInfo(profile)}, nil
+}
+
+func systemResolveIPv4(ctx context.Context, host string) (netip.Addr, error) {
+	addresses, err := net.DefaultResolver.LookupNetIP(ctx, "ip4", host)
+	if err != nil {
+		return netip.Addr{}, errors.New("resolve SOCKS destination")
+	}
+	for _, address := range addresses {
+		address = address.Unmap()
+		if address.Is4() {
+			return address, nil
+		}
+	}
+	return netip.Addr{}, errors.New("SOCKS destination has no IPv4 address")
 }
 
 func newProtocolProfile(profileID runtime.ProtocolProfileID, rawDial runtime.CommandDialer, serverName string, tlsInsecure bool) (runtime.ProtocolProfile, error) {
