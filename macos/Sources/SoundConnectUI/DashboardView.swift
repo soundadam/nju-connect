@@ -1,0 +1,400 @@
+import SwiftUI
+
+struct DashboardView: View {
+    @ObservedObject var model: DesignModel
+    @State private var oneTimeCode = ""
+    @State private var schoolAccount = ""
+    @State private var vpnPassword = ""
+    @State private var vpnPasswordConfirmation = ""
+    @State private var setupValidationMessage: String?
+    @FocusState private var codeFieldFocused: Bool
+    @FocusState private var setupFieldFocused: SetupField?
+
+    private enum SetupField: Hashable {
+        case schoolAccount
+        case vpnPassword
+        case confirmation
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            header
+
+            if !model.statusDetail.isEmpty {
+                Divider()
+                statusDetailRow
+            }
+
+            if let message = model.actionMessage {
+                Divider()
+                actionMessageRow(message)
+            }
+
+            if let notice = model.serviceControlNotice {
+                Divider()
+                serviceControlNoticeRow(notice)
+            }
+
+            if model.showsCredentialSetup {
+                Divider()
+                setupRow
+            }
+
+            if !model.showsCredentialSetup, model.phase == .connected {
+                Divider()
+                accessStatusRow
+            }
+
+            if !model.showsCredentialSetup, model.canSubmitAuthenticationCode {
+                authenticationRow
+            }
+
+            if !model.showsCredentialSetup,
+               model.phase == .connected || model.phase == .reconnecting
+            {
+                Divider()
+                trafficRow
+            }
+
+            if !model.showsCredentialSetup, model.phase == .degraded {
+                Divider()
+                retryRow
+            }
+        }
+        .frame(width: 320)
+        .animation(.easeInOut(duration: 0.18), value: model.scenario)
+    }
+
+    private var header: some View {
+        HStack(spacing: 10) {
+            Circle()
+                .fill(statusColor)
+                .frame(width: 7, height: 7)
+
+            VStack(alignment: .leading, spacing: 1) {
+                Text("soundconnect")
+                    .font(.headline)
+                Text(model.statusTitle)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+
+            Spacer(minLength: 8)
+
+            if model.isPerformingAction {
+                ProgressView()
+                    .controlSize(.mini)
+            }
+
+            Toggle(
+                "VPN 服务",
+                isOn: Binding(
+                    get: { model.isServiceEnabled },
+                    set: { enabled in model.setServiceEnabled(enabled) }
+                )
+            )
+            .labelsHidden()
+            .toggleStyle(.switch)
+            .controlSize(.small)
+            .disabled(!model.canControlService || model.isPerformingAction)
+            .help(model.isServiceEnabled ? "停止 soundconnect 服务" : "启动 soundconnect 服务")
+        }
+        .padding(.horizontal, 13)
+        .padding(.vertical, 10)
+    }
+
+    private var statusDetailRow: some View {
+        HStack(alignment: .top, spacing: 8) {
+            Image(systemName: statusDetailSymbol)
+                .foregroundStyle(statusColor)
+                .frame(width: 14)
+
+            if model.phase == .connected {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("VPN 数据通道已就绪")
+                        .font(.caption)
+                        .fontWeight(.medium)
+                    Text(model.statusDetail)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            } else {
+                Text(model.statusDetail)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 13)
+        .padding(.vertical, 8)
+    }
+
+    private func actionMessageRow(_ message: String) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: "info.circle")
+                .frame(width: 14)
+            Text(message)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(2)
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 13)
+        .padding(.vertical, 7)
+    }
+
+    private func serviceControlNoticeRow(_ notice: String) -> some View {
+        HStack(alignment: .top, spacing: 8) {
+            Image(systemName: "gearshape.2")
+                .foregroundStyle(.orange)
+                .frame(width: 14)
+            Text(notice)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 13)
+        .padding(.vertical, 8)
+    }
+
+    private var accessStatusRow: some View {
+        HStack(alignment: .top, spacing: 8) {
+            Image(systemName: accessStatusSymbol)
+                .foregroundStyle(accessStatusColor)
+                .frame(width: 14)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(model.accessStatusTitle)
+                    .font(.caption)
+                    .fontWeight(.medium)
+                Text(model.accessStatusDetail)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 13)
+        .padding(.vertical, 8)
+    }
+
+    private var setupRow: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            TextField("学校账号", text: $schoolAccount)
+                .textFieldStyle(.roundedBorder)
+                .controlSize(.small)
+                .focused($setupFieldFocused, equals: .schoolAccount)
+                .onSubmit { setupFieldFocused = .vpnPassword }
+
+            SecureField("VPN 长期密码", text: $vpnPassword)
+                .textFieldStyle(.roundedBorder)
+                .controlSize(.small)
+                .focused($setupFieldFocused, equals: .vpnPassword)
+                .onSubmit { setupFieldFocused = .confirmation }
+
+            SecureField("确认 VPN 长期密码", text: $vpnPasswordConfirmation)
+                .textFieldStyle(.roundedBorder)
+                .controlSize(.small)
+                .focused($setupFieldFocused, equals: .confirmation)
+                .onSubmit(submitSetup)
+
+            if let setupValidationMessage {
+                Text(setupValidationMessage)
+                    .font(.caption2)
+                    .foregroundStyle(.red)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            HStack(spacing: 8) {
+                Text("密码仅写入当前用户 0600 本地文件")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Spacer(minLength: 4)
+
+                if model.isReconfiguringCredentials {
+                    Button("取消") {
+                        model.cancelCredentialRecovery()
+                    }
+                    .controlSize(.small)
+                    .disabled(model.isPerformingAction)
+                }
+
+                Button("保存并连接", action: submitSetup)
+                    .controlSize(.small)
+                    .disabled(
+                        schoolAccount.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                            || vpnPassword.isEmpty
+                            || vpnPasswordConfirmation.isEmpty
+                            || model.isPerformingAction
+                    )
+            }
+        }
+        .padding(.horizontal, 13)
+        .padding(.vertical, 10)
+        .onAppear {
+            setupFieldFocused = .schoolAccount
+        }
+        .help("学校账号与 VPN 长期密码在首启时一起设置；短信或动态口令不会保存")
+    }
+
+    private var authenticationRow: some View {
+        HStack(spacing: 7) {
+            SecureField(model.authenticationPlaceholder, text: $oneTimeCode)
+                .textFieldStyle(.roundedBorder)
+                .controlSize(.small)
+                .focused($codeFieldFocused)
+                .onSubmit(submitCode)
+
+            Button("提交", action: submitCode)
+                .controlSize(.small)
+                .disabled(oneTimeCode.isEmpty || model.isPerformingAction)
+        }
+        .padding(.horizontal, 13)
+        .padding(.bottom, 10)
+        .onAppear {
+            codeFieldFocused = true
+        }
+        .help("验证码仅经本机私有 socket 发送一次，不会保存")
+    }
+
+    private var trafficRow: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            HStack(spacing: 6) {
+                Text("SOCKS5")
+                    .fontWeight(.medium)
+                Text(model.socksEndpoint)
+                    .fontDesign(.monospaced)
+                Spacer(minLength: 0)
+            }
+
+            HStack(spacing: 12) {
+                Text("实时")
+                    .frame(width: 28, alignment: .leading)
+                Label(formatRate(model.rates.downloadBytesPerSecond), systemImage: "arrow.down")
+                Label(formatRate(model.rates.uploadBytesPerSecond), systemImage: "arrow.up")
+                Spacer(minLength: 0)
+            }
+
+            HStack(spacing: 12) {
+                Text("本次")
+                    .frame(width: 28, alignment: .leading)
+                Label(formatBytes(model.downloadBytes), systemImage: "arrow.down")
+                Label(formatBytes(model.uploadBytes), systemImage: "arrow.up")
+                Spacer(minLength: 0)
+            }
+
+            HStack(spacing: 12) {
+                Text("连接")
+                    .frame(width: 28, alignment: .leading)
+                Text("活跃 \(model.activeConnections)")
+                Spacer(minLength: 0)
+            }
+        }
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .monospacedDigit()
+        .padding(.horizontal, 13)
+        .padding(.vertical, 8)
+        .help("本次下载 \(formatBytes(model.downloadBytes))，上传 \(formatBytes(model.uploadBytes))，活跃连接 \(model.activeConnections)")
+    }
+
+    private var retryRow: some View {
+        HStack {
+            Text(model.retryDetail)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer()
+            Button(model.retryTitle) {
+                if model.retriesByReconfiguringCredentials {
+                    model.beginCredentialRecovery()
+                } else {
+                    model.retry()
+                }
+            }
+            .controlSize(.small)
+            .disabled(model.isPerformingAction)
+        }
+        .padding(.horizontal, 13)
+        .frame(minHeight: 38)
+    }
+
+    private var statusColor: Color {
+        if model.showsCredentialSetup {
+            return .orange
+        }
+        switch model.phase {
+        case .connected: return .green
+        case .waitingMFA, .authenticating, .connecting, .reconnecting, .starting: return .orange
+        case .degraded: return .red
+        case .stopped: return .secondary
+        }
+    }
+
+    private var accessStatusColor: Color {
+        switch model.accessProbeState {
+        case .passed: return .green
+        case .failed: return .orange
+        case .checking, .notRun: return .secondary
+        }
+    }
+
+    private var accessStatusSymbol: String {
+        switch model.accessProbeState {
+        case .passed: return "checkmark.seal.fill"
+        case .failed: return "exclamationmark.triangle.fill"
+        case .checking: return "network"
+        case .notRun: return "questionmark.circle"
+        }
+    }
+
+    private var statusDetailSymbol: String {
+        if model.showsCredentialSetup {
+            return "person.badge.key.fill"
+        }
+        switch model.phase {
+        case .connected: return "checkmark.circle.fill"
+        case .waitingMFA: return "ellipsis.message.fill"
+        case .starting, .authenticating, .connecting, .reconnecting: return "arrow.triangle.2.circlepath"
+        case .degraded: return "exclamationmark.triangle.fill"
+        case .stopped: return "circle.slash"
+        }
+    }
+
+    private func submitCode() {
+        guard !oneTimeCode.isEmpty else { return }
+        model.submitAuthenticationCode(oneTimeCode)
+        oneTimeCode.removeAll(keepingCapacity: false)
+    }
+
+    private func submitSetup() {
+        let account = schoolAccount.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !account.isEmpty, !account.contains("\n"), !account.contains("\r") else {
+            setupValidationMessage = "请输入有效的学校账号"
+            setupFieldFocused = .schoolAccount
+            return
+        }
+        guard !vpnPassword.isEmpty else {
+            setupValidationMessage = "请输入 VPN 长期密码"
+            setupFieldFocused = .vpnPassword
+            return
+        }
+        guard vpnPassword == vpnPasswordConfirmation else {
+            setupValidationMessage = "两次输入的 VPN 密码不一致"
+            setupFieldFocused = .confirmation
+            return
+        }
+        setupValidationMessage = nil
+        model.completeSetup(schoolAccount: account, vpnPassword: vpnPassword)
+        vpnPassword.removeAll(keepingCapacity: false)
+        vpnPasswordConfirmation.removeAll(keepingCapacity: false)
+    }
+}

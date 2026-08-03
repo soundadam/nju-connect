@@ -2,7 +2,7 @@
 
 This is the single detailed product architecture and release-readiness document. \`README.md\` remains the one-line product narrative. The files under \`research/\` record external evidence only; they are not product runtime or release authority.
 
-The audit started from \`7e86436\` and covers the native userspace core that has already been validated against the live gateway. This task does not change gateway wire bytes, start a vendor service, install a VPN, change routes/DNS/PF, or add a UI or platform shell.
+The audit started from \`7e86436\` and covers the native userspace core that has already been validated against the live gateway. The first macOS UI phase adds a design-only SwiftUI shell under \`macos/\`; it does not yet connect the UI to the Go backend. It also does not change gateway wire bytes, start a vendor service, install a VPN, or change routes/DNS/PF.
 
 ## Ownership and data flow
 
