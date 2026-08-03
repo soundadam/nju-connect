@@ -54,12 +54,21 @@ func TestNativeConnectWiresAuthenticatedSessionWithoutLeakingMaterial(t *testing
 		if !sessionConfig.Settings.TLSInsecure || !sessionConfig.Plan.BoundaryReady {
 			t.Fatalf("native session config = %+v", sessionConfig.Plan)
 		}
+		if sessionConfig.NativeProfile != runtime.ProfileCommunityUTLSCompat {
+			t.Fatalf("native profile = %q", sessionConfig.NativeProfile)
+		}
+		application.profile = runtime.ProtocolProfileMetadata{
+			ID:       runtime.ProfileCommunityUTLSCompat,
+			Evidence: runtime.EvidenceReverseTestLiveCompat,
+			Security: runtime.ProtocolSecurityProperties{Encrypted: true, PeerVerified: false},
+		}
 		sessionConfig.Observer.StateChanged(nativeapp.StateConnecting)
 		sessionConfig.Observer.CommandFailed(nativeapp.CommandFailure{
 			Attempt: 1,
 			Stage:   nativeapp.CommandProtocolTLSHandshakeFailed,
 			At:      time.Date(2026, time.August, 3, 12, 0, 0, 0, time.UTC),
 		})
+		sessionConfig.Observer.DataFailed(nativeapp.DataRXHandshakeFailed)
 		sessionConfig.Observer.SOCKSListening("127.0.0.1:1081")
 		sessionConfig.Observer.AccessEvidence(true)
 		sessionConfig.Observer.TrafficChanged(nativeapp.TrafficSnapshot{UploadBytes: 7, DownloadBytes: 9})
@@ -80,8 +89,12 @@ func TestNativeConnectWiresAuthenticatedSessionWithoutLeakingMaterial(t *testing
 	}
 	for _, expected := range []string{
 		"authentication: accepted\n",
+		"native-profile: community-utls\n",
+		"native-evidence: reverse_test_live_2026_07_18\n",
+		"native-security: encrypted=true peer_verified=false\n",
 		"state: connecting\n",
 		"command: at=2026-08-03T12:00:00Z attempt=1 stage=protocol_tls_handshake_failed\n",
+		"data: stage=rx_handshake_failed\n",
 		"socks: 127.0.0.1:1081\n",
 		"access: available=true\n",
 		"traffic: upload=7 download=9 active=0 total=0\n",
@@ -140,6 +153,23 @@ func TestNativeConnectPreflightsUpstreamBeforeReadingCredential(t *testing.T) {
 	}
 }
 
+func TestNativeConnectRejectsUnknownProfileBeforeSessionConstruction(t *testing.T) {
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	called := false
+	code := runNativeConnectContext(context.Background(), []string{"--native-profile", "secret-unknown-profile"}, &stdout, &stderr,
+		func(nativeapp.SessionConfig) (nativeApplicationSession, error) {
+			called = true
+			return nil, nil
+		})
+	if code != 2 || called || stderr.String() != "native profile: unsupported native profile\n" {
+		t.Fatalf("exit=%d called=%t stderr=%q", code, called, stderr.String())
+	}
+	if strings.Contains(stderr.String(), "secret-unknown-profile") {
+		t.Fatalf("unknown profile was echoed: %q", stderr.String())
+	}
+}
+
 func TestNativeConnectReturnsActionableRenewalWithoutReauthentication(t *testing.T) {
 	var stderr bytes.Buffer
 	code := reportNativeRunResult(context.Background(),
@@ -160,9 +190,10 @@ func TestNativeConnectSanitizesUnknownTransportFailure(t *testing.T) {
 }
 
 type fakeNativeApplication struct {
-	cancel context.CancelFunc
-	runErr error
-	closed bool
+	cancel  context.CancelFunc
+	runErr  error
+	closed  bool
+	profile runtime.ProtocolProfileMetadata
 }
 
 func (application *fakeNativeApplication) Run(context.Context) error {
@@ -176,6 +207,10 @@ func (application *fakeNativeApplication) Run(context.Context) error {
 func (application *fakeNativeApplication) Close() error {
 	application.closed = true
 	return nil
+}
+
+func (application *fakeNativeApplication) Profile() runtime.ProtocolProfileMetadata {
+	return application.profile
 }
 
 func newNativeGatewayTestServer(t *testing.T) *httptest.Server {

@@ -15,6 +15,8 @@ func TestFailureStagesAreFixedAndNeverRetainRawErrors(t *testing.T) {
 		StageSendIPWriteFailed,
 		StageSendIPReadFailed,
 		StageSendIPRejected,
+		StageRXHandshakeFailed,
+		StageTXHandshakeFailed,
 	} {
 		err := newStageFailure(stage, errors.New("secret token and gateway reply"))
 		got, ok := failureStageOf(err)

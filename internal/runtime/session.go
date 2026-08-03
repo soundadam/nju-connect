@@ -23,7 +23,7 @@ type NativeDataStreamOpenFunc func(context.Context, StreamKind, []byte, netip.Ad
 type NativeSessionConfig struct {
 	Plan           core.DataplanePlan
 	AgentToken     []byte
-	CommandDial    CommandDialer
+	Profile        ProtocolProfile
 	OpenDataStream NativeDataStreamOpenFunc
 
 	SOCKSBind        string
@@ -37,6 +37,7 @@ type NativeSessionConfig struct {
 	OnListen         func(net.Addr)
 	Now              func() time.Time
 	OnCommandFailure func(CommandFailure)
+	OnDataFailure    func(FailureStage)
 
 	Watchdog                   time.Duration
 	CommandHeartbeat           time.Duration
@@ -81,11 +82,11 @@ func NewNativeSession(config NativeSessionConfig) (*NativeSession, error) {
 	if len(config.AgentToken) != agentTokenSize {
 		return nil, errors.New("native session requires a 48-byte agent token")
 	}
-	if config.CommandDial == nil {
-		return nil, errors.New("native command dialer is required")
+	if config.Profile == nil {
+		return nil, errors.New("native protocol profile is required")
 	}
 	if config.OpenDataStream == nil {
-		opener, err := NewAuthenticatedDataStreamOpener(config.CommandDial)
+		opener, err := NewAuthenticatedDataStreamOpener(config.Profile, config.OnDataFailure)
 		if err != nil {
 			return nil, err
 		}
@@ -154,7 +155,7 @@ func (session *NativeSession) Run(ctx context.Context) error {
 	session.config.Counters.BeginSession(session.config.Now())
 
 	command, err := NewCommandSupervisor(CommandConfig{
-		Dial:                session.config.CommandDial,
+		Profile:             session.config.Profile,
 		Token:               session.token,
 		HeartbeatInterval:   session.config.CommandHeartbeat,
 		InitialBackoff:      session.config.ReconnectInitialBackoff,

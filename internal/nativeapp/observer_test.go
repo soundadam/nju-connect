@@ -14,6 +14,7 @@ func TestObserverAllowsOnlyNamedStateAndLoopbackListener(t *testing.T) {
 	fixedNow := time.Date(2026, time.August, 3, 12, 0, 0, 0, time.FixedZone("secret-location", 8*60*60))
 	var states []State
 	var commandFailures []CommandFailure
+	var dataFailures []DataFailureStage
 	var listeners []string
 	observer := newSerializedObserver(ObserverFuncs{
 		OnState: func(state State) {
@@ -25,12 +26,17 @@ func TestObserverAllowsOnlyNamedStateAndLoopbackListener(t *testing.T) {
 		OnCommandFailure: func(failure CommandFailure) {
 			commandFailures = append(commandFailures, failure)
 		},
+		OnDataFailure: func(stage DataFailureStage) {
+			dataFailures = append(dataFailures, stage)
+		},
 	})
 
 	observer.state(runtime.StateConnecting)
 	observer.state(runtime.State("gateway-reply-secret"))
 	observer.commandFailure(runtime.CommandFailure{Attempt: 2, Stage: runtime.StageSendIPReadFailed, At: fixedNow})
 	observer.commandFailure(runtime.CommandFailure{Attempt: 3, Stage: runtime.FailureStage("gateway-reply-secret"), At: fixedNow})
+	observer.dataFailure(runtime.StageRXHandshakeFailed)
+	observer.dataFailure(runtime.FailureStage("gateway-reply-secret"))
 	observer.listen(testAddress("127.0.0.1:1081"))
 	observer.listen(testAddress("10.0.0.1:1081"))
 
@@ -40,6 +46,9 @@ func TestObserverAllowsOnlyNamedStateAndLoopbackListener(t *testing.T) {
 	wantFailure := CommandFailure{Attempt: 2, Stage: CommandSendIPReadFailed, At: fixedNow.UTC()}
 	if len(commandFailures) != 1 || commandFailures[0] != wantFailure {
 		t.Fatalf("command failures = %v", commandFailures)
+	}
+	if len(dataFailures) != 1 || dataFailures[0] != DataRXHandshakeFailed {
+		t.Fatalf("data failures = %v", dataFailures)
 	}
 	if len(listeners) != 1 || listeners[0] != "127.0.0.1:1081" {
 		t.Fatalf("listeners = %v", listeners)
@@ -80,6 +89,7 @@ func TestObserverSerializesRuntimeCallbacks(t *testing.T) {
 	observer := newSerializedObserver(ObserverFuncs{
 		OnState:          func(State) { callback() },
 		OnCommandFailure: func(CommandFailure) { callback() },
+		OnDataFailure:    func(DataFailureStage) { callback() },
 		OnSOCKSListen:    func(string) { callback() },
 		OnTraffic:        func(TrafficSnapshot) { callback() },
 		OnAccessEvidence: func(bool) { callback() },
@@ -87,7 +97,7 @@ func TestObserverSerializesRuntimeCallbacks(t *testing.T) {
 
 	var workers sync.WaitGroup
 	for range callsPerKind {
-		workers.Add(5)
+		workers.Add(6)
 		go func() {
 			defer workers.Done()
 			observer.state(runtime.StateConnected)
@@ -95,6 +105,10 @@ func TestObserverSerializesRuntimeCallbacks(t *testing.T) {
 		go func() {
 			defer workers.Done()
 			observer.commandFailure(runtime.CommandFailure{Attempt: 1, Stage: runtime.StageUpstreamConnectFailed, At: time.Unix(1000, 0)})
+		}()
+		go func() {
+			defer workers.Done()
+			observer.dataFailure(runtime.StageTXHandshakeFailed)
 		}()
 		go func() {
 			defer workers.Done()

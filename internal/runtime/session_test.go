@@ -52,7 +52,7 @@ func TestNativeSessionOwnsAndJoinsCompleteRuntime(t *testing.T) {
 			BoundaryReady:      true,
 		},
 		AgentToken:       token,
-		CommandDial:      commandDial,
+		Profile:          newRawTestProtocolProfile(commandDial),
 		OpenDataStream:   openData,
 		SOCKSBind:        "127.0.0.1:0",
 		CommandHeartbeat: time.Hour,
@@ -123,9 +123,9 @@ func TestNativeSessionInitialCommandFailureDoesNotRemainConnecting(t *testing.T)
 			BoundaryReady:      true,
 		},
 		AgentToken: make([]byte, agentTokenSize),
-		CommandDial: func(context.Context) (net.Conn, error) {
+		Profile: newRawTestProtocolProfile(func(context.Context) (net.Conn, error) {
 			return nil, errors.New("secret upstream failure")
-		},
+		}),
 		CommandInitialAttemptLimit: 1,
 		SOCKSBind:                  "127.0.0.1:0",
 		Now:                        func() time.Time { return fixedNow },
@@ -155,9 +155,9 @@ func TestNativeSessionCloseBeforeRunPreventsLaterStart(t *testing.T) {
 			BoundaryReady:      true,
 		},
 		AgentToken: token,
-		CommandDial: func(context.Context) (net.Conn, error) {
+		Profile: newRawTestProtocolProfile(func(context.Context) (net.Conn, error) {
 			return nil, errors.New("unused")
-		},
+		}),
 		SOCKSBind: "localhost:1080",
 	})
 	if err != nil {

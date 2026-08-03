@@ -26,6 +26,7 @@ const nativeUpstreamPreflightTimeout = 3 * time.Second
 type nativeApplicationSession interface {
 	Run(context.Context) error
 	Close() error
+	Profile() runtime.ProtocolProfileMetadata
 }
 
 type nativeSessionFactory func(nativeapp.SessionConfig) (nativeApplicationSession, error)
@@ -52,6 +53,7 @@ func runNativeConnectContext(
 	worktree := flags.String("worktree", ".", "soundconnect working tree")
 	resolveIP := flags.String("resolve-ip", "", "development-only numeric gateway address override")
 	accessProbeURL := flags.String("access-probe-url", "", "disclosed campus HTTP(S) URL used for HEAD evidence")
+	nativeProfile := flags.String("native-profile", string(runtime.ProfileCommunityUTLSCompat), "native wire profile: community-utls or easyconnect-7.6.7")
 	if err := flags.Parse(arguments); err != nil {
 		return 2
 	}
@@ -62,6 +64,11 @@ func runNativeConnectContext(
 	if newSession == nil {
 		fmt.Fprintln(stderr, "prepare native runtime: session factory is unavailable")
 		return 1
+	}
+	profileID, err := runtime.ParseProtocolProfileID(*nativeProfile)
+	if err != nil {
+		fmt.Fprintf(stderr, "native profile: %v\n", err)
+		return 2
 	}
 
 	paths, err := config.LocalPaths(*worktree)
@@ -125,6 +132,7 @@ func runNativeConnectContext(
 			Settings:           configured,
 			Plan:               plan,
 			NativeGatewayToken: token,
+			NativeProfile:      profileID,
 			ResolveGatewayIP:   *resolveIP,
 			AccessProbeURL:     *accessProbeURL,
 			Observer:           nativeCLIObserver(stdout),
@@ -140,6 +148,10 @@ func runNativeConnectContext(
 		return 1
 	}
 	defer application.Close()
+	profile := application.Profile()
+	fmt.Fprintf(stdout, "native-profile: %s\n", profile.ID)
+	fmt.Fprintf(stdout, "native-evidence: %s\n", profile.Evidence)
+	fmt.Fprintf(stdout, "native-security: encrypted=%t peer_verified=%t\n", profile.Security.Encrypted, profile.Security.PeerVerified)
 
 	err = application.Run(ctx)
 	return reportNativeRunResult(ctx, err, stderr)
@@ -225,6 +237,9 @@ func nativeCLIObserver(output io.Writer) nativeapp.ObserverFuncs {
 		OnCommandFailure: func(failure nativeapp.CommandFailure) {
 			fmt.Fprintf(output, "command: at=%s attempt=%d stage=%s\n",
 				failure.At.UTC().Format(time.RFC3339Nano), failure.Attempt, failure.Stage)
+		},
+		OnDataFailure: func(stage nativeapp.DataFailureStage) {
+			fmt.Fprintf(output, "data: stage=%s\n", stage)
 		},
 		OnSOCKSListen: func(address string) {
 			fmt.Fprintf(output, "socks: %s\n", address)

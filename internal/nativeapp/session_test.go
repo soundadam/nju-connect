@@ -9,6 +9,7 @@ import (
 
 	"github.com/soundadam/soundconnect/internal/config"
 	"github.com/soundadam/soundconnect/internal/core"
+	"github.com/soundadam/soundconnect/internal/runtime"
 	"github.com/soundadam/soundconnect/internal/sessiontoken"
 	"github.com/soundadam/soundconnect/internal/traffic"
 )
@@ -82,6 +83,25 @@ func TestCommandDialerUsesOnlyResolvedEndpoint(t *testing.T) {
 	}
 }
 
+func TestNewProtocolProfileSelectsOnlyExplicitID(t *testing.T) {
+	rawDial := func(context.Context) (net.Conn, error) { return nil, nil }
+	for _, profileID := range []runtime.ProtocolProfileID{
+		runtime.ProfileCommunityUTLSCompat,
+		runtime.ProfileEasyConnect767FixedPreface,
+	} {
+		profile, err := newProtocolProfile(profileID, rawDial, "vpn.example.edu", false)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if profile.ID() != profileID {
+			t.Fatalf("selected profile = %q, want %q", profile.ID(), profileID)
+		}
+	}
+	if _, err := newProtocolProfile("unknown", rawDial, "vpn.example.edu", false); err == nil {
+		t.Fatal("unknown profile was accepted")
+	}
+}
+
 func TestNewSessionConstructsWithoutNetworkAndBorrowsToken(t *testing.T) {
 	token := []byte("0123456789abcdef0123456789abcdef0123456789abcdef")
 	if len(token) != sessiontoken.NativeGatewayTokenSize {
@@ -99,9 +119,14 @@ func TestNewSessionConstructsWithoutNetworkAndBorrowsToken(t *testing.T) {
 			BoundaryReady:      true,
 		},
 		NativeGatewayToken: sessiontoken.NativeGatewayToken(token),
+		NativeProfile:      runtime.ProfileCommunityUTLSCompat,
 	})
 	if err != nil {
 		t.Fatal(err)
+	}
+	profile := session.Profile()
+	if profile.ID != runtime.ProfileCommunityUTLSCompat || profile.Evidence != runtime.EvidenceReverseTestLiveCompat || !profile.Security.Encrypted || !profile.Security.PeerVerified {
+		t.Fatalf("session profile = %+v", profile)
 	}
 	clear(token)
 	if err := session.Close(); err != nil {
@@ -119,6 +144,7 @@ func TestNewSessionRejectsInvalidTokenWithoutLeakingIt(t *testing.T) {
 		},
 		Plan:               core.DataplanePlan{},
 		NativeGatewayToken: sessiontoken.NativeGatewayToken(sensitive),
+		NativeProfile:      runtime.ProfileCommunityUTLSCompat,
 	})
 	if err == nil {
 		t.Fatal("expected invalid token to fail")
@@ -143,6 +169,7 @@ func TestNewSessionAcceptsExplicitScopedTLSInsecure(t *testing.T) {
 			BoundaryReady:      true,
 		},
 		NativeGatewayToken: token,
+		NativeProfile:      runtime.ProfileCommunityUTLSCompat,
 	})
 	if err != nil {
 		t.Fatal(err)

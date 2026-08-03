@@ -3,6 +3,7 @@ package runtime
 import (
 	"context"
 	"encoding/binary"
+	"errors"
 	"io"
 	"net"
 )
@@ -10,8 +11,8 @@ import (
 type ProtocolProfileID string
 
 const (
-	ProfileEasyConnect767FixedPreface ProtocolProfileID = "easyconnect_7_6_7_fixed_preface"
-	ProfileCommunityUTLSCompat        ProtocolProfileID = "community_utls_compat"
+	ProfileEasyConnect767FixedPreface ProtocolProfileID = "easyconnect-7.6.7"
+	ProfileCommunityUTLSCompat        ProtocolProfileID = "community-utls"
 )
 
 type ProtocolEvidenceID string
@@ -24,6 +25,12 @@ const (
 type ProtocolSecurityProperties struct {
 	Encrypted    bool
 	PeerVerified bool
+}
+
+type ProtocolProfileMetadata struct {
+	ID       ProtocolProfileID
+	Evidence ProtocolEvidenceID
+	Security ProtocolSecurityProperties
 }
 
 type EvidenceLevel string
@@ -59,6 +66,28 @@ type ProtocolProfile interface {
 	WriteInitialDataRequest(io.Writer, []byte) error
 	ReadInitialDataReply(io.Reader) (uint32, error)
 	EstablishedDataFraming() EstablishedDataFramingEvidence
+}
+
+func ParseProtocolProfileID(value string) (ProtocolProfileID, error) {
+	switch ProtocolProfileID(value) {
+	case ProfileCommunityUTLSCompat:
+		return ProfileCommunityUTLSCompat, nil
+	case ProfileEasyConnect767FixedPreface:
+		return ProfileEasyConnect767FixedPreface, nil
+	default:
+		return "", errors.New("unsupported native profile")
+	}
+}
+
+func ProtocolProfileInfo(profile ProtocolProfile) ProtocolProfileMetadata {
+	if profile == nil {
+		return ProtocolProfileMetadata{}
+	}
+	return ProtocolProfileMetadata{
+		ID:       profile.ID(),
+		Evidence: profile.EvidenceID(),
+		Security: profile.SecurityProperties(),
+	}
 }
 
 func littleEndianReplyCode(payload []byte) uint32 {

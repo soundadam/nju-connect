@@ -36,6 +36,13 @@ type CommandFailure struct {
 	At      time.Time
 }
 
+type DataFailureStage string
+
+const (
+	DataRXHandshakeFailed DataFailureStage = DataFailureStage(runtime.StageRXHandshakeFailed)
+	DataTXHandshakeFailed DataFailureStage = DataFailureStage(runtime.StageTXHandshakeFailed)
+)
+
 // TrafficSnapshot is deliberately limited to application payload and SOCKS
 // connection counters. It cannot carry gateway identities or wire data.
 type TrafficSnapshot struct {
@@ -51,6 +58,7 @@ type TrafficSnapshot struct {
 type Observer interface {
 	StateChanged(State)
 	CommandFailed(CommandFailure)
+	DataFailed(DataFailureStage)
 	SOCKSListening(string)
 	TrafficChanged(TrafficSnapshot)
 	AccessEvidence(bool)
@@ -60,6 +68,7 @@ type Observer interface {
 type ObserverFuncs struct {
 	OnState          func(State)
 	OnCommandFailure func(CommandFailure)
+	OnDataFailure    func(DataFailureStage)
 	OnSOCKSListen    func(string)
 	OnTraffic        func(TrafficSnapshot)
 	OnAccessEvidence func(bool)
@@ -74,6 +83,12 @@ func (observer ObserverFuncs) StateChanged(state State) {
 func (observer ObserverFuncs) CommandFailed(failure CommandFailure) {
 	if failure.Attempt != 0 && !failure.At.IsZero() && validCommandFailureStage(failure.Stage) && observer.OnCommandFailure != nil {
 		observer.OnCommandFailure(failure)
+	}
+}
+
+func (observer ObserverFuncs) DataFailed(stage DataFailureStage) {
+	if validDataFailureStage(stage) && observer.OnDataFailure != nil {
+		observer.OnDataFailure(stage)
 	}
 }
 
@@ -126,6 +141,16 @@ func (observer *serializedObserver) commandFailure(runtimeFailure runtime.Comman
 		Stage:   stage,
 		At:      runtimeFailure.At.UTC(),
 	})
+}
+
+func (observer *serializedObserver) dataFailure(runtimeStage runtime.FailureStage) {
+	stage, valid := sanitizedDataFailureStage(runtimeStage)
+	if !valid || observer.observer == nil {
+		return
+	}
+	observer.mu.Lock()
+	defer observer.mu.Unlock()
+	observer.observer.DataFailed(stage)
 }
 
 func (observer *serializedObserver) listen(address net.Addr) {
@@ -200,6 +225,21 @@ func validCommandFailureStage(stage CommandFailureStage) bool {
 	default:
 		return false
 	}
+}
+
+func sanitizedDataFailureStage(stage runtime.FailureStage) (DataFailureStage, bool) {
+	switch stage {
+	case runtime.StageRXHandshakeFailed:
+		return DataRXHandshakeFailed, true
+	case runtime.StageTXHandshakeFailed:
+		return DataTXHandshakeFailed, true
+	default:
+		return "", false
+	}
+}
+
+func validDataFailureStage(stage DataFailureStage) bool {
+	return stage == DataRXHandshakeFailed || stage == DataTXHandshakeFailed
 }
 
 func sanitizedLoopbackAddress(address net.Addr) (string, bool) {

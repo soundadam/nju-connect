@@ -7,6 +7,7 @@ import (
 	"io"
 	"net"
 	"net/netip"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -59,7 +60,7 @@ func TestAuthenticatedDataStreamWireLayout(t *testing.T) {
 				_, _ = server.Write([]byte{test.reply})
 				_, _ = io.Copy(io.Discard, server)
 			}()
-			opener, err := NewAuthenticatedDataStreamOpener(func(context.Context) (net.Conn, error) { return recorded, nil })
+			opener, err := NewAuthenticatedDataStreamOpener(newRawTestProtocolProfile(func(context.Context) (net.Conn, error) { return recorded, nil }), nil)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -100,7 +101,10 @@ func TestAuthenticatedDataStreamRejectsWithoutExposingReply(t *testing.T) {
 		_, _ = io.ReadFull(server, message)
 		_, _ = server.Write([]byte{0xe7})
 	}()
-	opener, err := NewAuthenticatedDataStreamOpener(func(context.Context) (net.Conn, error) { return recorded, nil })
+	var failures []FailureStage
+	opener, err := NewAuthenticatedDataStreamOpener(newRawTestProtocolProfile(func(context.Context) (net.Conn, error) { return recorded, nil }), func(stage FailureStage) {
+		failures = append(failures, stage)
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -114,6 +118,9 @@ func TestAuthenticatedDataStreamRejectsWithoutExposingReply(t *testing.T) {
 	}
 	if strings.Contains(err.Error(), "e7") {
 		t.Fatalf("rejection exposed reply: %v", err)
+	}
+	if !slices.Equal(failures, []FailureStage{StageRXHandshakeFailed}) {
+		t.Fatalf("data failures = %v", failures)
 	}
 	_, closes := recorded.snapshot()
 	if closes == 0 {
@@ -132,7 +139,7 @@ func TestAuthenticatedDataStreamCancellationClosesPendingConnection(t *testing.T
 		close(requestRead)
 		_, _ = io.Copy(io.Discard, server)
 	}()
-	opener, err := NewAuthenticatedDataStreamOpener(func(context.Context) (net.Conn, error) { return recorded, nil })
+	opener, err := NewAuthenticatedDataStreamOpener(newRawTestProtocolProfile(func(context.Context) (net.Conn, error) { return recorded, nil }), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -163,9 +170,9 @@ func TestAuthenticatedDataStreamHidesRawDialFailure(t *testing.T) {
 	client, server := net.Pipe()
 	defer server.Close()
 	recorded := &recordingConn{Conn: client}
-	opener, err := NewAuthenticatedDataStreamOpener(func(context.Context) (net.Conn, error) {
+	opener, err := NewAuthenticatedDataStreamOpener(newRawTestProtocolProfile(func(context.Context) (net.Conn, error) {
 		return recorded, errors.New("secret gateway reply and token")
-	})
+	}), nil)
 	if err != nil {
 		t.Fatal(err)
 	}

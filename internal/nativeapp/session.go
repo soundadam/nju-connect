@@ -31,6 +31,7 @@ type SessionConfig struct {
 	Settings           config.Config
 	Plan               core.DataplanePlan
 	NativeGatewayToken sessiontoken.NativeGatewayToken
+	NativeProfile      runtime.ProtocolProfileID
 	ResolveGatewayIP   string
 	AccessProbeURL     string
 	ResolveIPv4        runtime.ResolveIPv4Func
@@ -44,6 +45,7 @@ type SessionConfig struct {
 type Session struct {
 	native   nativeSession
 	observer *serializedObserver
+	profile  runtime.ProtocolProfileMetadata
 }
 
 type nativeSession interface {
@@ -74,11 +76,7 @@ func NewSession(sessionConfig SessionConfig) (*Session, error) {
 	if err != nil {
 		return nil, err
 	}
-	protocolDialer, err := runtime.NewProtocolTLSDialer(runtime.ProtocolTLSDialerConfig{
-		Dial:        commandDialer(outbound, target.address),
-		ServerName:  target.serverName,
-		TLSInsecure: sessionConfig.Settings.TLSInsecure,
-	})
+	profile, err := newProtocolProfile(sessionConfig.NativeProfile, commandDialer(outbound, target.address), target.serverName, sessionConfig.Settings.TLSInsecure)
 	if err != nil {
 		return nil, err
 	}
@@ -87,7 +85,7 @@ func NewSession(sessionConfig SessionConfig) (*Session, error) {
 	native, err := runtime.NewNativeSession(runtime.NativeSessionConfig{
 		Plan:             sessionConfig.Plan,
 		AgentToken:       sessionConfig.NativeGatewayToken,
-		CommandDial:      protocolDialer.Dial,
+		Profile:          profile,
 		SOCKSBind:        sessionConfig.Settings.SOCKSListen,
 		ResolveIPv4:      sessionConfig.ResolveIPv4,
 		MaxSOCKSClients:  sessionConfig.MaxSOCKSClients,
@@ -95,12 +93,28 @@ func NewSession(sessionConfig SessionConfig) (*Session, error) {
 		OnAccessEvidence: observer.accessEvidence,
 		OnState:          observer.state,
 		OnCommandFailure: observer.commandFailure,
+		OnDataFailure:    observer.dataFailure,
 		OnListen:         observer.listen,
 	})
 	if err != nil {
 		return nil, err
 	}
-	return &Session{native: native, observer: observer}, nil
+	return &Session{native: native, observer: observer, profile: runtime.ProtocolProfileInfo(profile)}, nil
+}
+
+func newProtocolProfile(profileID runtime.ProtocolProfileID, rawDial runtime.CommandDialer, serverName string, tlsInsecure bool) (runtime.ProtocolProfile, error) {
+	switch profileID {
+	case runtime.ProfileCommunityUTLSCompat:
+		return runtime.NewProtocolTLSDialer(runtime.ProtocolTLSDialerConfig{
+			Dial:        rawDial,
+			ServerName:  serverName,
+			TLSInsecure: tlsInsecure,
+		})
+	case runtime.ProfileEasyConnect767FixedPreface:
+		return runtime.NewEasyConnect767FixedPreface(runtime.EasyConnect767FixedPrefaceConfig{Dial: rawDial})
+	default:
+		return nil, errors.New("unsupported native profile")
+	}
 }
 
 func (session *Session) Run(ctx context.Context) error {
@@ -124,6 +138,13 @@ func (session *Session) Traffic() TrafficSnapshot {
 		return TrafficSnapshot{}
 	}
 	return sanitizedRuntimeTraffic(session.native.Traffic())
+}
+
+func (session *Session) Profile() runtime.ProtocolProfileMetadata {
+	if session == nil {
+		return runtime.ProtocolProfileMetadata{}
+	}
+	return session.profile
 }
 
 type gatewayTarget struct {

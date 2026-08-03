@@ -28,7 +28,7 @@ type CommandIdentity struct {
 }
 
 type CommandConfig struct {
-	Dial                CommandDialer
+	Profile             ProtocolProfile
 	Token               []byte
 	HeartbeatInterval   time.Duration
 	InitialBackoff      time.Duration
@@ -38,6 +38,7 @@ type CommandConfig struct {
 	InitialAttemptLimit int
 	Wait                WaitFunc
 	Now                 func() time.Time
+	HeartbeatDeadline   func(context.Context) time.Time
 	OnIdentity          func(CommandIdentity) error
 	OnFailure           func(CommandFailure)
 }
@@ -47,8 +48,8 @@ type CommandSupervisor struct {
 }
 
 func NewCommandSupervisor(config CommandConfig) (*CommandSupervisor, error) {
-	if config.Dial == nil {
-		return nil, errors.New("command dialer is required")
+	if config.Profile == nil {
+		return nil, errors.New("command protocol profile is required")
 	}
 	if len(config.Token) != agentTokenSize {
 		return nil, fmt.Errorf("agent token must be %d bytes", agentTokenSize)
@@ -79,6 +80,16 @@ func NewCommandSupervisor(config CommandConfig) (*CommandSupervisor, error) {
 	}
 	if config.Now == nil {
 		config.Now = time.Now
+	}
+	if config.HeartbeatDeadline == nil {
+		attemptTimeout := config.AttemptTimeout
+		config.HeartbeatDeadline = func(ctx context.Context) time.Time {
+			deadline := time.Now().Add(attemptTimeout)
+			if contextDeadline, ok := ctx.Deadline(); ok && contextDeadline.Before(deadline) {
+				return contextDeadline
+			}
+			return deadline
+		}
 	}
 	config.Token = append([]byte(nil), config.Token...)
 	return &CommandSupervisor{config: config}, nil
@@ -174,7 +185,7 @@ func (supervisor *CommandSupervisor) heartbeatUntilCanceled(ctx context.Context,
 }
 
 func (supervisor *CommandSupervisor) connect(ctx context.Context) (net.Conn, CommandIdentity, error) {
-	connection, err := supervisor.config.Dial(ctx)
+	connection, err := supervisor.config.Profile.Dial(ctx)
 	if err != nil {
 		if connection != nil {
 			_ = connection.Close()
@@ -192,7 +203,7 @@ func (supervisor *CommandSupervisor) connect(ctx context.Context) (net.Conn, Com
 	request := make([]byte, commandRequestSize)
 	copy(request[4:52], supervisor.config.Token)
 	binary.LittleEndian.PutUint32(request[60:64], 0xffffffff)
-	err = writeFull(connection, request)
+	err = supervisor.config.Profile.WriteInitialCommandRequest(connection, request)
 	clear(request)
 	if err != nil {
 		_ = connection.Close()
@@ -200,7 +211,7 @@ func (supervisor *CommandSupervisor) connect(ctx context.Context) (net.Conn, Com
 	}
 	reply := make([]byte, commandReplySize)
 	defer clear(reply)
-	if _, err := io.ReadFull(connection, reply); err != nil {
+	if err := supervisor.config.Profile.ReadInitialCommandReply(connection, reply); err != nil {
 		_ = connection.Close()
 		return nil, CommandIdentity{}, newStageFailure(StageSendIPReadFailed, nil)
 	}
@@ -220,16 +231,19 @@ func (supervisor *CommandSupervisor) heartbeat(ctx context.Context, connection n
 		if err := supervisor.config.Wait(ctx, supervisor.config.HeartbeatInterval); err != nil {
 			return err
 		}
+		if err := connection.SetDeadline(supervisor.config.HeartbeatDeadline(ctx)); err != nil {
+			return err
+		}
 		request := make([]byte, commandRequestSize)
 		binary.LittleEndian.PutUint32(request[0:4], 3)
 		copy(request[4:52], supervisor.config.Token)
-		err := writeFull(connection, request)
+		err := supervisor.config.Profile.WriteEstablishedCommandRequest(connection, request)
 		clear(request)
 		if err != nil {
 			return err
 		}
 		reply := make([]byte, commandReplySize)
-		if _, err := io.ReadFull(connection, reply); err != nil {
+		if err := supervisor.config.Profile.ReadEstablishedCommandReply(connection, reply); err != nil {
 			clear(reply)
 			return err
 		}
@@ -237,6 +251,9 @@ func (supervisor *CommandSupervisor) heartbeat(ctx context.Context, connection n
 		clear(reply)
 		if op != 15 {
 			return ErrGatewayRejected
+		}
+		if err := connection.SetDeadline(time.Time{}); err != nil {
+			return err
 		}
 	}
 }

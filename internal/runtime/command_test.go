@@ -33,7 +33,7 @@ func TestCommandSupervisorReconnectsWithSameToken(t *testing.T) {
 	waits := make(chan time.Duration, 4)
 	ctx, cancel := context.WithCancel(context.Background())
 	supervisor, err := NewCommandSupervisor(CommandConfig{
-		Dial: dial, Token: token, HeartbeatInterval: time.Millisecond,
+		Profile: newRawTestProtocolProfile(dial), Token: token, HeartbeatInterval: time.Millisecond,
 		Wait: func(ctx context.Context, duration time.Duration) error {
 			waits <- duration
 			return nil
@@ -86,7 +86,7 @@ func TestCommandSupervisorRequiresStableAddresses(t *testing.T) {
 		return client, nil
 	}
 	supervisor, err := NewCommandSupervisor(CommandConfig{
-		Dial: dial, Token: token, HeartbeatInterval: time.Millisecond,
+		Profile: newRawTestProtocolProfile(dial), Token: token, HeartbeatInterval: time.Millisecond,
 		Wait: func(context.Context, time.Duration) error { return nil },
 	})
 	if err != nil {
@@ -104,9 +104,9 @@ func TestCommandSupervisorUsesBoundedExponentialBackoff(t *testing.T) {
 	stop := errors.New("stop test")
 	var delays []time.Duration
 	supervisor, err := NewCommandSupervisor(CommandConfig{
-		Dial: func(context.Context) (net.Conn, error) {
+		Profile: newRawTestProtocolProfile(func(context.Context) (net.Conn, error) {
 			return nil, errors.New("temporary transport failure")
-		},
+		}),
 		Token: token,
 		Wait: func(_ context.Context, duration time.Duration) error {
 			delays = append(delays, duration)
@@ -136,10 +136,10 @@ func TestCommandSupervisorBoundsInitialEstablishmentAndReportsSafeStages(t *test
 	var delays []time.Duration
 	var failures []CommandFailure
 	supervisor, err := NewCommandSupervisor(CommandConfig{
-		Dial: func(context.Context) (net.Conn, error) {
+		Profile: newRawTestProtocolProfile(func(context.Context) (net.Conn, error) {
 			dials++
 			return nil, errors.New(sensitive)
-		},
+		}),
 		Token:               make([]byte, agentTokenSize),
 		InitialAttemptLimit: attemptLimit,
 		Now:                 func() time.Time { return fixedNow },
@@ -233,7 +233,7 @@ func TestCommandSupervisorReportsFixedSendIPStages(t *testing.T) {
 			var failures []CommandFailure
 			waited := false
 			supervisor, err := NewCommandSupervisor(CommandConfig{
-				Dial:                test.dial,
+				Profile:             newRawTestProtocolProfile(test.dial),
 				Token:               make([]byte, agentTokenSize),
 				InitialAttemptLimit: 1,
 				Now:                 func() time.Time { return fixedNow },
@@ -287,7 +287,7 @@ func TestCommandInitialAttemptTimeoutClosesPendingSendIPRead(t *testing.T) {
 	var failures []CommandFailure
 	fixedNow := time.Unix(3456, 0)
 	supervisor, err := NewCommandSupervisor(CommandConfig{
-		Dial:                func(context.Context) (net.Conn, error) { return recorded, nil },
+		Profile:             newRawTestProtocolProfile(func(context.Context) (net.Conn, error) { return recorded, nil }),
 		Token:               make([]byte, agentTokenSize),
 		AttemptTimeout:      20 * time.Millisecond,
 		InitialAttemptLimit: 1,
@@ -315,6 +315,120 @@ func TestCommandInitialAttemptTimeoutClosesPendingSendIPRead(t *testing.T) {
 	}
 }
 
+func TestCommandHeartbeatUsesInjectedDeadlineAndClearsItAfterReply(t *testing.T) {
+	client, server := net.Pipe()
+	recorded := &recordingConn{Conn: client}
+	serverDone := make(chan struct{})
+	go func() {
+		defer close(serverDone)
+		defer server.Close()
+		request := make([]byte, commandRequestSize)
+		if _, err := io.ReadFull(server, request); err != nil {
+			return
+		}
+		reply := make([]byte, commandReplySize)
+		copy(reply[4:8], []byte{10, 0, 0, 2})
+		copy(reply[12:16], []byte{10, 0, 0, 1})
+		if err := writeFull(server, reply); err != nil {
+			return
+		}
+		if _, err := io.ReadFull(server, request); err != nil {
+			return
+		}
+		binary.LittleEndian.PutUint32(reply[:4], 15)
+		if err := writeFull(server, reply); err != nil {
+			return
+		}
+		_, _ = io.Copy(io.Discard, server)
+	}()
+	stop := errors.New("stop test")
+	heartbeatWaits := 0
+	deadline := time.Now().Add(time.Hour)
+	supervisor, err := NewCommandSupervisor(CommandConfig{
+		Profile:           newRawTestProtocolProfile(func(context.Context) (net.Conn, error) { return recorded, nil }),
+		Token:             make([]byte, agentTokenSize),
+		HeartbeatInterval: time.Nanosecond,
+		HeartbeatDeadline: func(context.Context) time.Time { return deadline },
+		Wait: func(_ context.Context, duration time.Duration) error {
+			if duration == time.Nanosecond {
+				heartbeatWaits++
+				if heartbeatWaits == 1 {
+					return nil
+				}
+			}
+			return stop
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := supervisor.Run(context.Background(), func(Component, bool) {}); !errors.Is(err, stop) {
+		t.Fatalf("run error = %v", err)
+	}
+	<-serverDone
+	deadlines, _ := recorded.snapshot()
+	if len(deadlines) != 2 || !deadlines[0].Equal(deadline) || !deadlines[1].IsZero() {
+		t.Fatalf("heartbeat deadlines = %v", deadlines)
+	}
+}
+
+func TestCommandHeartbeatTimeoutMarksCommandNotReady(t *testing.T) {
+	client, server := net.Pipe()
+	recorded := &recordingConn{Conn: client}
+	serverDone := make(chan struct{})
+	go func() {
+		defer close(serverDone)
+		defer server.Close()
+		request := make([]byte, commandRequestSize)
+		if _, err := io.ReadFull(server, request); err != nil {
+			return
+		}
+		reply := make([]byte, commandReplySize)
+		copy(reply[4:8], []byte{10, 0, 0, 2})
+		copy(reply[12:16], []byte{10, 0, 0, 1})
+		if err := writeFull(server, reply); err != nil {
+			return
+		}
+		if _, err := io.ReadFull(server, request); err != nil {
+			return
+		}
+		_, _ = io.Copy(io.Discard, server)
+	}()
+	stop := errors.New("stop test")
+	var readiness []bool
+	supervisor, err := NewCommandSupervisor(CommandConfig{
+		Profile:           newRawTestProtocolProfile(func(context.Context) (net.Conn, error) { return recorded, nil }),
+		Token:             make([]byte, agentTokenSize),
+		HeartbeatInterval: time.Nanosecond,
+		HeartbeatDeadline: func(context.Context) time.Time { return time.Now().Add(20 * time.Millisecond) },
+		Wait: func(_ context.Context, duration time.Duration) error {
+			if duration == time.Nanosecond {
+				return nil
+			}
+			return stop
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = supervisor.Run(context.Background(), func(component Component, ready bool) {
+		if component == ComponentCommand {
+			readiness = append(readiness, ready)
+		}
+	})
+	if !errors.Is(err, stop) {
+		t.Fatalf("run error = %v", err)
+	}
+	<-serverDone
+	if !slices.Equal(readiness, []bool{true, false}) {
+		t.Fatalf("command readiness = %v", readiness)
+	}
+	_, closes := recorded.snapshot()
+	if closes == 0 {
+		t.Fatal("timed-out heartbeat connection was not closed")
+	}
+}
+
 func TestCommandSupervisorStableWindowStartsAfterConnect(t *testing.T) {
 	token := make([]byte, agentTokenSize)
 	stop := errors.New("stop test")
@@ -322,7 +436,7 @@ func TestCommandSupervisorStableWindowStartsAfterConnect(t *testing.T) {
 	dials := 0
 	var delays []time.Duration
 	supervisor, err := NewCommandSupervisor(CommandConfig{
-		Dial: func(context.Context) (net.Conn, error) {
+		Profile: newRawTestProtocolProfile(func(context.Context) (net.Conn, error) {
 			dials++
 			if dials == 1 {
 				return nil, errors.New("temporary transport failure")
@@ -331,7 +445,7 @@ func TestCommandSupervisorStableWindowStartsAfterConnect(t *testing.T) {
 			client, server := net.Pipe()
 			go serveCommand(t, server, token, [4]byte{10, 0, 0, 2}, [4]byte{10, 0, 0, 1}, true, nil, nil)
 			return client, nil
-		},
+		}),
 		Token:             token,
 		HeartbeatInterval: time.Millisecond,
 		StableFor:         time.Minute,
@@ -366,9 +480,9 @@ func TestCommandSupervisorHandlesInvalidDialResults(t *testing.T) {
 		recorded := &recordingConn{Conn: client}
 		stop := errors.New("stop test")
 		supervisor, err := NewCommandSupervisor(CommandConfig{
-			Dial:  func(context.Context) (net.Conn, error) { return recorded, errors.New("dial failed") },
-			Token: make([]byte, agentTokenSize),
-			Wait:  func(context.Context, time.Duration) error { return stop },
+			Profile: newRawTestProtocolProfile(func(context.Context) (net.Conn, error) { return recorded, errors.New("dial failed") }),
+			Token:   make([]byte, agentTokenSize),
+			Wait:    func(context.Context, time.Duration) error { return stop },
 		})
 		if err != nil {
 			t.Fatal(err)
@@ -385,9 +499,9 @@ func TestCommandSupervisorHandlesInvalidDialResults(t *testing.T) {
 	t.Run("nil connection is transient", func(t *testing.T) {
 		stop := errors.New("stop test")
 		supervisor, err := NewCommandSupervisor(CommandConfig{
-			Dial:  func(context.Context) (net.Conn, error) { return nil, nil },
-			Token: make([]byte, agentTokenSize),
-			Wait:  func(context.Context, time.Duration) error { return stop },
+			Profile: newRawTestProtocolProfile(func(context.Context) (net.Conn, error) { return nil, nil }),
+			Token:   make([]byte, agentTokenSize),
+			Wait:    func(context.Context, time.Duration) error { return stop },
 		})
 		if err != nil {
 			t.Fatal(err)
