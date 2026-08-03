@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/soundadam/soundconnect/internal/core"
+	"github.com/soundadam/soundconnect/internal/sessiontoken"
 )
 
 func TestNativeSessionOwnsAndJoinsCompleteRuntime(t *testing.T) {
@@ -29,7 +30,7 @@ func TestNativeSessionOwnsAndJoinsCompleteRuntime(t *testing.T) {
 	}
 	var peersMu sync.Mutex
 	var peers []net.Conn
-	openData := func(_ context.Context, kind StreamKind, borrowedToken []byte, assigned netip.Addr) (io.ReadWriteCloser, byte, error) {
+	openData := func(_ context.Context, kind StreamKind, borrowedToken sessiontoken.NativeGatewayToken, assigned netip.Addr) (io.ReadWriteCloser, byte, error) {
 		if !bytes.Equal(borrowedToken, expectedToken) {
 			return nil, 0, errors.New("borrowed token changed")
 		}

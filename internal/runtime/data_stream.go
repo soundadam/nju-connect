@@ -6,6 +6,8 @@ import (
 	"io"
 	"net/netip"
 	"time"
+
+	"github.com/soundadam/soundconnect/internal/sessiontoken"
 )
 
 const gatewayProtocolTimeout = 15 * time.Second
@@ -23,7 +25,7 @@ func NewAuthenticatedDataStreamOpener(profile ProtocolProfile, onFailure func(Fa
 	return &AuthenticatedDataStreamOpener{profile: profile, now: time.Now, onFailure: onFailure}, nil
 }
 
-func (opener *AuthenticatedDataStreamOpener) Open(ctx context.Context, kind StreamKind, token []byte, assigned netip.Addr) (io.ReadWriteCloser, byte, error) {
+func (opener *AuthenticatedDataStreamOpener) Open(ctx context.Context, kind StreamKind, token sessiontoken.NativeGatewayToken, assigned netip.Addr) (io.ReadWriteCloser, byte, error) {
 	if _, err := ExpectedStreamReply(kind); err != nil {
 		return nil, 0, err
 	}

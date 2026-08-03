@@ -29,7 +29,7 @@ type CommandIdentity struct {
 
 type CommandConfig struct {
 	Profile             ProtocolProfile
-	Token               []byte
+	Token               sessiontoken.NativeGatewayToken
 	HeartbeatInterval   time.Duration
 	InitialBackoff      time.Duration
 	MaximumBackoff      time.Duration
@@ -91,7 +91,7 @@ func NewCommandSupervisor(config CommandConfig) (*CommandSupervisor, error) {
 			return deadline
 		}
 	}
-	config.Token = append([]byte(nil), config.Token...)
+	config.Token = append(sessiontoken.NativeGatewayToken(nil), config.Token...)
 	return &CommandSupervisor{config: config}, nil
 }
 

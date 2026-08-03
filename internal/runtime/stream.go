@@ -233,7 +233,7 @@ func (worker *TXWorker) Close() error {
 	return err
 }
 
-func BuildICMPHeartbeat(source, destination netip.Addr, token []byte) ([]byte, error) {
+func BuildICMPHeartbeat(source, destination netip.Addr, token sessiontoken.NativeGatewayToken) ([]byte, error) {
 	if !source.Is4() || !destination.Is4() {
 		return nil, errors.New("heartbeat requires IPv4 source and destination")
 	}

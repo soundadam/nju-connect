@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/soundadam/soundconnect/internal/core"
+	"github.com/soundadam/soundconnect/internal/sessiontoken"
 	"github.com/soundadam/soundconnect/internal/traffic"
 )
 
@@ -18,11 +19,11 @@ import (
 // token is a temporary copy valid only for the duration of the call;
 // implementations must not retain it. The returned byte is the gateway
 // handshake reply.
-type NativeDataStreamOpenFunc func(context.Context, StreamKind, []byte, netip.Addr) (io.ReadWriteCloser, byte, error)
+type NativeDataStreamOpenFunc func(context.Context, StreamKind, sessiontoken.NativeGatewayToken, netip.Addr) (io.ReadWriteCloser, byte, error)
 
 type NativeSessionConfig struct {
 	Plan           core.DataplanePlan
-	AgentToken     []byte
+	AgentToken     sessiontoken.NativeGatewayToken
 	Profile        ProtocolProfile
 	OpenDataStream NativeDataStreamOpenFunc
 
@@ -58,7 +59,7 @@ type nativeResources struct {
 
 type NativeSession struct {
 	config NativeSessionConfig
-	token  []byte
+	token  sessiontoken.NativeGatewayToken
 
 	initialized chan struct{}
 	initOnce    sync.Once
@@ -106,7 +107,7 @@ func NewNativeSession(config NativeSessionConfig) (*NativeSession, error) {
 	if config.Counters == nil {
 		config.Counters = &traffic.Counters{}
 	}
-	token := append([]byte(nil), config.AgentToken...)
+	token := append(sessiontoken.NativeGatewayToken(nil), config.AgentToken...)
 	config.AgentToken = nil
 	return &NativeSession{
 		config:      config,
@@ -230,7 +231,7 @@ func (session *NativeSession) initialize(identity CommandIdentity) error {
 			return
 		}
 		open := func(ctx context.Context, kind StreamKind) (io.ReadWriteCloser, byte, error) {
-			token := append([]byte(nil), session.token...)
+			token := append(sessiontoken.NativeGatewayToken(nil), session.token...)
 			defer clear(token)
 			return session.config.OpenDataStream(ctx, kind, token, identity.AssignedIPv4)
 		}

@@ -10,6 +10,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/soundadam/soundconnect/internal/sessiontoken"
 )
 
 type memoryPacketEndpoint struct {
@@ -166,8 +168,8 @@ func TestTXWorkerWritesApplicationPacketAndIndependentHeartbeat(t *testing.T) {
 	}
 }
 
-func testAgentToken() []byte {
-	token := make([]byte, agentTokenSize)
+func testAgentToken() sessiontoken.NativeGatewayToken {
+	token := make(sessiontoken.NativeGatewayToken, agentTokenSize)
 	for index := range token {
 		token[index] = byte(index + 1)
 	}
