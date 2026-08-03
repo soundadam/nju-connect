@@ -136,6 +136,21 @@ func (client *Client) AuthenticatePassword(ctx context.Context, username string,
 	return client.observe(response), nil
 }
 
+// PrepareSMS enters the gateway's SMS authentication stage. The reference
+// client performs this request before submitting a verification code, even
+// when the password response says that an existing code is still valid.
+func (client *Client) PrepareSMS(ctx context.Context) error {
+	response, err := client.request(ctx, http.MethodPost, "/por/login_sms.csp", url.Values{})
+	if err != nil {
+		return fmt.Errorf("initialize SMS authentication: %w", err)
+	}
+	client.rememberSession(response.SessionID)
+	if response.ErrorCode != 1 {
+		return fmt.Errorf("initialize SMS authentication: gateway code %d", response.ErrorCode)
+	}
+	return nil
+}
+
 func (client *Client) AuthenticateSMS(ctx context.Context, code []byte) (Result, error) {
 	form := url.Values{"svpn_inputsms": {string(code)}}
 	response, err := client.request(ctx, http.MethodPost, "/por/login_sms1.csp?apiversion=1", form)

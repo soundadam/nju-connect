@@ -26,6 +26,28 @@ func TestClosedSessionHasNoState(t *testing.T) {
 	}
 }
 
+func TestWithIDLendsAndClearsCopy(t *testing.T) {
+	session := &Session{http: &http.Client{}, sessionID: []byte("session")}
+	var borrowed []byte
+	if err := session.WithID(func(id []byte) error {
+		borrowed = id
+		if string(id) != "session" {
+			t.Fatalf("borrowed ID differs")
+		}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	for _, value := range borrowed {
+		if value != 0 {
+			t.Fatal("borrowed ID was not cleared")
+		}
+	}
+	if string(session.sessionID) != "session" {
+		t.Fatal("owned session ID was modified")
+	}
+}
+
 func TestProbeBootstrapRejectsAuthenticationEnvelopeWithoutPayload(t *testing.T) {
 	server := httptest.NewTLSServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		fmt.Fprint(writer, "<Auth><ErrorCode>0</ErrorCode></Auth>")

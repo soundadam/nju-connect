@@ -7,6 +7,7 @@ EASYCONNECT_WORK := $(RESEARCH_ROOT)/work/easyconnect
 EASYCONNECT_LOCK := $(RESEARCH_ROOT)/lock.json
 PACKAGE ?= $(firstword $(wildcard $(EASYCONNECT_UPSTREAM)/package/*.deb))
 EASYCONNECT_DEPENDENCY ?= $(firstword $(wildcard $(EASYCONNECT_UPSTREAM)/dependencies/*.deb))
+RESOLVE_IP ?=
 
 .PHONY: build
 build:
@@ -69,7 +70,30 @@ easyconnect-probe:
 	@./dev/easyconnect/probe \
 		"$(CURDIR)/$(EASYCONNECT_WORK)/rootfs" \
 		"$(CURDIR)/$(EASYCONNECT_WORK)/dependencies" \
-		"$(CURDIR)/$(EASYCONNECT_WORK)/runtime"
+		"$(CURDIR)/$(EASYCONNECT_WORK)/runtime" \
+		ui
+
+.PHONY: easyconnect-agent
+easyconnect-agent:
+	@./dev/easyconnect/probe \
+		"$(CURDIR)/$(EASYCONNECT_WORK)/rootfs" \
+		"$(CURDIR)/$(EASYCONNECT_WORK)/dependencies" \
+		"$(CURDIR)/$(EASYCONNECT_WORK)/runtime" \
+		agent
+
+.PHONY: easyconnect-agent-check
+easyconnect-agent-check:
+	@./dev/easyconnect/control-check 54530
+
+.PHONY: easyconnect-control-probe
+easyconnect-control-probe: build
+	@./dev/easyconnect/authenticated-control-probe \
+		"$(CURDIR)/$(EASYCONNECT_WORK)/rootfs" \
+		"$(CURDIR)/$(EASYCONNECT_WORK)/dependencies" \
+		"$(CURDIR)/$(EASYCONNECT_WORK)/runtime" \
+		"$(CURDIR)/$(BINARY)" \
+		"$(CURDIR)" \
+		"$(RESOLVE_IP)"
 
 .PHONY: easyconnect-stop
 easyconnect-stop:

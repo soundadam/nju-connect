@@ -8,6 +8,7 @@ import (
 )
 
 var ErrNoAuthenticatedSession = errors.New("gateway authentication is not complete")
+var ErrNoSessionID = errors.New("gateway session identifier is unavailable")
 
 // Session owns the short-lived authenticated gateway state. It deliberately has
 // no persistence representation: cookies and the gateway session identifier live
@@ -49,6 +50,20 @@ func (session *Session) State() SessionState {
 		CookieCount: len(session.http.Jar.Cookies(session.baseURL)),
 		HasID:       len(session.sessionID) != 0,
 	}
+}
+
+// WithID lends a copy of the gateway session identifier to one synchronous
+// operation and clears that copy immediately afterward.
+func (session *Session) WithID(use func([]byte) error) error {
+	if session == nil || session.http == nil {
+		return ErrNoAuthenticatedSession
+	}
+	if len(session.sessionID) == 0 {
+		return ErrNoSessionID
+	}
+	id := append([]byte(nil), session.sessionID...)
+	defer clear(id)
+	return use(id)
 }
 
 // Close removes references to all retained authentication material.

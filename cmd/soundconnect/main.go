@@ -16,6 +16,7 @@ import (
 	"github.com/soundadam/soundconnect/internal/core"
 	"github.com/soundadam/soundconnect/internal/credential"
 	"github.com/soundadam/soundconnect/internal/doctor"
+	"github.com/soundadam/soundconnect/internal/easyconnectagent"
 	"github.com/soundadam/soundconnect/internal/gatewayauth"
 	setupservice "github.com/soundadam/soundconnect/internal/setup"
 	"golang.org/x/term"
@@ -61,6 +62,8 @@ func runConnect(arguments []string, stdout, stderr io.Writer) int {
 	flags.SetOutput(stderr)
 	worktree := flags.String("worktree", ".", "soundconnect working tree")
 	resolveIP := flags.String("resolve-ip", "", "development-only numeric gateway address override")
+	agentControlPort := flags.Int("agent-control-port", 0, "development-only ECAgent NotStartService probe port")
+	agentCAPath := flags.String("agent-ca", "", "development-only ECAgent CA certificate")
 	if err := flags.Parse(arguments); err != nil {
 		return 2
 	}
@@ -104,6 +107,10 @@ func runConnect(arguments []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 	if result.NeedsSMS() {
+		if err = client.PrepareSMS(context.Background()); err != nil {
+			fmt.Fprintf(stderr, "prepare verification code authentication: %v\n", err)
+			return 1
+		}
 		code, promptErr := promptVerificationCode(os.Stdin, stderr)
 		if promptErr != nil {
 			fmt.Fprintf(stderr, "read verification code: %v\n", promptErr)
@@ -148,6 +155,28 @@ func runConnect(arguments []string, stdout, stderr io.Writer) int {
 			return 1
 		}
 		fmt.Fprintf(stdout, "handoff: mode=%s ready=%t\n", plan.Mode, plan.BoundaryReady)
+		if *agentControlPort != 0 {
+			agentCA, agentErr := os.ReadFile(*agentCAPath)
+			if agentErr != nil {
+				fmt.Fprintf(stderr, "read ECAgent CA: %v\n", agentErr)
+				return 1
+			}
+			agentClient, agentErr := easyconnectagent.New(*agentControlPort, agentCA)
+			if agentErr != nil {
+				fmt.Fprintf(stderr, "prepare ECAgent control probe: %v\n", agentErr)
+				return 1
+			}
+			defer agentClient.Close()
+			agentErr = session.WithID(func(id []byte) error {
+				return agentClient.ConfirmSuppressed(context.Background(), id)
+			})
+			if agentErr != nil {
+				fmt.Fprintf(stderr, "probe ECAgent control: %v\n", agentErr)
+				return 1
+			}
+			fmt.Fprintln(stdout, "agent_control: authenticated")
+			fmt.Fprintln(stdout, "start_service: explicitly_suppressed")
+		}
 		fmt.Fprintln(stdout, "dataplane: not_started")
 		return 0
 	}

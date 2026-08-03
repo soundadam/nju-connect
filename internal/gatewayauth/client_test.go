@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"slices"
 	"testing"
 )
 
@@ -51,7 +52,9 @@ func TestPasswordAndSMSAuthentication(t *testing.T) {
 		t.Fatal(err)
 	}
 	const csrf = "test-nonce"
+	var requests []string
 	server := httptest.NewTLSServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		requests = append(requests, request.URL.Path)
 		switch request.URL.Path {
 		case "/por/login_auth.csp":
 			http.SetCookie(writer, &http.Cookie{Name: "session", Value: "present", Path: "/"})
@@ -75,6 +78,11 @@ func TestPasswordAndSMSAuthentication(t *testing.T) {
 				t.Errorf("password plaintext = %q, want %q", got, want)
 			}
 			fmt.Fprint(writer, "<Auth><ErrorCode>1</ErrorCode><NextService>auth/sms</NextService><SmsIsStillValid>1</SmsIsStillValid></Auth>")
+		case "/por/login_sms.csp":
+			if request.Method != http.MethodPost {
+				t.Errorf("SMS initialization method = %q, want POST", request.Method)
+			}
+			fmt.Fprint(writer, "<Auth><ErrorCode>1</ErrorCode><IS_IN_PERIOD>1</IS_IN_PERIOD></Auth>")
 		case "/por/login_sms1.csp":
 			if err := request.ParseForm(); err != nil {
 				t.Error(err)
@@ -109,6 +117,9 @@ func TestPasswordAndSMSAuthentication(t *testing.T) {
 	if !result.NeedsSMS() {
 		t.Fatalf("password result = %+v", result)
 	}
+	if err := client.PrepareSMS(context.Background()); err != nil {
+		t.Fatal(err)
+	}
 	result, err = client.AuthenticateSMS(context.Background(), []byte("123456"))
 	if err != nil {
 		t.Fatal(err)
@@ -133,6 +144,35 @@ func TestPasswordAndSMSAuthentication(t *testing.T) {
 	}
 	if _, err := client.TakeSession(); err != ErrNoAuthenticatedSession {
 		t.Fatalf("second TakeSession error = %v", err)
+	}
+	wantRequests := []string{
+		"/por/login_auth.csp",
+		"/por/login_psw.csp",
+		"/por/login_sms.csp",
+		"/por/login_sms1.csp",
+		"/por/conf.csp",
+		"/por/rclist.csp",
+	}
+	if !slices.Equal(requests, wantRequests) {
+		t.Fatalf("requests = %v, want %v", requests, wantRequests)
+	}
+}
+
+func TestPrepareSMSRejectsGatewayError(t *testing.T) {
+	server := httptest.NewTLSServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		fmt.Fprint(writer, "<Auth><ErrorCode>20045</ErrorCode></Auth>")
+	}))
+	defer server.Close()
+	parsedURL, err := url.Parse(server.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	client, err := New(Options{Server: parsedURL.Host, TLSInsecure: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := client.PrepareSMS(context.Background()); err == nil || err.Error() != "initialize SMS authentication: gateway code 20045" {
+		t.Fatalf("PrepareSMS() error = %v", err)
 	}
 }
 
