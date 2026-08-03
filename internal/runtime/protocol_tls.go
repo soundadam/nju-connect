@@ -22,15 +22,17 @@ type ProtocolTLSDialerConfig struct {
 	TLSInsecure bool
 }
 
-// ProtocolTLSDialer is intentionally separate from every ordinary HTTPS/TLS
-// client. Its legacy ClientHello is scoped only to the gateway command and
-// data-stream protocol connections.
+// ProtocolTLSDialer implements the community uTLS compatibility profile. It
+// is retained as a live-compatible profile, not treated as a cross-version
+// description of every EasyConnect client.
 type ProtocolTLSDialer struct {
 	config ProtocolTLSDialerConfig
 	random io.Reader
 	now    func() time.Time
 	mu     sync.Mutex
 }
+
+var _ ProtocolProfile = (*ProtocolTLSDialer)(nil)
 
 func NewProtocolTLSDialer(config ProtocolTLSDialerConfig) (*ProtocolTLSDialer, error) {
 	if config.Dial == nil {
@@ -40,6 +42,28 @@ func NewProtocolTLSDialer(config ProtocolTLSDialerConfig) (*ProtocolTLSDialer, e
 		return nil, errors.New("gateway TLS server name is required")
 	}
 	return &ProtocolTLSDialer{config: config, random: rand.Reader, now: time.Now}, nil
+}
+
+func (dialer *ProtocolTLSDialer) ID() ProtocolProfileID {
+	return ProfileCommunityUTLSCompat
+}
+
+func (dialer *ProtocolTLSDialer) EvidenceID() ProtocolEvidenceID {
+	return EvidenceReverseTestLiveCompat
+}
+
+func (dialer *ProtocolTLSDialer) SecurityProperties() ProtocolSecurityProperties {
+	return ProtocolSecurityProperties{
+		Encrypted:    true,
+		PeerVerified: !dialer.config.TLSInsecure,
+	}
+}
+
+func (dialer *ProtocolTLSDialer) EstablishedDataFraming() EstablishedDataFramingEvidence {
+	return EstablishedDataFramingEvidence{
+		Kind:     EstablishedDataFramingRawIPv4,
+		Evidence: EvidenceLevelLiveObservation,
+	}
 }
 
 func (dialer *ProtocolTLSDialer) Dial(ctx context.Context) (net.Conn, error) {
@@ -73,13 +97,15 @@ func (dialer *ProtocolTLSDialer) Dial(ctx context.Context) (net.Conn, error) {
 		clear(clientRandom)
 		return nil, newStageFailure(StageProtocolTLSHandshakeFailed, nil)
 	}
-	config := dialer.tlsConfig()
-	connection := utls.UClient(raw, config, utls.HelloCustom)
+	connection := utls.UClient(raw, dialer.tlsConfig(), utls.HelloCustom)
 	if err := connection.ApplyPreset(protocolClientHelloSpec()); err != nil {
 		clear(clientRandom)
 		return nil, newStageFailure(StageProtocolTLSHandshakeFailed, nil)
 	}
-	copy(connection.HandshakeState.Hello.Random, clientRandom)
+	if err := connection.SetClientRandom(clientRandom); err != nil {
+		clear(clientRandom)
+		return nil, newStageFailure(StageProtocolTLSHandshakeFailed, nil)
+	}
 	clear(clientRandom)
 	sessionID := make([]byte, 32)
 	copy(sessionID, []byte("L3IP"))
@@ -97,11 +123,39 @@ func (dialer *ProtocolTLSDialer) Dial(ctx context.Context) (net.Conn, error) {
 	return connection, nil
 }
 
+func (dialer *ProtocolTLSDialer) WriteInitialCommandRequest(writer io.Writer, payload []byte) error {
+	return writeRawProfilePayload(writer, payload, commandRequestSize)
+}
+
+func (dialer *ProtocolTLSDialer) ReadInitialCommandReply(reader io.Reader, payload []byte) error {
+	return readRawProfilePayload(reader, payload, commandReplySize)
+}
+
+func (dialer *ProtocolTLSDialer) WriteEstablishedCommandRequest(writer io.Writer, payload []byte) error {
+	return writeRawProfilePayload(writer, payload, commandRequestSize)
+}
+
+func (dialer *ProtocolTLSDialer) ReadEstablishedCommandReply(reader io.Reader, payload []byte) error {
+	return readRawProfilePayload(reader, payload, commandReplySize)
+}
+
+func (dialer *ProtocolTLSDialer) WriteInitialDataRequest(writer io.Writer, payload []byte) error {
+	return writeRawProfilePayload(writer, payload, commandRequestSize)
+}
+
+func (dialer *ProtocolTLSDialer) ReadInitialDataReply(reader io.Reader) (uint32, error) {
+	var reply [1]byte
+	if _, err := io.ReadFull(reader, reply[:]); err != nil {
+		return 0, err
+	}
+	return uint32(reply[0]), nil
+}
+
 func (dialer *ProtocolTLSDialer) tlsConfig() *utls.Config {
 	return &utls.Config{
 		ServerName:         dialer.config.ServerName,
 		RootCAs:            dialer.config.RootCAs,
-		InsecureSkipVerify: dialer.config.TLSInsecure,
+		InsecureSkipVerify: dialer.config.TLSInsecure, // #nosec G402 -- compatibility downgrade is explicit configuration.
 		MinVersion:         utls.VersionTLS11,
 		MaxVersion:         utls.VersionTLS11,
 	}
@@ -117,6 +171,21 @@ func protocolClientHelloSpec() *utls.ClientHelloSpec {
 			&utls.GenericExtension{Id: 0x000f, Data: []byte{0x01}},
 		},
 	}
+}
+
+func writeRawProfilePayload(writer io.Writer, payload []byte, expected int) error {
+	if len(payload) != expected {
+		return errors.New("protocol payload has an invalid length")
+	}
+	return writeFull(writer, payload)
+}
+
+func readRawProfilePayload(reader io.Reader, payload []byte, expected int) error {
+	if len(payload) != expected {
+		return errors.New("protocol payload has an invalid length")
+	}
+	_, err := io.ReadFull(reader, payload)
+	return err
 }
 
 func monitorContext(ctx context.Context, closer io.Closer) func() {

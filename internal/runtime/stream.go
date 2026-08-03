@@ -41,7 +41,7 @@ type RXWorker struct {
 	closeOnce  sync.Once
 }
 
-// AuthenticatedStreamOpenFunc opens an authenticated TLS data stream and
+// AuthenticatedStreamOpenFunc opens an authenticated gateway data stream and
 // returns its validated one-byte handshake reply.
 type AuthenticatedStreamOpenFunc func(context.Context, StreamKind) (io.ReadWriteCloser, byte, error)
 type HeartbeatBuilder func() ([]byte, error)

@@ -14,9 +14,10 @@ import (
 	"github.com/soundadam/soundconnect/internal/traffic"
 )
 
-// NativeDataStreamOpenFunc opens an authenticated TLS stream. The token is a
-// temporary copy valid only for the duration of the call; implementations must
-// not retain it. The returned byte is the gateway handshake reply.
+// NativeDataStreamOpenFunc opens an authenticated gateway protocol stream. The
+// token is a temporary copy valid only for the duration of the call;
+// implementations must not retain it. The returned byte is the gateway
+// handshake reply.
 type NativeDataStreamOpenFunc func(context.Context, StreamKind, []byte, netip.Addr) (io.ReadWriteCloser, byte, error)
 
 type NativeSessionConfig struct {
