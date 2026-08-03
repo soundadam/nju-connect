@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 	"time"
 
@@ -30,6 +31,7 @@ type nativeApplicationSession interface {
 }
 
 type nativeSessionFactory func(nativeapp.SessionConfig) (nativeApplicationSession, error)
+type nativeBackgroundStarter func(nativeapp.SessionConfig, string) (int, error)
 
 func newProductionNativeSession(sessionConfig nativeapp.SessionConfig) (nativeApplicationSession, error) {
 	return nativeapp.NewSession(sessionConfig)
@@ -38,7 +40,7 @@ func newProductionNativeSession(sessionConfig nativeapp.SessionConfig) (nativeAp
 func runNativeConnect(arguments []string, stdout, stderr io.Writer) int {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	return runNativeConnectContext(ctx, arguments, stdout, stderr, newProductionNativeSession)
+	return runNativeConnectContext(ctx, arguments, stdout, stderr, newProductionNativeSession, startProductionNativeBackground)
 }
 
 func runNativeConnectContext(
@@ -47,10 +49,12 @@ func runNativeConnectContext(
 	stdout io.Writer,
 	stderr io.Writer,
 	newSession nativeSessionFactory,
+	startBackground nativeBackgroundStarter,
 ) int {
 	flags := flag.NewFlagSet("native-connect", flag.ContinueOnError)
 	flags.SetOutput(stderr)
 	worktree := flags.String("worktree", "", "development-only worktree override (default: user config)")
+	background := flags.Bool("background", false, "continue the native runtime as a detached process after authentication")
 	if err := flags.Parse(arguments); err != nil {
 		return 2
 	}
@@ -58,8 +62,12 @@ func runNativeConnectContext(
 		fmt.Fprintln(stderr, "native-connect accepts no positional arguments")
 		return 2
 	}
-	if newSession == nil {
+	if !*background && newSession == nil {
 		fmt.Fprintln(stderr, "prepare native runtime: session factory is unavailable")
+		return 1
+	}
+	if *background && startBackground == nil {
+		fmt.Fprintln(stderr, "prepare native runtime: background starter is unavailable")
 		return 1
 	}
 	paths, err := commandPaths(*worktree)
@@ -94,11 +102,14 @@ func runNativeConnectContext(
 	session, err := func() (*gatewayauth.Session, error) {
 		defer credential.Clear(password)
 		return authenticateAttendedGateway(ctx, configured, password, func() ([]byte, error) {
-			return promptVerificationCode(os.Stdin, stderr)
+			return promptVerificationCode(ctx, os.Stdin, stderr)
 		})
 	}()
 	password = nil
 	if err != nil {
+		if errors.Is(err, context.Canceled) {
+			return 0
+		}
 		fmt.Fprintf(stderr, "authenticate gateway: %v\n", err)
 		return 1
 	}
@@ -117,20 +128,31 @@ func runNativeConnectContext(
 	}
 
 	var application nativeApplicationSession
+	var backgroundPID int
 	err = session.WithNativeGatewayToken(func(token sessiontoken.NativeGatewayToken) error {
-		var buildErr error
-		application, buildErr = newSession(nativeapp.SessionConfig{
+		sessionConfig := nativeapp.SessionConfig{
 			Settings:           configured,
 			Plan:               plan,
 			NativeGatewayToken: token,
 			NativeProfile:      runtime.ProfileCommunityUTLSCompat,
-			Observer:           nativeCLIObserver(stdout),
-		})
+		}
+		if *background {
+			var startErr error
+			backgroundPID, startErr = startBackground(sessionConfig, filepath.Join(paths.Root, "runtime.log"))
+			return startErr
+		}
+		var buildErr error
+		sessionConfig.Observer = nativeCLIObserver(stdout)
+		application, buildErr = newSession(sessionConfig)
 		return buildErr
 	})
 	if err != nil {
 		fmt.Fprintf(stderr, "prepare native runtime: %v\n", err)
 		return 1
+	}
+	if *background {
+		fmt.Fprintf(stdout, "background: pid=%d log=%s\n", backgroundPID, filepath.Join(paths.Root, "runtime.log"))
+		return 0
 	}
 	if application == nil {
 		fmt.Fprintln(stderr, "prepare native runtime: session factory returned no session")

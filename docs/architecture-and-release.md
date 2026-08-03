@@ -115,6 +115,30 @@ The current build tags are intentionally narrow: \`owner_unix.go\` applies only 
 
 Release blockers are therefore explicit: a Windows ownership/ACL implementation, OS-native credential stores for each shipping platform, host-specific certificate/trust policy, packaging and service lifecycle adapters, and a future UI host. None should be solved by adding a TUN, routes, DNS, PF, or a vendor service to this core.
 
+## Attended authentication and background runtime
+
+Authentication and MFA remain attended. Hidden verification-code input uses a
+raw terminal reader that treats Ctrl-C as cancellation, restores terminal
+state on every return path, clears partial input, and exits before a native
+runtime is created. The long-lived password and MFA code are never transferred
+to a background process.
+
+On Linux and macOS, \`native-connect --background\` performs authentication and
+bootstrap in the foreground, then starts a detached copy of soundconnect for
+the native runtime. The parent transfers only \`Config\`, \`DataplanePlan\`, the
+typed 48-byte \`NativeGatewayToken\`, and the selected profile through an
+anonymous inherited pipe. Token material is not placed in argv, environment,
+or a persistent file and is cleared on both sides of the handoff. The child
+acknowledges full connected readiness before the parent returns.
+Sanitized runtime output is appended to the owner-only \`runtime.log\` beside
+the active configuration.
+
+This is a detached CLI host, not the final cross-platform service authority.
+Windows background hosting remains unsupported until the Windows service and
+named-pipe control boundary exists. A later host-integration phase must add
+authenticated status/stop control and platform-native supervision rather than
+turning PID files or logs into a second runtime-state authority.
+
 ## Dependency and release boundary
 
 \`THIRD_PARTY_NOTICES\` is the checked-in dependency notice index. It is separate from the proprietary \`LICENSE\`: the proprietary license does not grant rights to third-party materials. The release packager must ship the exact pinned upstream license texts and any applicable attributions alongside the binary; the index records the versions and obligations and is not permission to omit those texts.

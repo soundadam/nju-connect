@@ -49,6 +49,8 @@ func run(arguments []string, stdout, stderr io.Writer) int {
 		return runConnect(arguments[1:], stdout, stderr)
 	case "native-connect":
 		return runNativeConnect(arguments[1:], stdout, stderr)
+	case "_native-runtime":
+		return runNativeRuntimeChild(arguments[1:], stdout, stderr)
 	case "status", "observe":
 		fmt.Fprintf(stderr, "soundconnect %s is not implemented yet\n", arguments[0])
 		return 2
@@ -111,8 +113,11 @@ func runConnect(arguments []string, stdout, stderr io.Writer) int {
 			fmt.Fprintf(stderr, "prepare verification code authentication: %v\n", err)
 			return 1
 		}
-		code, promptErr := promptVerificationCode(os.Stdin, stderr)
+		code, promptErr := promptVerificationCode(context.Background(), os.Stdin, stderr)
 		if promptErr != nil {
+			if errors.Is(promptErr, context.Canceled) {
+				return 0
+			}
 			fmt.Fprintf(stderr, "read verification code: %v\n", promptErr)
 			return 1
 		}
@@ -166,16 +171,46 @@ func runConnect(arguments []string, stdout, stderr io.Writer) int {
 	return 1
 }
 
-func promptVerificationCode(input *os.File, output io.Writer) ([]byte, error) {
+func promptVerificationCode(ctx context.Context, input *os.File, output io.Writer) ([]byte, error) {
+	if ctx == nil {
+		return nil, errors.New("verification code context is required")
+	}
 	if input == nil || !term.IsTerminal(int(input.Fd())) {
 		return nil, credential.ErrNoTerminal
 	}
 	if _, err := io.WriteString(output, "Verification code: "); err != nil {
 		return nil, err
 	}
-	rawCode, err := term.ReadPassword(int(input.Fd()))
-	fmt.Fprintln(output)
+	original, err := term.MakeRaw(int(input.Fd()))
 	if err != nil {
+		return nil, err
+	}
+	defer fmt.Fprintln(output)
+	defer term.Restore(int(input.Fd()), original) //nolint:errcheck // best-effort terminal restoration on every exit path
+
+	type readResult struct {
+		code []byte
+		err  error
+	}
+	result := make(chan readResult, 1)
+	go func() {
+		code, readErr := readRawVerificationCode(input)
+		select {
+		case result <- readResult{code: code, err: readErr}:
+		case <-ctx.Done():
+			credential.Clear(code)
+		}
+	}()
+
+	var rawCode []byte
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case read := <-result:
+		rawCode, err = read.code, read.err
+	}
+	if err != nil {
+		credential.Clear(rawCode)
 		return nil, err
 	}
 	defer clear(rawCode)
@@ -184,6 +219,43 @@ func promptVerificationCode(input *os.File, output io.Writer) ([]byte, error) {
 		return nil, errors.New("verification code is required")
 	}
 	return append([]byte(nil), trimmed...), nil
+}
+
+func readRawVerificationCode(input io.Reader) ([]byte, error) {
+	const maximumVerificationCodeBytes = 64
+	code := make([]byte, 0, 8)
+	defer func() {
+		if code != nil {
+			clear(code)
+		}
+	}()
+	var one [1]byte
+	for {
+		count, err := input.Read(one[:])
+		if count > 0 {
+			switch one[0] {
+			case 0x03:
+				return nil, context.Canceled
+			case '\r', '\n':
+				result := append([]byte(nil), code...)
+				return result, nil
+			case 0x04:
+				return nil, io.EOF
+			case 0x08, 0x7f:
+				if len(code) > 0 {
+					code = code[:len(code)-1]
+				}
+			default:
+				if len(code) >= maximumVerificationCodeBytes {
+					return nil, errors.New("verification code is too long")
+				}
+				code = append(code, one[0])
+			}
+		}
+		if err != nil {
+			return nil, err
+		}
+	}
 }
 
 func runSetup(arguments []string, stdout, stderr io.Writer) int {

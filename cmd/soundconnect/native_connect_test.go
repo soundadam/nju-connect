@@ -78,7 +78,7 @@ func TestNativeConnectWiresAuthenticatedSessionWithoutLeakingMaterial(t *testing
 
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
-	code := runNativeConnectContext(ctx, []string{"--worktree", worktree}, &stdout, &stderr, factory)
+	code := runNativeConnectContext(ctx, []string{"--worktree", worktree}, &stdout, &stderr, factory, nil)
 	if code != 0 {
 		t.Fatalf("native-connect exit = %d, stderr = %q", code, stderr.String())
 	}
@@ -145,12 +145,56 @@ func TestNativeConnectPreflightsUpstreamBeforeReadingCredential(t *testing.T) {
 		func(nativeapp.SessionConfig) (nativeApplicationSession, error) {
 			t.Fatal("native session factory was reached")
 			return nil, nil
-		})
+		}, nil)
 	if code != 1 || !strings.Contains(stderr.String(), "upstream preflight:") {
 		t.Fatalf("exit=%d stderr=%q", code, stderr.String())
 	}
 	if strings.Contains(stderr.String(), "credential") {
 		t.Fatalf("credential was consulted before upstream preflight: %q", stderr.String())
+	}
+}
+
+func TestNativeConnectBackgroundTransfersOnlyRuntimeHandoff(t *testing.T) {
+	server := newNativeGatewayTestServer(t)
+	defer server.Close()
+	parsed, err := url.Parse(server.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	worktree := t.TempDir()
+	writeNativeCommandState(t, worktree, config.Config{
+		Server:            parsed.Host,
+		Username:          "fixture-account",
+		SOCKSListen:       "127.0.0.1:1081",
+		TLSInsecure:       true,
+		NativeTLSInsecure: true,
+	}, []byte("fixture-password"))
+
+	var borrowed sessiontoken.NativeGatewayToken
+	var gotLog string
+	starter := func(sessionConfig nativeapp.SessionConfig, logPath string) (int, error) {
+		borrowed = sessionConfig.NativeGatewayToken
+		gotLog = logPath
+		if sessionConfig.Observer != nil || sessionConfig.NativeProfile != runtime.ProfileCommunityUTLSCompat || !sessionConfig.Plan.BoundaryReady {
+			t.Fatalf("background session config is invalid")
+		}
+		return 4242, nil
+	}
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	code := runNativeConnectContext(context.Background(), []string{"--worktree", worktree, "--background"}, &stdout, &stderr,
+		func(nativeapp.SessionConfig) (nativeApplicationSession, error) {
+			t.Fatal("foreground session factory was reached")
+			return nil, nil
+		}, starter)
+	if code != 0 || stderr.Len() != 0 {
+		t.Fatalf("exit=%d stdout=%q stderr=%q", code, stdout.String(), stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "background: pid=4242 log=") || gotLog == "" {
+		t.Fatalf("stdout=%q log=%q", stdout.String(), gotLog)
+	}
+	if !bytes.Equal(borrowed, make([]byte, sessiontoken.NativeGatewayTokenSize)) {
+		t.Fatal("borrowed background token was not cleared after synchronous handoff")
 	}
 }
 
@@ -162,7 +206,7 @@ func TestNativeConnectRejectsDevelopmentOnlyProfileFlag(t *testing.T) {
 		func(nativeapp.SessionConfig) (nativeApplicationSession, error) {
 			called = true
 			return nil, nil
-		})
+		}, nil)
 	if code != 2 || called || !strings.Contains(stderr.String(), "flag provided but not defined: -native-profile") {
 		t.Fatalf("exit=%d called=%t stderr=%q", code, called, stderr.String())
 	}
