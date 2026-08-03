@@ -20,9 +20,3 @@ type PacketEndpoint interface {
 type TCPDialer interface {
 	DialContext(context.Context, string, string) (net.Conn, error)
 }
-
-type TCPDialFunc func(context.Context, string, string) (net.Conn, error)
-
-func (dial TCPDialFunc) DialContext(ctx context.Context, network, address string) (net.Conn, error) {
-	return dial(ctx, network, address)
-}

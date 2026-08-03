@@ -62,10 +62,3 @@ func TestPromptRejectsNonTerminalBeforeReading(t *testing.T) {
 		t.Fatalf("non-terminal prompt wrote %q", output.String())
 	}
 }
-
-func TestPromptSetRefusesPersistence(t *testing.T) {
-	store := NewPromptStore(PromptOptions{})
-	if err := store.Set([]byte("synthetic")); !errors.Is(err, ErrPersistenceDisabled) {
-		t.Fatalf("Set() error = %v", err)
-	}
-}

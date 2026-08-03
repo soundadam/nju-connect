@@ -80,8 +80,3 @@ func (p *PromptStore) Get() ([]byte, error) {
 	}
 	return secret, nil
 }
-
-// Set always fails because prompt credentials are intentionally ephemeral.
-func (p *PromptStore) Set(_ []byte) error {
-	return ErrPersistenceDisabled
-}

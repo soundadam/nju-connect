@@ -16,7 +16,7 @@ func TestSOCKSTCPRelayCountsOnlyApplicationPayload(t *testing.T) {
 	var counters traffic.Counters
 	counters.BeginSession(time.Unix(1000, 0))
 	dialed := make(chan string, 1)
-	dialer := TCPDialFunc(func(_ context.Context, network, address string) (net.Conn, error) {
+	dialer := testTCPDialFunc(func(_ context.Context, network, address string) (net.Conn, error) {
 		if network != "tcp4" {
 			t.Errorf("network = %q", network)
 		}
@@ -90,7 +90,7 @@ func TestSOCKSTCPRelayCountsOnlyApplicationPayload(t *testing.T) {
 }
 
 func TestSOCKSRejectsNonLoopbackBindAndExcessConcurrency(t *testing.T) {
-	dialer := TCPDialFunc(func(context.Context, string, string) (net.Conn, error) { return nil, errors.New("unused") })
+	dialer := testTCPDialFunc(func(context.Context, string, string) (net.Conn, error) { return nil, errors.New("unused") })
 	for _, config := range []SOCKSConfig{
 		{Bind: "0.0.0.0:1080", Dialer: dialer},
 		{Bind: "127.0.0.1:1080", Dialer: dialer, MaxConnections: 257},

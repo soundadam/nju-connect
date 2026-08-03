@@ -91,7 +91,7 @@ func TestHEADProbeUsesTheConfiguredSOCKSListenerWithoutRequestBody(t *testing.T)
 		writer.WriteHeader(http.StatusNoContent)
 	}))
 	defer target.Close()
-	dialer := TCPDialFunc(func(ctx context.Context, network, address string) (net.Conn, error) {
+	dialer := testTCPDialFunc(func(ctx context.Context, network, address string) (net.Conn, error) {
 		return (&net.Dialer{}).DialContext(ctx, network, address)
 	})
 	server, err := NewSOCKSServer(SOCKSConfig{Bind: "127.0.0.1:0", Dialer: dialer})
