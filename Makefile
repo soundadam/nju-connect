@@ -1,5 +1,6 @@
 GO ?= go
 BINARY := bin/soundconnect
+PLATFORMS := linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64 windows/arm64
 LOCAL_STATE := .config
 RESEARCH_ROOT := research
 EASYCONNECT_UPSTREAM := $(RESEARCH_ROOT)/upstream/easyconnect
@@ -16,6 +17,14 @@ LEAKCOUNT ?= 10
 build:
 	mkdir -p $(dir $(BINARY))
 	$(GO) build -o $(BINARY) ./cmd/soundconnect
+
+.PHONY: build-platforms
+build-platforms:
+	@set -eu; \
+	for platform in $(PLATFORMS); do \
+		os=$${platform%/*}; arch=$${platform#*/}; \
+		GOOS=$$os GOARCH=$$arch CGO_ENABLED=0 $(GO) build -o $(BINARY)-$$os-$$arch ./cmd/soundconnect; \
+	done
 
 .PHONY: test
 test:
