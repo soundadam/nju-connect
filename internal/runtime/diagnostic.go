@@ -10,14 +10,15 @@ import (
 type FailureStage string
 
 const (
-	StageUpstreamConnectFailed      FailureStage = "upstream_connect_failed"
-	StageProtocolTLSHandshakeFailed FailureStage = "protocol_tls_handshake_failed"
-	StageProtocolPrefaceFailed      FailureStage = "protocol_preface_failed"
-	StageSendIPWriteFailed          FailureStage = "send_ip_write_failed"
-	StageSendIPReadFailed           FailureStage = "send_ip_read_failed"
-	StageSendIPRejected             FailureStage = "send_ip_rejected"
-	StageRXHandshakeFailed          FailureStage = "rx_handshake_failed"
-	StageTXHandshakeFailed          FailureStage = "tx_handshake_failed"
+	StageUpstreamConnectFailed        FailureStage = "upstream_connect_failed"
+	StageProtocolTLSHandshakeFailed   FailureStage = "protocol_tls_handshake_failed"
+	StageProtocolTLSCertificateFailed FailureStage = "protocol_tls_certificate_failed"
+	StageProtocolPrefaceFailed        FailureStage = "protocol_preface_failed"
+	StageSendIPWriteFailed            FailureStage = "send_ip_write_failed"
+	StageSendIPReadFailed             FailureStage = "send_ip_read_failed"
+	StageSendIPRejected               FailureStage = "send_ip_rejected"
+	StageRXHandshakeFailed            FailureStage = "rx_handshake_failed"
+	StageTXHandshakeFailed            FailureStage = "tx_handshake_failed"
 )
 
 // CommandFailure is safe to publish to CLI and UI observers. Attempt is
@@ -69,6 +70,7 @@ func validFailureStage(stage FailureStage) bool {
 	switch stage {
 	case StageUpstreamConnectFailed,
 		StageProtocolTLSHandshakeFailed,
+		StageProtocolTLSCertificateFailed,
 		StageProtocolPrefaceFailed,
 		StageSendIPWriteFailed,
 		StageSendIPReadFailed,

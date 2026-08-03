@@ -22,12 +22,13 @@ const (
 type CommandFailureStage string
 
 const (
-	CommandUpstreamConnectFailed      CommandFailureStage = CommandFailureStage(runtime.StageUpstreamConnectFailed)
-	CommandProtocolTLSHandshakeFailed CommandFailureStage = CommandFailureStage(runtime.StageProtocolTLSHandshakeFailed)
-	CommandProtocolPrefaceFailed      CommandFailureStage = CommandFailureStage(runtime.StageProtocolPrefaceFailed)
-	CommandSendIPWriteFailed          CommandFailureStage = CommandFailureStage(runtime.StageSendIPWriteFailed)
-	CommandSendIPReadFailed           CommandFailureStage = CommandFailureStage(runtime.StageSendIPReadFailed)
-	CommandSendIPRejected             CommandFailureStage = CommandFailureStage(runtime.StageSendIPRejected)
+	CommandUpstreamConnectFailed        CommandFailureStage = CommandFailureStage(runtime.StageUpstreamConnectFailed)
+	CommandProtocolTLSHandshakeFailed   CommandFailureStage = CommandFailureStage(runtime.StageProtocolTLSHandshakeFailed)
+	CommandProtocolTLSCertificateFailed CommandFailureStage = CommandFailureStage(runtime.StageProtocolTLSCertificateFailed)
+	CommandProtocolPrefaceFailed        CommandFailureStage = CommandFailureStage(runtime.StageProtocolPrefaceFailed)
+	CommandSendIPWriteFailed            CommandFailureStage = CommandFailureStage(runtime.StageSendIPWriteFailed)
+	CommandSendIPReadFailed             CommandFailureStage = CommandFailureStage(runtime.StageSendIPReadFailed)
+	CommandSendIPRejected               CommandFailureStage = CommandFailureStage(runtime.StageSendIPRejected)
 )
 
 type CommandFailure struct {
@@ -200,6 +201,8 @@ func sanitizedCommandFailureStage(stage runtime.FailureStage) (CommandFailureSta
 		return CommandUpstreamConnectFailed, true
 	case runtime.StageProtocolTLSHandshakeFailed:
 		return CommandProtocolTLSHandshakeFailed, true
+	case runtime.StageProtocolTLSCertificateFailed:
+		return CommandProtocolTLSCertificateFailed, true
 	case runtime.StageProtocolPrefaceFailed:
 		return CommandProtocolPrefaceFailed, true
 	case runtime.StageSendIPWriteFailed:
@@ -217,6 +220,7 @@ func validCommandFailureStage(stage CommandFailureStage) bool {
 	switch stage {
 	case CommandUpstreamConnectFailed,
 		CommandProtocolTLSHandshakeFailed,
+		CommandProtocolTLSCertificateFailed,
 		CommandProtocolPrefaceFailed,
 		CommandSendIPWriteFailed,
 		CommandSendIPReadFailed,

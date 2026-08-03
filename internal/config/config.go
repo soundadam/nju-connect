@@ -26,6 +26,9 @@ type Config struct {
 	SOCKSListen   string `toml:"socks_listen"`
 	UpstreamProxy string `toml:"upstream_proxy"`
 	TLSInsecure   bool   `toml:"tls_insecure"`
+	// NativeTLSInsecure applies only to the legacy native L3 protocol TLS.
+	// It must not weaken the HTTPS channel carrying credentials and MFA.
+	NativeTLSInsecure bool `toml:"native_tls_insecure"`
 }
 
 func Default() Config {

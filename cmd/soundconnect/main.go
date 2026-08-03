@@ -221,6 +221,7 @@ func runSetup(arguments []string, stdout, stderr io.Writer) int {
 	socksListen := flags.String("socks-listen", config.DefaultSOCKSListen, "numeric loopback SOCKS5 listener")
 	upstreamProxy := flags.String("upstream-proxy", "", "optional socks5 upstream URL")
 	tlsInsecure := flags.Bool("tls-insecure", false, "allow an unverified development gateway certificate")
+	nativeTLSInsecure := flags.Bool("native-tls-insecure", false, "disable verification only for native protocol TLS")
 	if err := flags.Parse(arguments); err != nil {
 		return 2
 	}
@@ -251,11 +252,12 @@ func runSetup(arguments []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 	configured := config.Config{
-		Server:        *server,
-		Username:      *username,
-		SOCKSListen:   *socksListen,
-		UpstreamProxy: *upstreamProxy,
-		TLSInsecure:   *tlsInsecure,
+		Server:            *server,
+		Username:          *username,
+		SOCKSListen:       *socksListen,
+		UpstreamProxy:     *upstreamProxy,
+		TLSInsecure:       *tlsInsecure,
+		NativeTLSInsecure: *nativeTLSInsecure,
 	}
 	readSecret := func(prompt string) ([]byte, error) {
 		return credential.NewPromptStore(credential.PromptOptions{

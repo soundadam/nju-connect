@@ -35,10 +35,11 @@ func TestNativeConnectWiresAuthenticatedSessionWithoutLeakingMaterial(t *testing
 	}
 	worktree := t.TempDir()
 	writeNativeCommandState(t, worktree, config.Config{
-		Server:      parsed.Host,
-		Username:    "fixture-account",
-		SOCKSListen: "127.0.0.1:1081",
-		TLSInsecure: true,
+		Server:            parsed.Host,
+		Username:          "fixture-account",
+		SOCKSListen:       "127.0.0.1:1081",
+		TLSInsecure:       true,
+		NativeTLSInsecure: true,
 	}, []byte("fixture-password"))
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -51,7 +52,7 @@ func TestNativeConnectWiresAuthenticatedSessionWithoutLeakingMaterial(t *testing
 		if !bytes.Equal(sessionConfig.NativeGatewayToken, want) {
 			t.Fatal("native session received the wrong SSL-context token")
 		}
-		if !sessionConfig.Settings.TLSInsecure || !sessionConfig.Plan.BoundaryReady {
+		if !sessionConfig.Settings.TLSInsecure || !sessionConfig.Settings.NativeTLSInsecure || !sessionConfig.Plan.BoundaryReady {
 			t.Fatalf("native session config = %+v", sessionConfig.Plan)
 		}
 		if sessionConfig.NativeProfile != runtime.ProfileCommunityUTLSCompat {

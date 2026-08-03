@@ -138,6 +138,28 @@ func TestCommunityUTLSProfileCertificatePolicyIsExplicitAndScoped(t *testing.T) 
 	}
 }
 
+func TestCommunityUTLSProfileClassifiesCertificateFailuresWithoutDetails(t *testing.T) {
+	certificate := &x509.Certificate{}
+	for name, err := range map[string]error{
+		"unknown authority": x509.UnknownAuthorityError{Cert: certificate},
+		"hostname":          x509.HostnameError{Certificate: certificate, Host: "secret.example"},
+		"invalid":           x509.CertificateInvalidError{Cert: certificate, Reason: x509.Expired},
+	} {
+		t.Run(name, func(t *testing.T) {
+			if got := protocolTLSFailureStage(err); got != StageProtocolTLSCertificateFailed {
+				t.Fatalf("stage = %q", got)
+			}
+			failure := newStageFailure(protocolTLSFailureStage(err), nil)
+			if failure.Error() != string(StageProtocolTLSCertificateFailed) || strings.Contains(failure.Error(), "secret") {
+				t.Fatalf("published failure = %q", failure)
+			}
+		})
+	}
+	if got := protocolTLSFailureStage(errors.New("secret protocol reply")); got != StageProtocolTLSHandshakeFailed {
+		t.Fatalf("generic stage = %q", got)
+	}
+}
+
 func TestCommunityUTLSProfileRawFailureIsClosedAndSanitized(t *testing.T) {
 	client, server := net.Pipe()
 	defer server.Close()

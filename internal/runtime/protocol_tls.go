@@ -111,7 +111,7 @@ func (dialer *ProtocolTLSDialer) Dial(ctx context.Context) (net.Conn, error) {
 	copy(sessionID, []byte("L3IP"))
 	connection.HandshakeState.Hello.SessionId = sessionID
 	if err := connection.HandshakeContext(ctx); err != nil {
-		return nil, newStageFailure(StageProtocolTLSHandshakeFailed, nil)
+		return nil, newStageFailure(protocolTLSFailureStage(err), nil)
 	}
 	if ctx.Err() != nil {
 		return nil, newStageFailure(StageProtocolTLSHandshakeFailed, nil)
@@ -121,6 +121,16 @@ func (dialer *ProtocolTLSDialer) Dial(ctx context.Context) (net.Conn, error) {
 	}
 	keepOpen = true
 	return connection, nil
+}
+
+func protocolTLSFailureStage(err error) FailureStage {
+	var unknownAuthority x509.UnknownAuthorityError
+	var hostname x509.HostnameError
+	var certificateInvalid x509.CertificateInvalidError
+	if errors.As(err, &unknownAuthority) || errors.As(err, &hostname) || errors.As(err, &certificateInvalid) {
+		return StageProtocolTLSCertificateFailed
+	}
+	return StageProtocolTLSHandshakeFailed
 }
 
 func (dialer *ProtocolTLSDialer) WriteInitialCommandRequest(writer io.Writer, payload []byte) error {

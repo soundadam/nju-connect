@@ -158,10 +158,10 @@ func TestNewSessionAcceptsExplicitScopedTLSInsecure(t *testing.T) {
 	token := make(sessiontoken.NativeGatewayToken, sessiontoken.NativeGatewayTokenSize)
 	session, err := NewSession(SessionConfig{
 		Settings: config.Config{
-			Server:      "vpn.example.edu",
-			Username:    "student",
-			SOCKSListen: "127.0.0.1:1081",
-			TLSInsecure: true,
+			Server:            "vpn.example.edu",
+			Username:          "student",
+			SOCKSListen:       "127.0.0.1:1081",
+			NativeTLSInsecure: true,
 		},
 		Plan: core.DataplanePlan{
 			Mode:               core.DataplaneL3VPN,

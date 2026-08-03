@@ -10,10 +10,11 @@ import (
 func TestReplaceAndLoad(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "private", "config.toml")
 	want := Config{
-		Server:        "vpn.example.edu",
-		Username:      "student",
-		SOCKSListen:   DefaultSOCKSListen,
-		UpstreamProxy: "socks5://127.0.0.1:1080",
+		Server:            "vpn.example.edu",
+		Username:          "student",
+		SOCKSListen:       DefaultSOCKSListen,
+		UpstreamProxy:     "socks5://127.0.0.1:1080",
+		NativeTLSInsecure: true,
 	}
 	if err := Replace(path, want); err != nil {
 		t.Fatalf("Replace() error = %v", err)

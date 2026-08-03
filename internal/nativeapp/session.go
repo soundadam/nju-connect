@@ -76,7 +76,7 @@ func NewSession(sessionConfig SessionConfig) (*Session, error) {
 	if err != nil {
 		return nil, err
 	}
-	profile, err := newProtocolProfile(sessionConfig.NativeProfile, commandDialer(outbound, target.address), target.serverName, sessionConfig.Settings.TLSInsecure)
+	profile, err := newProtocolProfile(sessionConfig.NativeProfile, commandDialer(outbound, target.address), target.serverName, sessionConfig.Settings.NativeTLSInsecure)
 	if err != nil {
 		return nil, err
 	}

@@ -11,6 +11,7 @@ func TestFailureStagesAreFixedAndNeverRetainRawErrors(t *testing.T) {
 	for _, stage := range []FailureStage{
 		StageUpstreamConnectFailed,
 		StageProtocolTLSHandshakeFailed,
+		StageProtocolTLSCertificateFailed,
 		StageProtocolPrefaceFailed,
 		StageSendIPWriteFailed,
 		StageSendIPReadFailed,
