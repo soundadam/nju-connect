@@ -1,22 +1,25 @@
 GO ?= go
 BINARY := bin/soundconnect
 PLATFORMS := linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64 windows/arm64
-LOCAL_STATE := .config
 RESEARCH_ROOT := research
 EASYCONNECT_UPSTREAM := $(RESEARCH_ROOT)/upstream/easyconnect
 EASYCONNECT_WORK := $(RESEARCH_ROOT)/work/easyconnect
 EASYCONNECT_LOCK := $(RESEARCH_ROOT)/lock.json
 PACKAGE ?= $(firstword $(wildcard $(EASYCONNECT_UPSTREAM)/package/*.deb))
 EASYCONNECT_DEPENDENCY ?= $(firstword $(wildcard $(EASYCONNECT_UPSTREAM)/dependencies/*.deb))
-RESOLVE_IP ?=
 BENCHTIME ?= 250ms
 BENCHCOUNT ?= 5
 LEAKCOUNT ?= 10
+VERSION ?=
 
 .PHONY: build
 build:
 	mkdir -p $(dir $(BINARY))
 	$(GO) build -o $(BINARY) ./cmd/soundconnect
+
+.PHONY: cli-release
+cli-release:
+	@./scripts/package-cli-release.sh "$(VERSION)"
 
 .PHONY: build-platforms
 build-platforms:
@@ -52,10 +55,6 @@ fmt-check:
 
 .PHONY: check
 check: fmt-check test test-race leak-check
-
-.PHONY: dev-init
-dev-init:
-	install -d -m 0700 $(LOCAL_STATE)
 
 .PHONY: research-init
 research-init:
@@ -104,16 +103,6 @@ easyconnect-agent:
 .PHONY: easyconnect-agent-check
 easyconnect-agent-check:
 	@./dev/easyconnect/control-check 54530
-
-.PHONY: easyconnect-control-probe
-easyconnect-control-probe: build
-	@./dev/easyconnect/authenticated-control-probe \
-		"$(CURDIR)/$(EASYCONNECT_WORK)/rootfs" \
-		"$(CURDIR)/$(EASYCONNECT_WORK)/dependencies" \
-		"$(CURDIR)/$(EASYCONNECT_WORK)/runtime" \
-		"$(CURDIR)/$(BINARY)" \
-		"$(CURDIR)" \
-		"$(RESOLVE_IP)"
 
 .PHONY: easyconnect-stop
 easyconnect-stop:

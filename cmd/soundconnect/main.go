@@ -43,6 +43,8 @@ func run(arguments []string, stdout, stderr io.Writer) int {
 		return 0
 	case "setup":
 		return runSetup(arguments[1:], stdout, stderr)
+	case "migrate":
+		return runMigrate(arguments[1:], stdout, stderr)
 	case "doctor":
 		return runDoctor(arguments[1:], stdout, stderr)
 	case "connect":
@@ -61,10 +63,45 @@ func run(arguments []string, stdout, stderr io.Writer) int {
 	}
 }
 
+func runMigrate(arguments []string, stdout, stderr io.Writer) int {
+	flags := flag.NewFlagSet("migrate", flag.ContinueOnError)
+	flags.SetOutput(stderr)
+	legacyRoot := flags.String("from", ".", "directory containing the legacy .config state")
+	if err := flags.Parse(arguments); err != nil {
+		return 2
+	}
+	if flags.NArg() != 0 {
+		fmt.Fprintln(stderr, "migrate accepts no positional arguments")
+		return 2
+	}
+	paths, err := commandPaths()
+	if err != nil {
+		fmt.Fprintf(stderr, "resolve user configuration: %v\n", err)
+		return 1
+	}
+	legacy, configMigrated, err := config.MigrateLegacyConfig(*legacyRoot, paths)
+	if err != nil {
+		fmt.Fprintf(stderr, "migrate configuration: %v\n", err)
+		return 1
+	}
+	store, err := newSystemCredentialStore(paths.Credential)
+	if err != nil {
+		fmt.Fprintf(stderr, "prepare credential store: %v\n", err)
+		return 1
+	}
+	credentialMigrated, err := credential.MigrateFile(store, legacy.Credential)
+	if err != nil {
+		fmt.Fprintf(stderr, "migrate credential: %v\n", err)
+		return 1
+	}
+	fmt.Fprintf(stdout, "configuration_migrated: %t\ncredential_migrated: %t\nsource_preserved: true\n",
+		configMigrated, credentialMigrated)
+	return 0
+}
+
 func runConnect(arguments []string, stdout, stderr io.Writer) int {
 	flags := flag.NewFlagSet("connect", flag.ContinueOnError)
 	flags.SetOutput(stderr)
-	worktree := flags.String("worktree", "", "development-only worktree override (default: user config)")
 	if err := flags.Parse(arguments); err != nil {
 		return 2
 	}
@@ -72,7 +109,7 @@ func runConnect(arguments []string, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stderr, "connect accepts no positional arguments")
 		return 2
 	}
-	paths, err := commandPaths(*worktree)
+	paths, err := commandPaths()
 	if err != nil {
 		fmt.Fprintf(stderr, "resolve local state: %v\n", err)
 		return 1
@@ -82,7 +119,7 @@ func runConnect(arguments []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "load configuration: %v\n", err)
 		return 1
 	}
-	passwordStore, err := credential.NewFileStore(paths.Credential, true)
+	passwordStore, _, err := commandCredentialStore(paths)
 	if err != nil {
 		fmt.Fprintf(stderr, "open credential: %v\n", err)
 		return 1
@@ -261,7 +298,6 @@ func readRawVerificationCode(input io.Reader) ([]byte, error) {
 func runSetup(arguments []string, stdout, stderr io.Writer) int {
 	flags := flag.NewFlagSet("setup", flag.ContinueOnError)
 	flags.SetOutput(stderr)
-	worktree := flags.String("worktree", "", "development-only worktree override (default: user config)")
 	server := flags.String("server", "", "campus VPN gateway host or host:port")
 	username := flags.String("username", "", "campus account")
 	socksListen := flags.String("socks-listen", config.DefaultSOCKSListen, "numeric loopback SOCKS5 listener")
@@ -292,7 +328,7 @@ func runSetup(arguments []string, stdout, stderr io.Writer) int {
 		}
 		*username = value
 	}
-	paths, err := commandPaths(*worktree)
+	paths, err := commandPaths()
 	if err != nil {
 		fmt.Fprintf(stderr, "resolve local state: %v\n", err)
 		return 1
@@ -310,11 +346,16 @@ func runSetup(arguments []string, stdout, stderr io.Writer) int {
 			Input: os.Stdin, Output: stderr, Prompt: prompt,
 		}).Get()
 	}
-	if err := setupservice.Save(paths, configured, readSecret); err != nil {
+	passwordStore, err := newSystemCredentialStore(paths.Credential)
+	if err != nil {
+		fmt.Fprintf(stderr, "prepare credential store: %v\n", err)
+		return 1
+	}
+	if err := setupservice.Save(paths, configured, passwordStore, readSecret); err != nil {
 		fmt.Fprintf(stderr, "setup failed: %v\n", err)
 		return 1
 	}
-	fmt.Fprintf(stdout, "configuration: %s\ncredential: %s\n", paths.Config, paths.Credential)
+	fmt.Fprintf(stdout, "configuration: %s\ncredential: system_store\n", paths.Config)
 	return 0
 }
 
@@ -361,7 +402,6 @@ func promptLineAllowEmpty(input *bufio.Reader, output io.Writer, prompt string) 
 func runDoctor(arguments []string, stdout, stderr io.Writer) int {
 	flags := flag.NewFlagSet("doctor", flag.ContinueOnError)
 	flags.SetOutput(stderr)
-	worktree := flags.String("worktree", "", "development-only worktree override (default: user config)")
 	asJSON := flags.Bool("json", false, "print JSON")
 	if err := flags.Parse(arguments); err != nil {
 		return 2
@@ -370,20 +410,25 @@ func runDoctor(arguments []string, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stderr, "doctor accepts no positional arguments")
 		return 2
 	}
-	paths, err := commandPaths(*worktree)
+	paths, err := commandPaths()
 	if err != nil {
 		fmt.Fprintf(stderr, "resolve local state: %v\n", err)
 		return 1
 	}
-	report := doctor.Build(paths)
+	passwordStore, err := newSystemCredentialStore(paths.Credential)
+	if err != nil {
+		fmt.Fprintf(stderr, "prepare credential store: %v\n", err)
+		return 1
+	}
+	report := doctor.Build(paths, passwordStore)
 	if *asJSON {
 		if err := json.NewEncoder(stdout).Encode(report); err != nil {
 			fmt.Fprintf(stderr, "encode report: %v\n", err)
 			return 1
 		}
 	} else {
-		fmt.Fprintf(stdout, "ready: %t\nconfiguration: %s\ncredential_file: %s\nupstream_proxy: %s\n",
-			report.Ready, report.Configuration, report.CredentialFile, report.UpstreamProxy)
+		fmt.Fprintf(stdout, "ready: %t\nconfiguration: %s\ncredential_store: %s\nupstream_proxy: %s\n",
+			report.Ready, report.Configuration, report.CredentialStore, report.UpstreamProxy)
 	}
 	if !report.Ready {
 		return 1
@@ -396,6 +441,7 @@ func writeUsage(output io.Writer) {
 
 commands:
   setup      configure or update the account and long-lived password
+  migrate    import pre-release worktree configuration and credential state
   connect    probe attended gateway authentication without starting dataplane
   native-connect
              authenticate and run the native userspace VPN core

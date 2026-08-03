@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -33,8 +34,8 @@ func TestNativeConnectWiresAuthenticatedSessionWithoutLeakingMaterial(t *testing
 	if err != nil {
 		t.Fatal(err)
 	}
-	worktree := t.TempDir()
-	writeNativeCommandState(t, worktree, config.Config{
+	paths := nativeCommandTestPaths(t)
+	writeNativeCommandState(t, paths, config.Config{
 		Server:            parsed.Host,
 		Username:          "fixture-account",
 		SOCKSListen:       "127.0.0.1:1081",
@@ -78,7 +79,7 @@ func TestNativeConnectWiresAuthenticatedSessionWithoutLeakingMaterial(t *testing
 
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
-	code := runNativeConnectContext(ctx, []string{"--worktree", worktree}, &stdout, &stderr, factory, nil)
+	code := runNativeConnectContext(ctx, nil, &stdout, &stderr, factory, nil)
 	if code != 0 {
 		t.Fatalf("native-connect exit = %d, stderr = %q", code, stderr.String())
 	}
@@ -125,11 +126,7 @@ func TestNativeConnectPreflightsUpstreamBeforeReadingCredential(t *testing.T) {
 	if err := listener.Close(); err != nil {
 		t.Fatal(err)
 	}
-	worktree := t.TempDir()
-	paths, err := config.LocalPaths(worktree)
-	if err != nil {
-		t.Fatal(err)
-	}
+	paths := nativeCommandTestPaths(t)
 	if err := config.Replace(paths.Config, config.Config{
 		Server:        "vpn.example.edu",
 		Username:      "fixture-account",
@@ -141,7 +138,7 @@ func TestNativeConnectPreflightsUpstreamBeforeReadingCredential(t *testing.T) {
 
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
-	code := runNativeConnectContext(context.Background(), []string{"--worktree", worktree}, &stdout, &stderr,
+	code := runNativeConnectContext(context.Background(), nil, &stdout, &stderr,
 		func(nativeapp.SessionConfig) (nativeApplicationSession, error) {
 			t.Fatal("native session factory was reached")
 			return nil, nil
@@ -161,8 +158,8 @@ func TestNativeConnectBackgroundTransfersOnlyRuntimeHandoff(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	worktree := t.TempDir()
-	writeNativeCommandState(t, worktree, config.Config{
+	paths := nativeCommandTestPaths(t)
+	writeNativeCommandState(t, paths, config.Config{
 		Server:            parsed.Host,
 		Username:          "fixture-account",
 		SOCKSListen:       "127.0.0.1:1081",
@@ -182,7 +179,7 @@ func TestNativeConnectBackgroundTransfersOnlyRuntimeHandoff(t *testing.T) {
 	}
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
-	code := runNativeConnectContext(context.Background(), []string{"--worktree", worktree, "--background"}, &stdout, &stderr,
+	code := runNativeConnectContext(context.Background(), []string{"--background"}, &stdout, &stderr,
 		func(nativeapp.SessionConfig) (nativeApplicationSession, error) {
 			t.Fatal("foreground session factory was reached")
 			return nil, nil
@@ -277,12 +274,29 @@ func newNativeGatewayTestServer(t *testing.T) *httptest.Server {
 	}))
 }
 
-func writeNativeCommandState(t *testing.T, worktree string, configured config.Config, password []byte) {
+func nativeCommandTestPaths(t *testing.T) config.Paths {
 	t.Helper()
-	paths, err := config.LocalPaths(worktree)
-	if err != nil {
-		t.Fatal(err)
+	root := filepath.Join(t.TempDir(), "soundconnect")
+	paths := config.Paths{
+		Root:       root,
+		Config:     filepath.Join(root, "config.toml"),
+		Credential: filepath.Join(root, "credential"),
 	}
+	previous := resolveDefaultPaths
+	previousCredentialStore := newSystemCredentialStore
+	resolveDefaultPaths = func() (config.Paths, error) { return paths, nil }
+	newSystemCredentialStore = func(path string) (credential.Store, error) {
+		return credential.NewFileStore(path, true)
+	}
+	t.Cleanup(func() {
+		resolveDefaultPaths = previous
+		newSystemCredentialStore = previousCredentialStore
+	})
+	return paths
+}
+
+func writeNativeCommandState(t *testing.T, paths config.Paths, configured config.Config, password []byte) {
+	t.Helper()
 	if err := config.Replace(paths.Config, configured); err != nil {
 		t.Fatal(err)
 	}

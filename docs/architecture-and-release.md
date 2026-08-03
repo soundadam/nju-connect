@@ -9,7 +9,7 @@ The audit started from \`7e86436\` and covers the native userspace core that has
 \`\`\`mermaid
 flowchart TD
     cfg["internal/config\nsole Config authority"] --> auth["internal/gatewayauth\nHTTPS auth and bootstrap"]
-    cred["internal/credential\nfile or hidden prompt"] --> auth
+    cred["internal/credential\nKeychain, file, or hidden prompt"] --> auth
     auth --> state["SessionState + Bootstrap"]
     state --> plan["internal/core\nDataplanePlan"]
     auth --> token["NativeGatewayToken\ntyped gateway boundary"]
@@ -160,5 +160,11 @@ make build
 make build-platforms
 git diff --check
 \`\`\`
+
+For standalone macOS CLI archives, \`make cli-release VERSION=vMAJOR.MINOR.PATCH\`
+requires a clean worktree, builds cgo-enabled amd64 and arm64 binaries with the
+version injected, includes the license, notice index, and linked dependency
+license texts, and writes SHA-256 checksums. Signing, notarization, tag creation,
+and publication remain separate release gates.
 
 The commands are compile/test gates only. They do not authenticate, perform MFA, start a vendor service, use a VPN/TUN, alter routing/DNS/PF, push, or release.

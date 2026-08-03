@@ -53,7 +53,6 @@ func runNativeConnectContext(
 ) int {
 	flags := flag.NewFlagSet("native-connect", flag.ContinueOnError)
 	flags.SetOutput(stderr)
-	worktree := flags.String("worktree", "", "development-only worktree override (default: user config)")
 	background := flags.Bool("background", false, "continue the native runtime as a detached process after authentication")
 	if err := flags.Parse(arguments); err != nil {
 		return 2
@@ -70,7 +69,7 @@ func runNativeConnectContext(
 		fmt.Fprintln(stderr, "prepare native runtime: background starter is unavailable")
 		return 1
 	}
-	paths, err := commandPaths(*worktree)
+	paths, err := commandPaths()
 	if err != nil {
 		fmt.Fprintf(stderr, "resolve local state: %v\n", err)
 		return 1
@@ -89,7 +88,7 @@ func runNativeConnectContext(
 		return 1
 	}
 
-	passwordStore, err := credential.NewFileStore(paths.Credential, true)
+	passwordStore, _, err := commandCredentialStore(paths)
 	if err != nil {
 		fmt.Fprintf(stderr, "open credential: %v\n", err)
 		return 1

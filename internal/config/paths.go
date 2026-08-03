@@ -9,7 +9,7 @@ import (
 
 const (
 	applicationDirectory = "soundconnect"
-	localDirectory       = ".config"
+	legacyLocalDirectory = ".config"
 )
 
 // Paths names the user configuration and credential files owned by
@@ -31,14 +31,14 @@ func DefaultPaths() (Paths, error) {
 	return pathsAt(filepath.Join(configDir, applicationDirectory)), nil
 }
 
-// LocalPaths resolves development and test state beneath a worktree. Release
-// callers should use DefaultPaths instead.
-func LocalPaths(worktree string) (Paths, error) {
+// LegacyPaths resolves the pre-release worktree-local layout. It exists only
+// as an input to migration and must not be used as an active runtime root.
+func LegacyPaths(worktree string) (Paths, error) {
 	if worktree == "" {
-		return Paths{}, errors.New("worktree path is required")
+		return Paths{}, errors.New("legacy root path is required")
 	}
 
-	root, err := filepath.Abs(filepath.Join(worktree, localDirectory))
+	root, err := filepath.Abs(filepath.Join(worktree, legacyLocalDirectory))
 	if err != nil {
 		return Paths{}, err
 	}

@@ -13,17 +13,17 @@ import (
 )
 
 type Report struct {
-	Ready          bool   `json:"ready"`
-	Configuration  string `json:"configuration"`
-	CredentialFile string `json:"credential_file"`
-	UpstreamProxy  string `json:"upstream_proxy"`
+	Ready           bool   `json:"ready"`
+	Configuration   string `json:"configuration"`
+	CredentialStore string `json:"credential_store"`
+	UpstreamProxy   string `json:"upstream_proxy"`
 }
 
-func Build(paths config.Paths) Report {
+func Build(paths config.Paths, store credential.Store) Report {
 	report := Report{
-		Configuration:  "invalid",
-		CredentialFile: "not_checked",
-		UpstreamProxy:  "not_checked",
+		Configuration:   "invalid",
+		CredentialStore: "not_checked",
+		UpstreamProxy:   "not_checked",
 	}
 	configured, err := config.Load(paths.Config)
 	if err != nil {
@@ -34,18 +34,17 @@ func Build(paths config.Paths) Report {
 	}
 	report.Configuration = "ready"
 
-	store, err := credential.NewFileStore(paths.Credential, true)
-	if err != nil {
-		report.CredentialFile = "invalid"
+	if store == nil {
+		report.CredentialStore = "invalid"
 		return report
 	}
 	switch err := store.Inspect(); {
 	case err == nil:
-		report.CredentialFile = "ready"
+		report.CredentialStore = "ready"
 	case errors.Is(err, os.ErrNotExist):
-		report.CredentialFile = "missing"
+		report.CredentialStore = "missing"
 	default:
-		report.CredentialFile = "invalid"
+		report.CredentialStore = "invalid"
 	}
 
 	if configured.UpstreamProxy == "" {
@@ -61,7 +60,7 @@ func Build(paths config.Paths) Report {
 		}
 	}
 	report.Ready = report.Configuration == "ready" &&
-		report.CredentialFile == "ready" &&
+		report.CredentialStore == "ready" &&
 		(report.UpstreamProxy == "ready" || report.UpstreamProxy == "not_configured")
 	return report
 }

@@ -5,11 +5,11 @@ import (
 	"testing"
 )
 
-func TestLocalPathsStayInsideWorktree(t *testing.T) {
+func TestLegacyPathsStayInsideWorktree(t *testing.T) {
 	worktree := t.TempDir()
-	paths, err := LocalPaths(worktree)
+	paths, err := LegacyPaths(worktree)
 	if err != nil {
-		t.Fatalf("LocalPaths() error = %v", err)
+		t.Fatalf("LegacyPaths() error = %v", err)
 	}
 
 	wantRoot := filepath.Join(worktree, ".config")

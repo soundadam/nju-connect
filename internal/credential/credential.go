@@ -21,6 +21,15 @@ var (
 	ErrNoTerminal          = errors.New("hidden prompt requires a terminal")
 )
 
+// Store is the narrow contract required by setup, authentication, and
+// diagnostics. Platform selection stays outside the portable authentication
+// core.
+type Store interface {
+	Inspect() error
+	Get() ([]byte, error)
+	Set([]byte) error
+}
+
 func validateSecret(secret []byte) error {
 	if len(secret) == 0 {
 		return ErrEmptyCredential

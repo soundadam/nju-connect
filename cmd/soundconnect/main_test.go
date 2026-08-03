@@ -3,8 +3,13 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/soundadam/soundconnect/internal/config"
+	"github.com/soundadam/soundconnect/internal/credential"
 )
 
 func TestVersion(t *testing.T) {
@@ -69,5 +74,90 @@ func TestUnknownCommand(t *testing.T) {
 	}
 	if !strings.Contains(stderr.String(), `unknown command "unknown"`) {
 		t.Fatalf("stderr = %q", stderr.String())
+	}
+}
+
+func TestReleaseCommandsRejectWorktreeDevelopmentOverride(t *testing.T) {
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	if code := run([]string{"doctor", "--worktree", t.TempDir()}, &stdout, &stderr); code != 2 {
+		t.Fatalf("run(doctor --worktree) = %d", code)
+	}
+	if !strings.Contains(stderr.String(), "flag provided but not defined: -worktree") {
+		t.Fatalf("stderr = %q", stderr.String())
+	}
+}
+
+type commandMemoryStore struct {
+	secret []byte
+}
+
+func (store *commandMemoryStore) Inspect() error {
+	if store.secret == nil {
+		return os.ErrNotExist
+	}
+	return nil
+}
+
+func (store *commandMemoryStore) Get() ([]byte, error) {
+	if err := store.Inspect(); err != nil {
+		return nil, err
+	}
+	return append([]byte(nil), store.secret...), nil
+}
+
+func (store *commandMemoryStore) Set(secret []byte) error {
+	store.secret = append(store.secret[:0], secret...)
+	return nil
+}
+
+func TestMigrateCommandCopiesConfigAndImportsCredential(t *testing.T) {
+	legacyRoot := t.TempDir()
+	legacy, err := config.LegacyPaths(legacyRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := config.Config{Server: "vpn.example.edu", Username: "student", SOCKSListen: config.DefaultSOCKSListen}
+	if err := config.Replace(legacy.Config, want); err != nil {
+		t.Fatal(err)
+	}
+	legacyCredential, err := credential.NewFileStore(legacy.Credential, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := legacyCredential.Set([]byte("synthetic-password")); err != nil {
+		t.Fatal(err)
+	}
+
+	root := filepath.Join(t.TempDir(), "soundconnect")
+	destination := config.Paths{
+		Root:       root,
+		Config:     filepath.Join(root, "config.toml"),
+		Credential: filepath.Join(root, "credential"),
+	}
+	store := &commandMemoryStore{}
+	previousPaths := resolveDefaultPaths
+	previousStore := newSystemCredentialStore
+	resolveDefaultPaths = func() (config.Paths, error) { return destination, nil }
+	newSystemCredentialStore = func(string) (credential.Store, error) { return store, nil }
+	t.Cleanup(func() {
+		resolveDefaultPaths = previousPaths
+		newSystemCredentialStore = previousStore
+	})
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	if code := run([]string{"migrate", "--from", legacyRoot}, &stdout, &stderr); code != 0 {
+		t.Fatalf("run(migrate) = %d, stderr = %q", code, stderr.String())
+	}
+	if stdout.String() != "configuration_migrated: true\ncredential_migrated: true\nsource_preserved: true\n" {
+		t.Fatalf("stdout = %q", stdout.String())
+	}
+	got, err := config.Load(destination.Config)
+	if err != nil || got != want {
+		t.Fatalf("configuration = %#v, err = %v", got, err)
+	}
+	if string(store.secret) != "synthetic-password" {
+		t.Fatal("credential was not imported")
 	}
 }

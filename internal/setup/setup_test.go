@@ -3,6 +3,7 @@ package setup
 import (
 	"errors"
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/soundadam/soundconnect/internal/config"
@@ -10,7 +11,8 @@ import (
 )
 
 func TestSaveWritesPrivateConfigAndCredential(t *testing.T) {
-	paths, err := config.LocalPaths(t.TempDir())
+	paths := setupTestPaths(t)
+	store, err := credential.NewFileStore(paths.Credential, true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -20,7 +22,7 @@ func TestSaveWritesPrivateConfigAndCredential(t *testing.T) {
 		SOCKSListen: config.DefaultSOCKSListen,
 	}
 	readCount := 0
-	err = Save(paths, configured, func(prompt string) ([]byte, error) {
+	err = Save(paths, configured, store, func(prompt string) ([]byte, error) {
 		readCount++
 		switch readCount {
 		case 1:
@@ -49,10 +51,6 @@ func TestSaveWritesPrivateConfigAndCredential(t *testing.T) {
 	if loaded != configured {
 		t.Fatalf("config = %#v", loaded)
 	}
-	store, err := credential.NewFileStore(paths.Credential, true)
-	if err != nil {
-		t.Fatal(err)
-	}
 	secret, err := store.Get()
 	if err != nil {
 		t.Fatal(err)
@@ -73,7 +71,8 @@ func TestSaveWritesPrivateConfigAndCredential(t *testing.T) {
 }
 
 func TestSaveRejectsMismatchedPassword(t *testing.T) {
-	paths, err := config.LocalPaths(t.TempDir())
+	paths := setupTestPaths(t)
+	store, err := credential.NewFileStore(paths.Credential, true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -82,7 +81,7 @@ func TestSaveRejectsMismatchedPassword(t *testing.T) {
 		Username:    "student",
 		SOCKSListen: config.DefaultSOCKSListen,
 	}
-	err = Save(paths, configured, func(prompt string) ([]byte, error) {
+	err = Save(paths, configured, store, func(prompt string) ([]byte, error) {
 		if prompt == "soundconnect password: " {
 			return []byte("first"), nil
 		}
@@ -93,5 +92,15 @@ func TestSaveRejectsMismatchedPassword(t *testing.T) {
 	}
 	if _, err := os.Stat(paths.Config); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("config exists after mismatch: %v", err)
+	}
+}
+
+func setupTestPaths(t *testing.T) config.Paths {
+	t.Helper()
+	root := filepath.Join(t.TempDir(), "soundconnect")
+	return config.Paths{
+		Root:       root,
+		Config:     filepath.Join(root, "config.toml"),
+		Credential: filepath.Join(root, "credential"),
 	}
 }

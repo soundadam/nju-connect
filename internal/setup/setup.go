@@ -15,9 +15,12 @@ type SecretReader func(prompt string) ([]byte, error)
 
 var ErrPasswordMismatch = errors.New("password confirmation does not match")
 
-func Save(paths config.Paths, configured config.Config, read SecretReader) error {
+func Save(paths config.Paths, configured config.Config, store credential.Store, read SecretReader) error {
 	if read == nil {
 		return errors.New("secret reader is required")
+	}
+	if store == nil {
+		return errors.New("credential store is required")
 	}
 	if err := configured.Validate(); err != nil {
 		return err
@@ -38,10 +41,6 @@ func Save(paths config.Paths, configured config.Config, read SecretReader) error
 	}
 
 	if err := config.Replace(paths.Config, configured); err != nil {
-		return err
-	}
-	store, err := credential.NewFileStore(paths.Credential, true)
-	if err != nil {
 		return err
 	}
 	if err := store.Set(password); err != nil {

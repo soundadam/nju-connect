@@ -1,14 +1,27 @@
 package main
 
 import (
-	"strings"
-
 	"github.com/soundadam/soundconnect/internal/config"
+	"github.com/soundadam/soundconnect/internal/credential"
 )
 
-func commandPaths(worktree string) (config.Paths, error) {
-	if strings.TrimSpace(worktree) == "" {
-		return config.DefaultPaths()
+var (
+	resolveDefaultPaths      = config.DefaultPaths
+	newSystemCredentialStore = credential.NewSystemStore
+)
+
+func commandPaths() (config.Paths, error) {
+	return resolveDefaultPaths()
+}
+
+func commandCredentialStore(paths config.Paths) (credential.Store, bool, error) {
+	store, err := newSystemCredentialStore(paths.Credential)
+	if err != nil {
+		return nil, false, err
 	}
-	return config.LocalPaths(worktree)
+	migrated, err := credential.MigrateFile(store, paths.Credential)
+	if err != nil {
+		return nil, false, err
+	}
+	return store, migrated, nil
 }
