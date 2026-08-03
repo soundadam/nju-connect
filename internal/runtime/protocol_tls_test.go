@@ -115,6 +115,30 @@ func TestCommunityUTLSProfileMetadataAndFraming(t *testing.T) {
 	}
 }
 
+func TestCommunityUTLSProfileConsumesCompleteFirstDataReplyChunk(t *testing.T) {
+	profile, err := NewProtocolTLSDialer(ProtocolTLSDialerConfig{
+		Dial:       func(context.Context) (net.Conn, error) { return nil, errors.New("unused") },
+		ServerName: "vpn.example.edu",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	handshake := append([]byte{0x01}, bytes.Repeat([]byte{0xa5}, commandReplySize-1)...)
+	packet := testIPv4Packet(40, 0x42)
+	reader := io.MultiReader(bytes.NewReader(handshake), bytes.NewReader(packet))
+	code, err := profile.ReadInitialDataReply(reader)
+	if err != nil || code != 0x01 {
+		t.Fatalf("data reply=%d error=%v", code, err)
+	}
+	remaining, err := io.ReadAll(reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(remaining, packet) {
+		t.Fatalf("established stream begins with %x, want IPv4 packet", remaining)
+	}
+}
+
 func TestCommunityUTLSProfileCertificatePolicyIsExplicitAndScoped(t *testing.T) {
 	roots := x509.NewCertPool()
 	profile, err := NewProtocolTLSDialer(ProtocolTLSDialerConfig{

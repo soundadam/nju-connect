@@ -154,11 +154,19 @@ func (dialer *ProtocolTLSDialer) WriteInitialDataRequest(writer io.Writer, paylo
 }
 
 func (dialer *ProtocolTLSDialer) ReadInitialDataReply(reader io.Reader) (uint32, error) {
-	var reply [1]byte
-	if _, err := io.ReadFull(reader, reply[:]); err != nil {
+	// Reverse testing established that the live-compatible path reads the complete first TLS application
+	// chunk into a 1500-byte buffer and validates only its first byte. Reading a
+	// single byte here leaves the rest of the stream-handshake reply queued for
+	// the IPv4 decoder, which then correctly rejects it as non-IPv4 data.
+	var reply [1500]byte
+	count, err := io.ReadAtLeast(reader, reply[:], 1)
+	if err != nil {
+		clear(reply[:])
 		return 0, err
 	}
-	return uint32(reply[0]), nil
+	code := uint32(reply[0])
+	clear(reply[:count])
+	return code, nil
 }
 
 func (dialer *ProtocolTLSDialer) tlsConfig() *utls.Config {
