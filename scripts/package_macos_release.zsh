@@ -17,6 +17,7 @@ readonly stage_root="${repo_root}/.stage/macos-release-${version}"
 readonly app_root="${stage_root}/${app_name}"
 readonly contents_root="${app_root}/Contents"
 readonly release_dir="${output_root}/${version}"
+readonly allow_dirty="${SOUNDCONNECT_ALLOW_DIRTY:-0}"
 
 [[ "$version" == <->.<->.<-> ]] || {
   print -u2 -- "version must use MAJOR.MINOR.PATCH"
@@ -40,10 +41,14 @@ done
 }
 cd "$repo_root"
 
-[[ -z "$(git status --porcelain --untracked-files=normal)" ]] || {
-  print -u2 -- "macOS release packaging requires a clean worktree"
-  exit 65
-}
+typeset source_dirty=false
+if [[ -n "$(git status --porcelain --untracked-files=normal)" ]]; then
+  [[ "$allow_dirty" == 1 ]] || {
+    print -u2 -- "macOS release packaging requires a clean worktree"
+    exit 65
+  }
+  source_dirty=true
+fi
 
 rm -rf -- "$stage_root"
 mkdir -p -- \
@@ -52,6 +57,18 @@ mkdir -p -- \
   "${contents_root}/Resources/third_party_licenses" \
   "${contents_root}/Resources/speedtest_component_source" \
   "$release_dir"
+
+readonly component_build_root="${stage_root}/component-build"
+"${repo_root}/scripts/build_speedtest_component.sh" "$component_build_root"
+readonly component_version="$(plutil -extract component_version raw -o - "${component_build_root}/component-manifest.json")"
+readonly helper_version="$(plutil -extract helper_version raw -o - "${component_build_root}/component-manifest.json")"
+for arch in arm64 amd64; do
+  component_destination="${contents_root}/Resources/campus-speed/${component_version}/${arch}"
+  mkdir -p -- "$component_destination"
+  install -m 0644 "${component_build_root}/librespeed-cli-${arch}" \
+    "${component_destination}/librespeed-cli.component"
+done
+cp -R "${component_build_root}/source/." "${contents_root}/Resources/speedtest_component_source/"
 
 swift build \
   --package-path "${repo_root}/macos" \
@@ -138,6 +155,7 @@ readonly release_notes_path="${release_dir}/soundconnect-${version}-release-note
   print -- "version=${version}"
   print -- "source_repository=https://github.com/soundadam/soundconnect"
   print -- "source_commit=${source_commit}"
+  print -- "source_dirty=${source_dirty}"
   print -- "asset=${archive_name}"
   print -- "sha256=${archive_sha256}"
   print -- "architectures=arm64,x86_64"
@@ -145,6 +163,9 @@ readonly release_notes_path="${release_dir}/soundconnect-${version}-release-note
   print -- "signature=ad-hoc"
   print -- "notarized=false"
   print -- "ui_backend=design-preview"
+  print -- "campus_speed_component=bundled"
+  print -- "campus_speed_component_version=${component_version}"
+  print -- "campus_speed_helper_version=${helper_version}"
   print -- "license=proprietary; authorized users only"
 } > "$manifest_path"
 
@@ -156,6 +177,7 @@ readonly release_notes_path="${release_dir}/soundconnect-${version}-release-note
   print -- "Release boundary:"
   print
   print -- "- VPN setup and service controls still use simulated state; campus speed testing uses the bundled CLI."
+  print -- "- The verified campus speed-test helper is bundled and installed locally after explicit confirmation."
   print -- "- The app and CLI are ad-hoc signed and are not Apple-notarized."
   print -- "- The source repository is private and the software is proprietary; public download does not grant a license."
   print -- "- The Cask does not remove quarantine or bypass Gatekeeper."
@@ -164,6 +186,7 @@ readonly release_notes_path="${release_dir}/soundconnect-${version}-release-note
   print
   print -- "- Source repository: https://github.com/soundadam/soundconnect"
   print -- "- Source commit: \`${source_commit}\`"
+  print -- "- Dirty source tree: \`${source_dirty}\`"
   print -- "- Asset SHA-256: \`${archive_sha256}\`"
   print -- "- Architectures: arm64 and x86_64"
   print -- "- Minimum macOS: 13 Ventura"

@@ -39,12 +39,14 @@ type ComponentStatus struct {
 	Path          string `json:"path"`
 	DownloadSize  int64  `json:"download_size"`
 	DownloadReady bool   `json:"download_ready"`
+	InstallSource string `json:"install_source,omitempty"`
 }
 
 type ComponentManager struct {
-	Root   string
-	Asset  ComponentAsset
-	Client *http.Client
+	Root        string
+	Asset       ComponentAsset
+	BundledPath string
+	Client      *http.Client
 }
 
 func DefaultComponentAsset() ComponentAsset {
@@ -86,7 +88,7 @@ func (manager ComponentManager) Status() ComponentStatus {
 	status := ComponentStatus{
 		Version: manager.Asset.Version, HelperVersion: manager.Asset.HelperVersion,
 		Architecture: manager.Asset.Architecture, Path: manager.Path(), DownloadSize: manager.Asset.Size,
-		DownloadReady: manager.assetReady() == nil,
+		DownloadReady: manager.installSourceReady() == nil, InstallSource: manager.installSource(),
 	}
 	status.Installed = manager.Validate() == nil
 	return status
@@ -135,35 +137,18 @@ func (manager ComponentManager) Install(ctx context.Context, sink ProgressSink) 
 	if manager.Validate() == nil {
 		return nil
 	}
-	if err := manager.assetReady(); err != nil {
+	if err := manager.installSourceReady(); err != nil {
 		return err
 	}
 	directory := filepath.Dir(manager.Path())
 	if err := ensurePrivateComponentPath(manager.Root, manager.Asset.Version, manager.Asset.Architecture); err != nil {
 		return err
 	}
-	request, err := http.NewRequestWithContext(ctx, http.MethodGet, manager.Asset.URL, nil)
+	reader, closeReader, phase, err := manager.openInstallSource(ctx)
 	if err != nil {
-		return fmt.Errorf("prepare campus speed-test component download: %w", err)
+		return err
 	}
-	client := manager.Client
-	if client == nil {
-		client = &http.Client{}
-	}
-	response, err := client.Do(request)
-	if err != nil {
-		return fmt.Errorf("download campus speed-test component: %w", err)
-	}
-	defer response.Body.Close()
-	if response.Request == nil || response.Request.URL == nil || response.Request.URL.Scheme != "https" {
-		return errors.New("campus speed-test component download left HTTPS")
-	}
-	if response.StatusCode != http.StatusOK {
-		return fmt.Errorf("download campus speed-test component: HTTP %d", response.StatusCode)
-	}
-	if response.ContentLength > manager.Asset.Size || response.ContentLength > maximumComponentSize {
-		return errors.New("campus speed-test component download is larger than expected")
-	}
+	defer closeReader()
 	temporary, err := os.CreateTemp(directory, ".librespeed-cli-*")
 	if err != nil {
 		return fmt.Errorf("create temporary campus speed-test component: %w", err)
@@ -171,10 +156,10 @@ func (manager ComponentManager) Install(ctx context.Context, sink ProgressSink) 
 	temporaryPath := temporary.Name()
 	defer os.Remove(temporaryPath)
 	digest := sha256.New()
-	reader := &componentProgressReader{
-		Reader: io.LimitReader(response.Body, manager.Asset.Size+1), Total: manager.Asset.Size, Sink: sink,
+	progressReader := &componentProgressReader{
+		Reader: io.LimitReader(reader, manager.Asset.Size+1), Total: manager.Asset.Size, Sink: sink, Phase: phase,
 	}
-	written, copyErr := io.Copy(io.MultiWriter(temporary, digest), reader)
+	written, copyErr := io.Copy(io.MultiWriter(temporary, digest), progressReader)
 	if copyErr == nil && written != manager.Asset.Size {
 		copyErr = fmt.Errorf("downloaded %d bytes, expected %d", written, manager.Asset.Size)
 	}
@@ -269,11 +254,100 @@ func (manager ComponentManager) assetReady() error {
 	return nil
 }
 
+func (manager ComponentManager) installSource() string {
+	if manager.BundledPath != "" {
+		if manager.bundledReady() == nil {
+			return "bundled"
+		}
+	}
+	if manager.assetReady() == nil {
+		return "download"
+	}
+	return ""
+}
+
+func (manager ComponentManager) installSourceReady() error {
+	if manager.BundledPath != "" {
+		if err := manager.bundledReady(); err == nil {
+			return nil
+		}
+	}
+	return manager.assetReady()
+}
+
+func (manager ComponentManager) bundledReady() error {
+	if err := manager.validateIdentity(); err != nil {
+		return err
+	}
+	if manager.BundledPath == "" {
+		return errors.New("bundled campus speed-test component is unavailable")
+	}
+	info, err := os.Lstat(manager.BundledPath)
+	if err != nil {
+		return fmt.Errorf("inspect bundled campus speed-test component: %w", err)
+	}
+	if !info.Mode().IsRegular() || info.Size() != manager.Asset.Size {
+		return errors.New("bundled campus speed-test component has invalid file properties")
+	}
+	return nil
+}
+
+func (manager ComponentManager) openInstallSource(ctx context.Context) (io.Reader, func(), string, error) {
+	if manager.BundledPath != "" && manager.bundledReady() == nil {
+		file, err := os.Open(manager.BundledPath)
+		if err != nil {
+			return nil, func() {}, "", fmt.Errorf("open bundled campus speed-test component: %w", err)
+		}
+		return &contextReader{Context: ctx, Reader: file}, func() { _ = file.Close() }, "installing", nil
+	}
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, manager.Asset.URL, nil)
+	if err != nil {
+		return nil, func() {}, "", fmt.Errorf("prepare campus speed-test component download: %w", err)
+	}
+	client := manager.Client
+	if client == nil {
+		client = &http.Client{}
+	}
+	response, err := client.Do(request)
+	if err != nil {
+		return nil, func() {}, "", fmt.Errorf("download campus speed-test component: %w", err)
+	}
+	closeResponse := func() { _ = response.Body.Close() }
+	if response.Request == nil || response.Request.URL == nil || response.Request.URL.Scheme != "https" {
+		closeResponse()
+		return nil, func() {}, "", errors.New("campus speed-test component download left HTTPS")
+	}
+	if response.StatusCode != http.StatusOK {
+		closeResponse()
+		return nil, func() {}, "", fmt.Errorf("download campus speed-test component: HTTP %d", response.StatusCode)
+	}
+	if response.ContentLength > manager.Asset.Size || response.ContentLength > maximumComponentSize {
+		closeResponse()
+		return nil, func() {}, "", errors.New("campus speed-test component download is larger than expected")
+	}
+	return response.Body, closeResponse, "downloading", nil
+}
+
+type contextReader struct {
+	Context context.Context
+	Reader  io.Reader
+}
+
+func (reader *contextReader) Read(buffer []byte) (int, error) {
+	select {
+	case <-reader.Context.Done():
+		return 0, reader.Context.Err()
+	default:
+		return reader.Reader.Read(buffer)
+	}
+}
+
 type componentProgressReader struct {
 	io.Reader
 	Total     int64
 	BytesRead int64
 	Sink      ProgressSink
+	Phase     string
 }
 
 func (reader *componentProgressReader) Read(buffer []byte) (int, error) {
@@ -284,7 +358,7 @@ func (reader *componentProgressReader) Read(buffer []byte) (int, error) {
 		if progress > 1 {
 			progress = 1
 		}
-		report(reader.Sink, Event{Type: "component_progress", Phase: "downloading", Progress: &progress})
+		report(reader.Sink, Event{Type: "component_progress", Phase: reader.Phase, Progress: &progress})
 	}
 	return n, err
 }

@@ -37,9 +37,13 @@ soundconnect runtime may provide its owner-only loopback SOCKS5 path; otherwise
 the command asks the user to connect soundconnect and retry. Results always
 identify the selected path and never infer it from connection state alone.
 
-The optional pinned helper is downloaded only after confirmation. Interactive
-terminal use can confirm the first download in place; JSON and redirected modes
-fail closed instead of waiting for input. Useful machine interfaces are:
+Release archives carry the pinned helper as a checksum-verified, non-executable
+resource. After confirmation, soundconnect copies the matching architecture to
+its owner-only component directory and enables it there; packaged App and CLI
+users do not depend on a separate network download. Development builds without
+the bundled resource retain the explicit HTTPS download path. JSON and
+redirected modes fail closed instead of waiting for input. Useful machine
+interfaces are:
 
 ```sh
 soundconnect speedtest campus --route auto --json
@@ -48,8 +52,8 @@ soundconnect speedtest last --json
 ```
 
 Only the latest compact result is retained locally. Per-second samples and the
-client public IP are not stored. Component publication, signing, notarization,
-and a real bandwidth test remain explicit release/operator gates.
+client public IP are not stored. Developer ID signing, notarization, and a real
+bandwidth test remain explicit release/operator gates.
 
 ## CLI release packaging
 
@@ -80,3 +84,8 @@ plus the native universal CLI. Build it with `make package-macos VERSION=X.Y.Z`;
 the public Cask must continue to disclose that VPN setup/control remains a
 simulated design preview while campus speed testing uses the real bundled CLI,
 and that ad-hoc signing is not Apple notarization.
+
+For an explicitly local, dirty-tree preview, use
+`make package-macos-local VERSION=X.Y.Z`. It records `source_dirty=true`, embeds
+the campus speed-test helper, writes a `file://` Cask into
+`~/workspaces/soundadam/homebrew-local`, and never publishes an artifact.

@@ -4,12 +4,12 @@
   "helper_version": "v1.0.13-soundconnect.1",
   "assets": {
     "arm64": {
-      "url": "https://github.com/soundadam/homebrew-dist/releases/download/soundconnect-campus-speed-v1.0.0/librespeed-cli-arm64",
+      "url": "",
       "size": 8654674,
       "sha256": "0e44a8c3b3d987772e52b30fd728e3aef9f66ba22fea0a98fd0ea5e94eaf3515"
     },
     "amd64": {
-      "url": "https://github.com/soundadam/homebrew-dist/releases/download/soundconnect-campus-speed-v1.0.0/librespeed-cli-amd64",
+      "url": "",
       "size": 9124272,
       "sha256": "4b9ee8967c06d033fb26533d69f79b63b11f357b93540d79545fa75928c185c1"
     }

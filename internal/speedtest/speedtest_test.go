@@ -38,6 +38,25 @@ func TestAutoRoutePrefersDirectEvenWhenRuntimeIsConnected(t *testing.T) {
 	}
 }
 
+func TestProbeRouteReportsSuccessfulDirectLatency(t *testing.T) {
+	service := Service{
+		Probe: func(_ context.Context, route Route, socks string) error {
+			if route != RouteDirect || socks != "" {
+				t.Fatalf("route=%s socks=%q", route, socks)
+			}
+			time.Sleep(time.Millisecond)
+			return nil
+		},
+	}
+	result, err := service.ProbeRoute(context.Background(), RouteAuto)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.SchemaVersion != SchemaVersion || result.Target != TargetHost || result.Route != RouteDirect || result.LatencyMS < 1 {
+		t.Fatalf("result = %#v", result)
+	}
+}
+
 func TestAutoRouteFallsBackOnlyToConnectedSoundConnect(t *testing.T) {
 	var probes []Route
 	service := Service{
@@ -224,6 +243,35 @@ func TestComponentInstallVerifiesAndPublishesAtomically(t *testing.T) {
 	}
 }
 
+func TestComponentInstallUsesVerifiedBundledAssetWithoutNetwork(t *testing.T) {
+	payload := []byte("bundled synthetic executable payload")
+	digest := sha256.Sum256(payload)
+	bundledPath := filepath.Join(t.TempDir(), "librespeed-cli")
+	if err := os.WriteFile(bundledPath, payload, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	manager := ComponentManager{
+		Root: filepath.Join(t.TempDir(), "components"), BundledPath: bundledPath,
+		Asset: ComponentAsset{
+			Version: "test", HelperVersion: HelperVersion, OS: runtime.GOOS, Architecture: runtime.GOARCH,
+			URL: "https://invalid.example/component", Size: int64(len(payload)), SHA256: hex.EncodeToString(digest[:]),
+		},
+		Client: &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+			t.Fatal("bundled install attempted a network request")
+			return nil, errors.New("unexpected network request")
+		})},
+	}
+	if status := manager.Status(); !status.DownloadReady || status.InstallSource != "bundled" {
+		t.Fatalf("status = %#v", status)
+	}
+	if err := manager.Install(context.Background(), nil); err != nil {
+		t.Fatal(err)
+	}
+	if err := manager.Validate(); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestEmbeddedComponentCatalogIsCompleteForSupportedArchitectures(t *testing.T) {
 	var catalog struct {
 		ComponentVersion string                    `json:"component_version"`
@@ -235,7 +283,7 @@ func TestEmbeddedComponentCatalogIsCompleteForSupportedArchitectures(t *testing.
 	}
 	for _, architecture := range []string{"arm64", "amd64"} {
 		asset, ok := catalog.Assets[architecture]
-		if !ok || catalog.ComponentVersion == "" || catalog.HelperVersion != HelperVersion || asset.Size <= 0 || len(asset.SHA256) != 64 || !strings.HasPrefix(asset.URL, "https://") {
+		if !ok || catalog.ComponentVersion == "" || catalog.HelperVersion != HelperVersion || asset.Size <= 0 || len(asset.SHA256) != 64 || asset.URL != "" {
 			t.Fatalf("catalog asset %s = %#v", architecture, asset)
 		}
 	}
@@ -310,4 +358,10 @@ func containsPair(values []string, first, second string) bool {
 		}
 	}
 	return false
+}
+
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (function roundTripFunc) RoundTrip(request *http.Request) (*http.Response, error) {
+	return function(request)
 }

@@ -46,7 +46,7 @@ arm64_size=$(wc -c < "$OUTPUT/librespeed-cli-arm64" | tr -d ' ')
 amd64_size=$(wc -c < "$OUTPUT/librespeed-cli-amd64" | tr -d ' ')
 arm64_sha=$(shasum -a 256 "$OUTPUT/librespeed-cli-arm64" | awk '{print $1}')
 amd64_sha=$(shasum -a 256 "$OUTPUT/librespeed-cli-amd64" | awk '{print $1}')
-printf '{\n  "schema_version": 1,\n  "component_version": "1.0.0",\n  "helper_version": "%s",\n  "assets": {\n    "arm64": {"url": "https://github.com/soundadam/homebrew-dist/releases/download/soundconnect-campus-speed-v1.0.0/librespeed-cli-arm64", "size": %s, "sha256": "%s"},\n    "amd64": {"url": "https://github.com/soundadam/homebrew-dist/releases/download/soundconnect-campus-speed-v1.0.0/librespeed-cli-amd64", "size": %s, "sha256": "%s"}\n  }\n}\n' \
+printf '{\n  "schema_version": 1,\n  "component_version": "1.0.0",\n  "helper_version": "%s",\n  "assets": {\n    "arm64": {"url": "", "size": %s, "sha256": "%s"},\n    "amd64": {"url": "", "size": %s, "sha256": "%s"}\n  }\n}\n' \
   "$HELPER_VERSION" "$arm64_size" "$arm64_sha" "$amd64_size" "$amd64_sha" \
   > "$OUTPUT/component-manifest.json"
 printf 'component_version=1.0.0\nhelper_version=%s\nsource_version=%s\nsource_sha256=%s\n' \

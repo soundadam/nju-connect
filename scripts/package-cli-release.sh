@@ -22,6 +22,10 @@ stage_root=${project_root}/.stage/cli-release
 rm -rf "${dist_dir}" "${stage_root}"
 mkdir -p "${dist_dir}" "${stage_root}"
 
+component_build_root=${stage_root}/component-build
+"${project_root}/scripts/build_speedtest_component.sh" "${component_build_root}"
+component_version=$(plutil -extract component_version raw -o - "${component_build_root}/component-manifest.json")
+
 license_dir=${stage_root}/third_party_licenses
 mkdir -p "${license_dir}"
 cp "${project_root}/packaging/licenses/librespeed-cli-LGPL-3.0.txt" \
@@ -63,10 +67,11 @@ for arch in amd64 arm64; do
   )
   cp "${project_root}/LICENSE" "${project_root}/THIRD_PARTY_NOTICES" "${stage_dir}/"
   cp -R "${license_dir}" "${stage_dir}/"
-  mkdir -p "${stage_dir}/speedtest_component_source"
-  cp "${project_root}/patches/librespeed-cli-v1.0.13-progress-json.patch" \
-    "${project_root}/patches/librespeed-cli-v1.0.13-socks5.patch" \
-    "${stage_dir}/speedtest_component_source/"
+  mkdir -p "${stage_dir}/speedtest_component_source" \
+    "${stage_dir}/campus-speed/${component_version}/${arch}"
+  cp -R "${component_build_root}/source/." "${stage_dir}/speedtest_component_source/"
+  install -m 0755 "${component_build_root}/librespeed-cli-${arch}" \
+    "${stage_dir}/campus-speed/${component_version}/${arch}/librespeed-cli"
   COPYFILE_DISABLE=1 tar -czf "${dist_dir}/${artifact}.tar.gz" -C "${stage_root}" "${artifact}"
 done
 

@@ -18,11 +18,12 @@ import (
 )
 
 var (
-	speedtestStdin      io.Reader = os.Stdin
-	speedtestIsTerminal           = func() bool { return term.IsTerminal(int(os.Stdin.Fd())) }
-	speedtestAsset                = speedtest.DefaultComponentAsset
-	speedtestHTTPClient           = func() *http.Client { return nil }
-	speedtestProbe                = speedtest.ProbeReachability
+	speedtestStdin       io.Reader = os.Stdin
+	speedtestIsTerminal            = func() bool { return term.IsTerminal(int(os.Stdin.Fd())) }
+	speedtestAsset                 = speedtest.DefaultComponentAsset
+	speedtestBundledPath           = bundledSpeedtestComponentPath
+	speedtestHTTPClient            = func() *http.Client { return nil }
+	speedtestProbe                 = speedtest.ProbeReachability
 )
 
 func signalContext() (context.Context, context.CancelFunc) {
@@ -36,6 +37,8 @@ func runSpeedtest(arguments []string, stdout, stderr io.Writer) int {
 			return runSpeedtestComponent(arguments[1:], stdout, stderr)
 		case "last":
 			return runSpeedtestLast(arguments[1:], stdout, stderr)
+		case "probe":
+			return runSpeedtestProbe(arguments[1:], stdout, stderr)
 		case "campus":
 			arguments = arguments[1:]
 		}
@@ -60,16 +63,18 @@ func runSpeedtest(arguments []string, stdout, stderr io.Writer) int {
 	if err != nil {
 		return writeSpeedtestError(*asJSON, *jsonEvents, stdout, stderr, "local_state", err, 1)
 	}
-	manager := speedtest.ComponentManager{
-		Root: speedtest.ComponentRoot(paths.Root), Asset: speedtestAsset(), Client: speedtestHTTPClient(),
-	}
+	manager := newSpeedtestComponentManager(paths.Root)
 	if err := manager.Validate(); err != nil {
 		if *asJSON || *jsonEvents || !speedtestIsTerminal() {
 			return writeSpeedtestError(*asJSON, *jsonEvents, stdout, stderr, "component_missing", err, 1)
 		}
 		status := manager.Status()
 		if status.DownloadReady {
-			fmt.Fprintf(stderr, "Campus speed testing requires component %s (%d bytes). Download now? [y/N] ", status.HelperVersion, status.DownloadSize)
+			action := "Download"
+			if status.InstallSource == "bundled" {
+				action = "Install the bundled"
+			}
+			fmt.Fprintf(stderr, "Campus speed testing requires component %s (%d bytes). %s component now? [y/N] ", status.HelperVersion, status.DownloadSize, action)
 		} else {
 			fmt.Fprintf(stderr, "Campus speed-test component %s is not installed and has not been published.\n", status.HelperVersion)
 			return 1
@@ -130,6 +135,53 @@ func runSpeedtest(arguments []string, stdout, stderr io.Writer) int {
 	return result.ExitCode()
 }
 
+func runSpeedtestProbe(arguments []string, stdout, stderr io.Writer) int {
+	flags := flag.NewFlagSet("speedtest probe", flag.ContinueOnError)
+	flags.SetOutput(stderr)
+	routeValue := flags.String("route", string(speedtest.RouteAuto), "auto, direct, or soundconnect")
+	asJSON := flags.Bool("json", false, "print JSON")
+	if err := flags.Parse(arguments); err != nil || flags.NArg() != 0 {
+		return 2
+	}
+	route, err := speedtest.ParseRoute(*routeValue)
+	if err != nil {
+		return writeSpeedtestError(*asJSON, false, stdout, stderr, "invalid_arguments", err, 1)
+	}
+	paths, err := commandPaths()
+	if err != nil {
+		return writeSpeedtestError(*asJSON, false, stdout, stderr, "local_state", err, 1)
+	}
+	service := speedtest.Service{
+		Probe: speedtestProbe,
+		RuntimeStatus: func() (speedtest.RuntimeState, error) {
+			snapshot, err := queryRuntimeStatus(runtimeStatusPath(paths.Root))
+			if err != nil {
+				return speedtest.RuntimeState{}, err
+			}
+			return speedtest.RuntimeState{Connected: snapshot.State == "connected", SOCKSListen: snapshot.SOCKSListen}, nil
+		},
+	}
+	ctx, cancel := signalContext()
+	defer cancel()
+	result, err := service.ProbeRoute(ctx, route)
+	if err != nil {
+		code := "speedtest_unavailable"
+		if errors.Is(err, speedtest.ErrSoundConnectRequired) {
+			code = "soundconnect_required"
+		}
+		return writeSpeedtestError(*asJSON, false, stdout, stderr, code, err, 1)
+	}
+	if *asJSON {
+		if err := json.NewEncoder(stdout).Encode(result); err != nil {
+			fmt.Fprintf(stderr, "encode speed-test probe: %v\n", err)
+			return 1
+		}
+	} else {
+		fmt.Fprintf(stdout, "target: %s\nroute: %s\nlatency_ms: %.2f\n", result.Target, result.Route, result.LatencyMS)
+	}
+	return 0
+}
+
 func runSpeedtestComponent(arguments []string, stdout, stderr io.Writer) int {
 	if len(arguments) == 0 {
 		fmt.Fprintln(stderr, "speedtest component requires status or install")
@@ -151,9 +203,7 @@ func runSpeedtestComponent(arguments []string, stdout, stderr io.Writer) int {
 	if err != nil {
 		return writeSpeedtestError(*asJSON, *jsonEvents, stdout, stderr, "local_state", err, 1)
 	}
-	manager := speedtest.ComponentManager{
-		Root: speedtest.ComponentRoot(paths.Root), Asset: speedtestAsset(), Client: speedtestHTTPClient(),
-	}
+	manager := newSpeedtestComponentManager(paths.Root)
 	switch command {
 	case "status":
 		if *yes || *jsonEvents {
@@ -178,7 +228,7 @@ func runSpeedtestComponent(arguments []string, stdout, stderr io.Writer) int {
 			if !speedtestIsTerminal() {
 				return writeSpeedtestError(false, *jsonEvents, stdout, stderr, "interaction_required", errors.New("component installation requires --yes outside a terminal"), 1)
 			}
-			fmt.Fprint(stderr, "Download and install the campus speed-test component? [y/N] ")
+			fmt.Fprint(stderr, "Install the campus speed-test component? [y/N] ")
 			answer, _ := bufio.NewReader(speedtestStdin).ReadString('\n')
 			if value := strings.ToLower(strings.TrimSpace(answer)); value != "y" && value != "yes" {
 				return 1
@@ -234,7 +284,11 @@ func plainSpeedtestSink(output io.Writer) speedtest.ProgressSink {
 		switch event.Type {
 		case "component_progress":
 			if event.Progress != nil {
-				fmt.Fprintf(output, "\rDownloading campus speed-test component: %.0f%%", *event.Progress*100)
+				verb := "Downloading"
+				if event.Phase == "installing" {
+					verb = "Installing"
+				}
+				fmt.Fprintf(output, "\r%s campus speed-test component: %.0f%%", verb, *event.Progress*100)
 				if event.Phase == "complete" {
 					fmt.Fprintln(output)
 				}
@@ -244,6 +298,14 @@ func plainSpeedtestSink(output io.Writer) speedtest.ProgressSink {
 				fmt.Fprintf(output, "\rCampus speed test %-8s %7.2f Mbps", event.Phase, *event.Mbps)
 			}
 		}
+	}
+}
+
+func newSpeedtestComponentManager(root string) speedtest.ComponentManager {
+	asset := speedtestAsset()
+	return speedtest.ComponentManager{
+		Root: speedtest.ComponentRoot(root), Asset: asset,
+		BundledPath: speedtestBundledPath(asset), Client: speedtestHTTPClient(),
 	}
 }
 

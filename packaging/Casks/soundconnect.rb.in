@@ -4,10 +4,10 @@ cask "soundconnect" do
   version "__VERSION__"
   sha256 "__SHA256__"
 
-  url "https://github.com/soundadam/homebrew-dist/releases/download/soundconnect-v#{version}/soundconnect-#{version}-macos-universal.zip"
+  url "__URL__"
   name "soundconnect"
   desc "Design-preview menu-bar client and native campus-connectivity CLI"
-  homepage "https://github.com/soundadam/homebrew-dist/releases/tag/soundconnect-v#{version}"
+  homepage "__HOMEPAGE__"
 
   depends_on macos: :ventura
 
@@ -25,8 +25,9 @@ cask "soundconnect" do
   caveats <<~EOS
     This cask is an ad-hoc signed, non-notarized preview from the maintainer's
     personal tap. Homebrew preserves quarantine and this cask does not bypass
-    Gatekeeper. The menu-bar UI is currently a design preview and is not wired
-    to the bundled native CLI; its displayed connection state is simulated.
+    Gatekeeper. VPN setup and service controls remain a design preview. Campus
+    speed testing uses the bundled native CLI and installs its verified bundled
+    helper after explicit confirmation; it does not require a separate download.
 
     The source repository is private and the bundled software is proprietary.
     Public availability of the archive does not grant a license: install or use

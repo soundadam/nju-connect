@@ -189,8 +189,17 @@ git diff --check
 
 For standalone macOS CLI archives, \`make cli-release VERSION=vMAJOR.MINOR.PATCH\`
 requires a clean worktree, builds cgo-enabled amd64 and arm64 binaries with the
-version injected, includes the license, notice index, and linked dependency
-license texts, and writes SHA-256 checksums. Signing, notarization, tag creation,
-and publication remain separate release gates.
+version injected, includes the license, notice index, linked dependency license
+texts, the matching checksum-pinned campus speed-test helper, and its
+corresponding source bundle, then writes SHA-256 checksums. The helper remains a
+separate process and is installed into owner-only Application Support only after
+explicit confirmation. Packaged CLI and App artifacts therefore do not depend
+on a separate component Release. Signing, notarization, tag creation, and
+publication remain separate release gates.
+
+\`make package-macos-local VERSION=MAJOR.MINOR.PATCH\` is a local-preview path.
+It may package a dirty tree, records that fact in the manifest, and renders a
+Cask whose URL is the absolute local ZIP. It must not be used as a public
+Release or copied into the public tap.
 
 The commands are compile/test gates only. They do not authenticate, perform MFA, start a vendor service, use a VPN/TUN, alter routing/DNS/PF, push, or release.

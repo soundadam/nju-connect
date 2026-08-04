@@ -64,6 +64,13 @@ type Result struct {
 	Failure       *Failure  `json:"failure,omitempty"`
 }
 
+type ProbeResult struct {
+	SchemaVersion int     `json:"schema_version"`
+	Target        string  `json:"target"`
+	Route         Route   `json:"route"`
+	LatencyMS     float64 `json:"latency_ms"`
+}
+
 func (result Result) Validate() error {
 	if result.SchemaVersion != SchemaVersion {
 		return fmt.Errorf("unsupported speed-test schema %d", result.SchemaVersion)

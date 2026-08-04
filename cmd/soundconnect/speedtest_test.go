@@ -126,10 +126,35 @@ func TestSpeedtestLastJSONReadsSavedResult(t *testing.T) {
 	}
 }
 
+func TestSpeedtestProbeDoesNotRequireMeasurementComponent(t *testing.T) {
+	root := t.TempDir()
+	installSpeedtestTestDependencies(t, root)
+	speedtestProbe = func(_ context.Context, route speedtest.Route, socks string) error {
+		if route != speedtest.RouteDirect || socks != "" {
+			t.Fatalf("route=%s socks=%q", route, socks)
+		}
+		return nil
+	}
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	if code := run([]string{"speedtest", "probe", "--json"}, &stdout, &stderr); code != 0 {
+		t.Fatalf("code=%d stderr=%q", code, stderr.String())
+	}
+	var result speedtest.ProbeResult
+	if err := json.Unmarshal(stdout.Bytes(), &result); err != nil {
+		t.Fatal(err)
+	}
+	if result.SchemaVersion != speedtest.SchemaVersion || result.Target != speedtest.TargetHost || result.Route != speedtest.RouteDirect {
+		t.Fatalf("result = %#v", result)
+	}
+}
+
 func installSpeedtestTestDependencies(t *testing.T, root string) {
 	t.Helper()
 	previousPaths := resolveDefaultPaths
 	previousAsset := speedtestAsset
+	previousBundledPath := speedtestBundledPath
 	previousHTTP := speedtestHTTPClient
 	previousTerminal := speedtestIsTerminal
 	previousStdin := speedtestStdin
@@ -137,9 +162,11 @@ func installSpeedtestTestDependencies(t *testing.T, root string) {
 	resolveDefaultPaths = func() (config.Paths, error) {
 		return config.Paths{Root: root, Config: filepath.Join(root, "config.toml"), Credential: filepath.Join(root, "credential")}, nil
 	}
+	speedtestBundledPath = func(speedtest.ComponentAsset) string { return "" }
 	t.Cleanup(func() {
 		resolveDefaultPaths = previousPaths
 		speedtestAsset = previousAsset
+		speedtestBundledPath = previousBundledPath
 		speedtestHTTPClient = previousHTTP
 		speedtestIsTerminal = previousTerminal
 		speedtestStdin = previousStdin

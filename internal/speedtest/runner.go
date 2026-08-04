@@ -83,6 +83,32 @@ func (service Service) Run(ctx context.Context, requested Route, sink ProgressSi
 	return result, nil
 }
 
+func (service Service) ProbeRoute(ctx context.Context, requested Route) (ProbeResult, error) {
+	probe := service.Probe
+	if probe == nil {
+		probe = ProbeReachability
+	}
+	var latency time.Duration
+	service.Probe = func(ctx context.Context, route Route, socksListen string) error {
+		startedAt := time.Now()
+		err := probe(ctx, route, socksListen)
+		if err == nil {
+			latency = time.Since(startedAt)
+		}
+		return err
+	}
+	route, _, err := service.selectRoute(ctx, requested, nil)
+	if err != nil {
+		return ProbeResult{}, err
+	}
+	return ProbeResult{
+		SchemaVersion: SchemaVersion,
+		Target:        TargetHost,
+		Route:         route,
+		LatencyMS:     float64(latency) / float64(time.Millisecond),
+	}, nil
+}
+
 func (service Service) selectRoute(ctx context.Context, requested Route, sink ProgressSink) (Route, string, error) {
 	if requested == "" {
 		requested = RouteAuto
