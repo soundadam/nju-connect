@@ -34,6 +34,10 @@ done
   print -u2 -- "missing packaging/macos/Info.plist"
   exit 66
 }
+[[ -f "${repo_root}/packaging/macos/AppIcon.icns" ]] || {
+  print -u2 -- "missing packaging/macos/AppIcon.icns"
+  exit 66
+}
 cd "$repo_root"
 
 [[ -z "$(git status --porcelain --untracked-files=normal)" ]] || {
@@ -74,6 +78,8 @@ lipo -create \
 chmod 0755 "${contents_root}/Helpers/soundconnect"
 
 install -m 0644 "${repo_root}/packaging/macos/Info.plist" "${contents_root}/Info.plist"
+install -m 0644 "${repo_root}/packaging/macos/AppIcon.icns" \
+  "${contents_root}/Resources/AppIcon.icns"
 plutil -replace CFBundleShortVersionString -string "$version" "${contents_root}/Info.plist"
 plutil -replace CFBundleVersion -string "${version//./}" "${contents_root}/Info.plist"
 

@@ -8,6 +8,8 @@
 	<string>soundconnect</string>
 	<key>CFBundleExecutable</key>
 	<string>soundconnect-menu</string>
+	<key>CFBundleIconFile</key>
+	<string>AppIcon</string>
 	<key>CFBundleIdentifier</key>
 	<string>io.github.soundadam.soundconnect.menu</string>
 	<key>CFBundleInfoDictionaryVersion</key>
