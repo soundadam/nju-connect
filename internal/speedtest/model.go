@@ -12,7 +12,7 @@ const (
 	TargetHost    = "speed.nju.edu.cn"
 	TargetURL     = "http://speed.nju.edu.cn"
 	HelperName    = "librespeed-cli"
-	HelperVersion = "v1.0.13-soundconnect.1"
+	HelperVersion = "v1.0.13-campus.1"
 )
 
 type Route string

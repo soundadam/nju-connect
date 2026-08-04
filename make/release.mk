@@ -20,10 +20,6 @@ package-macos-local:
 	@test -n "$(VERSION)" || { echo "VERSION is required (for example: make package-macos-local VERSION=0.1.0)" >&2; exit 64; }
 	./scripts/package_local_macos.zsh "$(VERSION)"
 
-.PHONY: speedtest-helper-build
-speedtest-helper-build:
-	@./scripts/build_speedtest_component.sh
-
 .PHONY: release-check
 release-check: fmt-check test vet
 	@swift test --package-path macos

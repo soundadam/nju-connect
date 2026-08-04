@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "component_version": "1.0.0",
-  "helper_version": "v1.0.13-soundconnect.1",
+  "helper_version": "v1.0.13-campus.1",
   "assets": {
     "arm64": {
       "url": "",

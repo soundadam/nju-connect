@@ -50,7 +50,7 @@ func TestInteractiveSpeedtestDownloadsComponentAndRuns(t *testing.T) {
 	installSpeedtestTestDependencies(t, root)
 	helper := []byte(`#!/bin/sh
 if [ "${1:-}" = "--version" ]; then
-  printf 'librespeed-cli v1.0.13-soundconnect.1 (built on test)\n'
+  printf 'librespeed-cli v1.0.13-campus.1 (built on test)\n'
   exit 0
 fi
 cat >/dev/null

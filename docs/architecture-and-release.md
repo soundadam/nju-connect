@@ -68,13 +68,13 @@ the atomic schema-v1 latest result, without per-second samples or the client
 public IP.
 
 Installation-time compilation is a local-preview delivery choice, not an LGPL
-requirement. Before distributing a prebuilt helper, maintain its modified source
-as a separate LGPL-covered source repository or corresponding-source archive,
-including the upstream version, license, complete patches, and reproducible
-build instructions. Do not copy that source into the proprietary soundconnect
-module or relicense it under the soundconnect license. A future Homebrew bottle
-may install a prebuilt helper from that source, but only after its source and
-binary provenance, signing, and release assets are independently verifiable.
+requirement. The complete modified source is maintained in the LGPL-covered
+`components/librespeed-cli` subtree of `soundadam/njuprobe`, including upstream
+provenance, license, and build metadata. Do not copy that source into the
+proprietary soundconnect module or relicense it under the soundconnect license.
+A future Homebrew bottle may install a prebuilt helper from that source, but
+only after its source and binary provenance, signing, and release assets are
+independently verifiable.
 
 The two token types remain deliberately incompatible:
 
