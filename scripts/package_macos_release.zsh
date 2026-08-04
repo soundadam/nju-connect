@@ -34,7 +34,6 @@ done
   print -u2 -- "missing packaging/macos/Info.plist"
   exit 66
 }
-
 cd "$repo_root"
 
 [[ -z "$(git status --porcelain --untracked-files=normal)" ]] || {
@@ -47,6 +46,7 @@ mkdir -p -- \
   "${contents_root}/MacOS" \
   "${contents_root}/Helpers" \
   "${contents_root}/Resources/third_party_licenses" \
+  "${contents_root}/Resources/speedtest_component_source" \
   "$release_dir"
 
 swift build \
@@ -79,6 +79,11 @@ plutil -replace CFBundleVersion -string "${version//./}" "${contents_root}/Info.
 
 install -m 0644 "${repo_root}/LICENSE" "${contents_root}/Resources/LICENSE"
 install -m 0644 "${repo_root}/THIRD_PARTY_NOTICES" "${contents_root}/Resources/THIRD_PARTY_NOTICES"
+install -m 0644 "${repo_root}/packaging/licenses/librespeed-cli-LGPL-3.0.txt" \
+  "${contents_root}/Resources/third_party_licenses/librespeed-cli-LGPL-3.0.txt"
+install -m 0644 "${repo_root}/patches/librespeed-cli-v1.0.13-progress-json.patch" \
+  "${repo_root}/patches/librespeed-cli-v1.0.13-socks5.patch" \
+  "${contents_root}/Resources/speedtest_component_source/"
 
 typeset -A copied_license_paths
 while IFS='|' read -r module_path module_dir; do
@@ -144,7 +149,7 @@ readonly release_notes_path="${release_dir}/soundconnect-${version}-release-note
   print
   print -- "Release boundary:"
   print
-  print -- "- The menu-bar UI still uses simulated state and is not connected to the CLI."
+  print -- "- VPN setup and service controls still use simulated state; campus speed testing uses the bundled CLI."
   print -- "- The app and CLI are ad-hoc signed and are not Apple-notarized."
   print -- "- The source repository is private and the software is proprietary; public download does not grant a license."
   print -- "- The Cask does not remove quarantine or bypass Gatekeeper."

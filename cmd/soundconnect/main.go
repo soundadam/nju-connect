@@ -57,6 +57,8 @@ func run(arguments []string, stdout, stderr io.Writer) int {
 		return dryRunCommand(arguments[1:], stdout, stderr)
 	case "status":
 		return runStatus(arguments[1:], stdout, stderr)
+	case "speedtest":
+		return runSpeedtest(arguments[1:], stdout, stderr)
 	case "_native-runtime":
 		return runNativeRuntimeChild(arguments[1:], stdout, stderr)
 	case "observe":
@@ -453,6 +455,7 @@ commands:
   connect    authenticate and run the native userspace VPN core (default)
   dry-run    authenticate and validate gateway handoff without starting dataplane
   status     print sanitized runtime status
+  speedtest  measure the NJU campus IPv4 path
   doctor     inspect the local soundconnect configuration
   observe    record a sanitized behavior timeline
   version    print build identity`)

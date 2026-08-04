@@ -29,6 +29,28 @@ Use `soundconnect status --json` for the versioned machine-readable form. A
 stopped runtime is reported explicitly and returns a nonzero status; the
 command does not infer liveness from a PID file or `runtime.log`.
 
+## Campus speed test
+
+`soundconnect speedtest` measures the pinned NJU campus IPv4 LibreSpeed target.
+It first tries the system's direct path. If that path is unavailable, an active
+soundconnect runtime may provide its owner-only loopback SOCKS5 path; otherwise
+the command asks the user to connect soundconnect and retry. Results always
+identify the selected path and never infer it from connection state alone.
+
+The optional pinned helper is downloaded only after confirmation. Interactive
+terminal use can confirm the first download in place; JSON and redirected modes
+fail closed instead of waiting for input. Useful machine interfaces are:
+
+```sh
+soundconnect speedtest campus --route auto --json
+soundconnect speedtest component status --json
+soundconnect speedtest last --json
+```
+
+Only the latest compact result is retained locally. Per-second samples and the
+client public IP are not stored. Component publication, signing, notarization,
+and a real bandwidth test remain explicit release/operator gates.
+
 ## CLI release packaging
 
 From a clean worktree, package the two supported macOS CLI architectures with
@@ -55,5 +77,6 @@ artifacts should be signed and notarized.
 
 The current Homebrew Cask packages an explicitly labeled macOS design preview
 plus the native universal CLI. Build it with `make package-macos VERSION=X.Y.Z`;
-the public Cask must continue to disclose that the UI is not yet connected to
-the CLI and that ad-hoc signing is not Apple notarization.
+the public Cask must continue to disclose that VPN setup/control remains a
+simulated design preview while campus speed testing uses the real bundled CLI,
+and that ad-hoc signing is not Apple notarization.

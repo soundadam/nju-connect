@@ -15,5 +15,10 @@ let package = Package(
             name: "soundconnect_ui",
             path: "Sources/SoundConnectUI"
         ),
+        .testTarget(
+            name: "SoundConnectUITests",
+            dependencies: ["soundconnect_ui"],
+            path: "Tests/SoundConnectUITests"
+        ),
     ]
 )

@@ -1,0 +1,100 @@
+diff --git a/defs/options.go b/defs/options.go
+index c5b9dc6..f1a43f6 100644
+--- a/defs/options.go
++++ b/defs/options.go
+@@ -21,0 +22 @@ const (
++	OptionProgressJSON    = "progress-json"
+diff --git a/defs/server.go b/defs/server.go
+index b5d195f..a44f51c 100644
+--- a/defs/server.go
++++ b/defs/server.go
+@@ -195,0 +196,38 @@ func (s *Server) PingAndJitter(count int) (float64, float64, error) {
++const progressJSONInterval = 200 * time.Millisecond
++
++type progressJSONReport struct {
++	Type      string  `json:"type"`
++	Test      string  `json:"test"`
++	ElapsedMS int64   `json:"elapsed_ms"`
++	Bytes     uint64  `json:"bytes"`
++	Mbps      float64 `json:"mbps"`
++}
++
++func writeProgressJSON(test string, counter *BytesCounter) {
++	elapsed := time.Since(counter.start)
++	if elapsed <= 0 {
++		return
++	}
++	bytes := counter.Total()
++	report := progressJSONReport{
++		Type:      "progress",
++		Test:      test,
++		ElapsedMS: elapsed.Milliseconds(),
++		Bytes:     bytes,
++		Mbps:      float64(bytes) / elapsed.Seconds() / 125000,
++	}
++	data, err := json.Marshal(report)
++	if err != nil {
++		return
++	}
++	output.WriteError("%s\n", data)
++}
++
++func progressJSONTicker(enabled bool) (*time.Ticker, <-chan time.Time) {
++	if !enabled {
++		return nil, nil
++	}
++	ticker := time.NewTicker(progressJSONInterval)
++	return ticker, ticker.C
++}
++
+@@ -197 +235 @@ func (s *Server) PingAndJitter(count int) (float64, float64, error) {
+-func (s *Server) Download(silent bool, useBytes, useMebi bool, requests int, chunks int, duration time.Duration) (float64, uint64, error) {
++func (s *Server) Download(silent, progressJSON bool, useBytes, useMebi bool, requests int, chunks int, duration time.Duration) (float64, uint64, error) {
+@@ -276,0 +315,4 @@ func (s *Server) Download(silent bool, useBytes, useMebi bool, requests int, chu
++	progressTicker, progress := progressJSONTicker(progressJSON)
++	if progressTicker != nil {
++		defer progressTicker.Stop()
++	}
+@@ -282,0 +325,2 @@ Loop:
++		case <-progress:
++			writeProgressJSON("download", counter)
+@@ -292 +336 @@ Loop:
+-func (s *Server) Upload(noPrealloc, silent, useBytes, useMebi bool, requests int, uploadSize int, duration time.Duration) (float64, uint64, error) {
++func (s *Server) Upload(noPrealloc, silent, progressJSON bool, useBytes, useMebi bool, requests int, uploadSize int, duration time.Duration) (float64, uint64, error) {
+@@ -378,0 +423,4 @@ func (s *Server) Upload(noPrealloc, silent, useBytes, useMebi bool, requests int
++	progressTicker, progress := progressJSONTicker(progressJSON)
++	if progressTicker != nil {
++		defer progressTicker.Stop()
++	}
+@@ -384,0 +433,2 @@ Loop:
++		case <-progress:
++			writeProgressJSON("upload", counter)
+diff --git a/main.go b/main.go
+index 12363f8..50a57d0 100644
+--- a/main.go
++++ b/main.go
+@@ -99,0 +100,5 @@ func main() {
++			&cli.BoolFlag{
++				Name: defs.OptionProgressJSON,
++				Usage: "Emit newline-delimited JSON progress events on stderr.\n" +
++					"\tRequires --json",
++			},
+diff --git a/speedtest/helper.go b/speedtest/helper.go
+index a4b00ac..05e06ef 100644
+--- a/speedtest/helper.go
++++ b/speedtest/helper.go
+@@ -91 +91 @@ func doSpeedTest(c *cli.Context, servers []defs.Server, telemetryServer defs.Tel
+-				download, br, err := currentServer.Download(silent, c.Bool(defs.OptionBytes), c.Bool(defs.OptionMebiBytes), c.Int(defs.OptionConcurrent), c.Int(defs.OptionChunks), time.Duration(c.Int(defs.OptionDuration))*time.Second)
++				download, br, err := currentServer.Download(silent, c.Bool(defs.OptionProgressJSON), c.Bool(defs.OptionBytes), c.Bool(defs.OptionMebiBytes), c.Int(defs.OptionConcurrent), c.Int(defs.OptionChunks), time.Duration(c.Int(defs.OptionDuration))*time.Second)
+@@ -106 +106 @@ func doSpeedTest(c *cli.Context, servers []defs.Server, telemetryServer defs.Tel
+-				upload, bw, err := currentServer.Upload(c.Bool(defs.OptionNoPreAllocate), silent, c.Bool(defs.OptionBytes), c.Bool(defs.OptionMebiBytes), c.Int(defs.OptionConcurrent), c.Int(defs.OptionUploadSize), time.Duration(c.Int(defs.OptionDuration))*time.Second)
++				upload, bw, err := currentServer.Upload(c.Bool(defs.OptionNoPreAllocate), silent, c.Bool(defs.OptionProgressJSON), c.Bool(defs.OptionBytes), c.Bool(defs.OptionMebiBytes), c.Int(defs.OptionConcurrent), c.Int(defs.OptionUploadSize), time.Duration(c.Int(defs.OptionDuration))*time.Second)
+diff --git a/speedtest/speedtest.go b/speedtest/speedtest.go
+index 769228d..68b4875 100644
+--- a/speedtest/speedtest.go
++++ b/speedtest/speedtest.go
+@@ -51,0 +52,4 @@ func SpeedTest(c *cli.Context) error {
++	if c.Bool(defs.OptionProgressJSON) && !c.Bool(defs.OptionJSON) {
++		return fmt.Errorf("--%s requires --%s", defs.OptionProgressJSON, defs.OptionJSON)
++	}
++

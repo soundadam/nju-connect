@@ -2,6 +2,7 @@ import SwiftUI
 
 struct DashboardView: View {
     @ObservedObject var model: DesignModel
+    @ObservedObject var speedTest: SpeedTestController
     @State private var oneTimeCode = ""
     @State private var schoolAccount = ""
     @State private var vpnPassword = ""
@@ -41,6 +42,11 @@ struct DashboardView: View {
             if !model.showsCredentialSetup, model.phase == .connected {
                 Divider()
                 accessStatusRow
+            }
+
+            if !model.showsCredentialSetup {
+                Divider()
+                campusSpeedTestRow
             }
 
             if !model.showsCredentialSetup, model.canSubmitAuthenticationCode {
@@ -316,6 +322,87 @@ struct DashboardView: View {
         }
         .padding(.horizontal, 12)
         .frame(minHeight: 36)
+    }
+
+    private var campusSpeedTestRow: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 7) {
+                Image(systemName: "speedometer")
+                    .frame(width: 13)
+                Text("校园测速")
+                    .font(.caption)
+                    .fontWeight(.medium)
+                Spacer(minLength: 4)
+                if speedTest.isRunning {
+                    ProgressView()
+                        .controlSize(.mini)
+                    Button("取消", action: speedTest.cancel)
+                        .controlSize(.small)
+                } else if speedTest.phase == .connectionRequired,
+                          speedTest.canRetryAfterConnection
+                {
+                    Button("重新测速", action: speedTest.retryAfterConnection)
+                        .controlSize(.small)
+                } else if speedTest.phase != .componentRequired {
+                    Button(speedTest.lastResult == nil ? "开始" : "再测一次", action: speedTest.start)
+                        .controlSize(.small)
+                }
+            }
+
+            Text(speedTest.message)
+                .font(.caption2)
+                .foregroundStyle(speedTest.phase == .failed ? .red : .secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            if speedTest.phase == .componentRequired {
+                HStack(spacing: 8) {
+                    Text(componentDownloadDescription)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                    Spacer(minLength: 4)
+                    Button("下载组件", action: speedTest.confirmComponentDownload)
+                        .controlSize(.small)
+                        .disabled(speedTest.componentSize <= 0)
+                }
+            }
+
+            if speedTest.phase == .downloading {
+                ProgressView(value: speedTest.componentProgress)
+                    .progressViewStyle(.linear)
+            }
+
+            if let download = speedTest.downloadMbps {
+                HStack(spacing: 10) {
+                    Label(String(format: "%.2f Mbps", download), systemImage: "arrow.down")
+                    if let upload = speedTest.uploadMbps {
+                        Label(String(format: "%.2f Mbps", upload), systemImage: "arrow.up")
+                    }
+                    Spacer(minLength: 0)
+                }
+                .font(.system(size: 11))
+                .monospacedDigit()
+            } else if let result = speedTest.lastResult,
+                      let download = result.downloadMbps
+            {
+                Text("最近结果  ↓ \(String(format: "%.2f Mbps", download))  ↑ \(String(format: "%.2f Mbps", result.uploadMbps ?? 0))")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+                    .monospacedDigit()
+            }
+
+            if let route = speedTest.route {
+                Text(route == "soundconnect" ? "线路：经 soundconnect" : "线路：校内直连")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 7)
+    }
+
+    private var componentDownloadDescription: String {
+        guard speedTest.componentSize > 0 else { return "组件尚未发布" }
+        return "\(speedTest.componentVersion) · \(ByteCountFormatter.string(fromByteCount: speedTest.componentSize, countStyle: .file))"
     }
 
     private var statusColor: Color {

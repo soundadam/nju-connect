@@ -62,6 +62,18 @@ The release packager should copy these files verbatim, preserving their
 copyright and disclaimer text. Do not place research/upstream or research/work
 vendor trees in the product or git history.
 
+Separately installed campus speed-test component
+------------------------------------------------
+
+The optional campus speed-test component is a separately downloaded and
+executed derivative of LibreSpeed CLI v1.0.13 (commit
+2f2408764d88e9601aa64a03b340f8e3151003e4), licensed under LGPL-3.0. It is
+not linked into the proprietary soundconnect binary. The component applies the
+checked-in progress-JSON and explicit SOCKS5 patches. Its pinned source archive
+SHA-256 is 5ad938b61e3edc0ca95e2ccff0c06e97a69383f3cbb0243bd47b21b9865f9f55.
+Every component release must include the unchanged upstream license, both
+patches, source provenance, and a corresponding-source download.
+
 Source and license references
 -----------------------------
 

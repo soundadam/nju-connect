@@ -24,6 +24,8 @@ mkdir -p "${dist_dir}" "${stage_root}"
 
 license_dir=${stage_root}/third_party_licenses
 mkdir -p "${license_dir}"
+cp "${project_root}/packaging/licenses/librespeed-cli-LGPL-3.0.txt" \
+  "${license_dir}/librespeed-cli-LGPL-3.0.txt"
 typeset -A copied_license_paths
 while IFS='|' read -r module_path module_dir; do
   [[ -n ${module_path} && -d ${module_dir} ]] || continue
@@ -61,6 +63,10 @@ for arch in amd64 arm64; do
   )
   cp "${project_root}/LICENSE" "${project_root}/THIRD_PARTY_NOTICES" "${stage_dir}/"
   cp -R "${license_dir}" "${stage_dir}/"
+  mkdir -p "${stage_dir}/speedtest_component_source"
+  cp "${project_root}/patches/librespeed-cli-v1.0.13-progress-json.patch" \
+    "${project_root}/patches/librespeed-cli-v1.0.13-socks5.patch" \
+    "${stage_dir}/speedtest_component_source/"
   COPYFILE_DISABLE=1 tar -czf "${dist_dir}/${artifact}.tar.gz" -C "${stage_root}" "${artifact}"
 done
 

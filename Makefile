@@ -61,6 +61,10 @@ package-macos:
 	@test -n "$(VERSION)" || { echo "VERSION is required (for example: make package-macos VERSION=0.1.0)" >&2; exit 64; }
 	./scripts/package_macos_release.zsh "$(VERSION)"
 
+.PHONY: speedtest-component
+speedtest-component:
+	@./scripts/build_speedtest_component.sh
+
 .PHONY: research-init
 research-init:
 	install -d -m 0700 \

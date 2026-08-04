@@ -3,6 +3,7 @@ import SwiftUI
 @main
 struct SoundConnectApp: App {
     @StateObject private var model = DesignModel()
+    @StateObject private var speedTest = SpeedTestController()
 
     var body: some Scene {
 #if UI_DESIGN_PREVIEW
@@ -12,7 +13,7 @@ struct SoundConnectApp: App {
         .windowResizability(.contentSize)
 #else
         MenuBarExtra {
-            DashboardView(model: model)
+            DashboardView(model: model, speedTest: speedTest)
         } label: {
             MenuBarLabel(model: model)
         }
@@ -40,6 +41,7 @@ private struct MenuBarLabel: View {
 #if UI_DESIGN_PREVIEW
 private struct DesignPreviewView: View {
     @StateObject private var model = DesignModel()
+    @StateObject private var speedTest = SpeedTestController()
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
@@ -72,7 +74,7 @@ private struct DesignPreviewView: View {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("面板预览")
                         .font(.headline)
-                    DashboardView(model: model)
+                    DashboardView(model: model, speedTest: speedTest)
                         .background(.regularMaterial)
                         .clipShape(RoundedRectangle(cornerRadius: 12))
                         .overlay {

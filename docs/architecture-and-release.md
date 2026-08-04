@@ -51,6 +51,20 @@ The RX/TX cohort is one failure domain. On the first worker failure it reports b
 
 The observer is a projection, not another state authority. \`nativeapp\` maps the allowlisted runtime states and failure stages into a stable, secret-safe API and serializes callbacks. It never exports gateway addresses, cookies, tokens, wire bytes, or raw error details.
 
+Campus speed testing is a separate optional application capability. It runs a
+pinned LibreSpeed helper process against only `speed.nju.edu.cn` over IPv4. The
+host first probes the direct system path; only a failed direct probe permits an
+explicit fallback to the live runtime's validated loopback SOCKS address. The
+helper ignores ambient proxy variables, disables telemetry and sharing, and
+receives an explicit `socks5h://` argument only for that fallback. This does not
+change runtime readiness or make speed-test state another VPN state authority.
+
+The helper is downloaded after user confirmation into an owner-only component
+directory and validated by exact version, architecture, size, and SHA-256. It
+remains a separately executed LGPL component. The menu-bar UI consumes the
+CLI's versioned NDJSON progress stream and stores only the atomic schema-v1
+latest result, without per-second samples or the client public IP.
+
 The two token types remain deliberately incompatible:
 
 * \`sessiontoken.NativeGatewayToken\` crosses only the native gateway runtime boundary and is copied for calls and cleared after use.
