@@ -70,7 +70,7 @@ public IP.
 
 Installation-time compilation is a local-preview delivery choice, not an LGPL
 requirement. The complete modified source is maintained in the LGPL-covered
-`components/librespeed-cli` subtree of `soundadam/njuprobe`, including upstream
+`components/librespeed-cli` subtree of public `soundadam/soundprobe`, including upstream
 provenance, license, and build metadata. Do not copy that source into the
 proprietary soundconnect module or relicense it under the soundconnect license.
 A future Homebrew bottle may install a prebuilt helper from that source, but
