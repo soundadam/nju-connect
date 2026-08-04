@@ -16,10 +16,10 @@ import (
 	utls "github.com/refraction-networking/utls"
 )
 
-const communityUTLSClientHelloFixtureHex = "1603010056010000520302" +
+const communityUTLSClientHelloFixtureHex = "160301006d010000690302" +
 	"0000000000000000000000000000000000000000000000000000000000000000" +
 	"204c33495000000000000000000000000000000000000000000000000000000000" +
-	"0004000500ff01000005000f000101"
+	"0004000500ff0100001c000f00010100000013001100000e76706e2e6e6a752e6564752e636e"
 
 func TestCommunityUTLSProfileEmittedClientHelloMatchesLiveCompatibleFixture(t *testing.T) {
 	client, server := net.Pipe()
@@ -39,7 +39,7 @@ func TestCommunityUTLSProfileEmittedClientHelloMatchesLiveCompatibleFixture(t *t
 	}()
 	profile, err := NewProtocolTLSDialer(ProtocolTLSDialerConfig{
 		Dial:       func(context.Context) (net.Conn, error) { return recorded, nil },
-		ServerName: "vpn.example.edu",
+		ServerName: "vpn.nju.edu.cn",
 	})
 	if err != nil {
 		t.Fatal(err)

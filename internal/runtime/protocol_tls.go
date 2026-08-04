@@ -107,7 +107,7 @@ func (dialer *ProtocolTLSDialer) Dial(ctx context.Context) (net.Conn, error) {
 		return nil, newStageFailure(StageProtocolTLSHandshakeFailed, nil)
 	}
 	connection := utls.UClient(raw, dialer.tlsConfig(rootCAs), utls.HelloCustom)
-	if err := connection.ApplyPreset(protocolClientHelloSpec()); err != nil {
+	if err := connection.ApplyPreset(protocolClientHelloSpec(dialer.config.ServerName)); err != nil {
 		clear(clientRandom)
 		return nil, newStageFailure(StageProtocolTLSHandshakeFailed, nil)
 	}
@@ -247,8 +247,8 @@ func (dialer *ProtocolTLSDialer) tlsConfig(rootCAs *x509.CertPool) *utls.Config 
 	}
 }
 
-func protocolClientHelloSpec() *utls.ClientHelloSpec {
-	return &utls.ClientHelloSpec{
+func protocolClientHelloSpec(serverName string) *utls.ClientHelloSpec {
+	spec := &utls.ClientHelloSpec{
 		TLSVersMin:         utls.VersionTLS11,
 		TLSVersMax:         utls.VersionTLS11,
 		CipherSuites:       []uint16{utls.TLS_RSA_WITH_RC4_128_SHA, emptyRenegotiationSCSV},
@@ -257,6 +257,10 @@ func protocolClientHelloSpec() *utls.ClientHelloSpec {
 			&utls.GenericExtension{Id: 0x000f, Data: []byte{0x01}},
 		},
 	}
+	if serverName != "" {
+		spec.Extensions = append(spec.Extensions, &utls.SNIExtension{ServerName: serverName})
+	}
+	return spec
 }
 
 func writeRawProfilePayload(writer io.Writer, payload []byte, expected int) error {

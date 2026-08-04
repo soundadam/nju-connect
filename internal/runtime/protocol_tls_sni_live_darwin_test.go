@@ -18,8 +18,9 @@ import (
 )
 
 // TestLiveSNICompatibility is an explicit, credential-free gateway probe. It
-// is excluded from normal builds and tests by the liveprobe build tag, and it
-// does nothing unless SOUNDCONNECT_LIVE_GATEWAY is provided.
+// compares the legacy no-SNI baseline with the production SNI ClientHello, is
+// excluded from normal builds and tests by the liveprobe build tag, and does
+// nothing unless SOUNDCONNECT_LIVE_GATEWAY is provided.
 func TestLiveSNICompatibility(t *testing.T) {
 	target := os.Getenv("SOUNDCONNECT_LIVE_GATEWAY")
 	if target == "" {
@@ -112,10 +113,11 @@ func liveProbeHandshake(
 		MinVersion: utls.VersionTLS11, MaxVersion: utls.VersionTLS11,
 	}
 	connection := utls.UClient(raw, config, utls.HelloCustom)
-	spec := protocolClientHelloSpec()
+	specServerName := ""
 	if withSNI {
-		spec.Extensions = append(spec.Extensions, &utls.SNIExtension{ServerName: serverName})
+		specServerName = serverName
 	}
+	spec := protocolClientHelloSpec(specServerName)
 	if err := connection.ApplyPreset(spec); err != nil {
 		return err
 	}
