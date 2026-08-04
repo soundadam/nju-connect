@@ -52,9 +52,10 @@ soundconnect speedtest component status --json
 soundconnect speedtest last --json
 ```
 
-Only the latest compact result is retained locally. Per-second samples and the
-client public IP are not stored. Developer ID signing, notarization, and a real
-bandwidth test remain explicit release/operator gates.
+The CLI retains only the latest compact result. The macOS UI separately keeps
+bounded local graph samples in its own preferences so the inspector can restore
+the previous curve; the client public IP is not stored. Developer ID signing,
+notarization, and a real bandwidth test remain explicit release/operator gates.
 
 ## CLI release packaging
 

@@ -64,6 +64,17 @@ struct CampusSpeedTestResult: Codable, Equatable {
     let failure: CampusSpeedTestFailure?
 }
 
+struct CampusSpeedTestHistory: Codable, Equatable {
+    let endedAt: Date?
+    let route: String?
+    let latencyMs: Double?
+    let downloadMbps: Double?
+    let uploadMbps: Double?
+    let latencySamples: [Double]
+    let downloadSamples: [Double]
+    let uploadSamples: [Double]
+}
+
 struct CampusSpeedTestEvent: Decodable {
     let schemaVersion: Int
     let type: String
@@ -112,6 +123,8 @@ final class SpeedTestController: ObservableObject, @unchecked Sendable {
     @Published private(set) var componentProgress: Double = 0
     @Published private(set) var downloadMbps: Double?
     @Published private(set) var uploadMbps: Double?
+    @Published private(set) var downloadSamples: [Double] = []
+    @Published private(set) var uploadSamples: [Double] = []
     @Published private(set) var lastResult: CampusSpeedTestResult?
     @Published private(set) var route: String?
     @Published private(set) var reachabilityState: CampusReachabilityState = .unknown
@@ -128,16 +141,29 @@ final class SpeedTestController: ObservableObject, @unchecked Sendable {
     private var lastLatencySamplingAt: Date?
     private var outputBuffer = Data()
     private let decoder: JSONDecoder
+    private let historyEncoder: JSONEncoder
+    private let historyDefaults: UserDefaults
     private let isPreviewMode: Bool
+    private var restoredHistoryEndedAt: Date?
 
-    init(loadRuntimeState: Bool = true, previewState: CampusSpeedTestPreviewState? = nil) {
+    private static let historyDefaultsKey = "campus-speed-test.history.v1"
+
+    init(
+        loadRuntimeState: Bool = true,
+        previewState: CampusSpeedTestPreviewState? = nil,
+        userDefaults: UserDefaults = .standard
+    ) {
         isPreviewMode = previewState != nil
+        historyDefaults = userDefaults
         decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
         decoder.dateDecodingStrategy = .iso8601
+        historyEncoder = JSONEncoder()
+        historyEncoder.dateEncodingStrategy = .iso8601
         if let previewState {
             applyPreviewState(previewState)
         } else if loadRuntimeState {
+            restorePersistedHistory()
             refreshInitialState()
         }
     }
@@ -151,6 +177,10 @@ final class SpeedTestController: ObservableObject, @unchecked Sendable {
         latencySamples = [19, 17, 16, 15, 15, 16]
         latencyMs = 16
         route = "direct"
+        downloadSamples = [41, 45, 49, 52, 50, 53]
+        uploadSamples = [8, 10, 11, 12, 11, 12]
+        downloadMbps = 53
+        uploadMbps = 12
         switch state {
         case .idle:
             phase = .idle
@@ -191,6 +221,9 @@ final class SpeedTestController: ObservableObject, @unchecked Sendable {
     func start() {
         guard !isRunning else { return }
         resetTransientState()
+        phase = .probing
+        reachabilityState = .probing
+        message = uiText("Preparing campus speed test", "正在准备校园测速")
         inspectComponent { [weak self] status in
             guard let self else { return }
             if status.installed {
@@ -295,6 +328,7 @@ final class SpeedTestController: ObservableObject, @unchecked Sendable {
                 self.route = nil
                 self.message = uiText("Campus speed-test route unavailable.", "校园测速线路不可达")
             }
+            self.persistHistory()
             self.lastLatencySamplingAt = Date()
             self.isLatencySampling = false
             self.latencySamplingTask = nil
@@ -324,6 +358,28 @@ final class SpeedTestController: ObservableObject, @unchecked Sendable {
             else { return }
             self.lastResult = result
             self.route = result.route
+            self.latencyMs = result.pingMs ?? self.latencyMs
+            self.downloadMbps = result.downloadMbps ?? self.downloadMbps
+            self.uploadMbps = result.uploadMbps ?? self.uploadMbps
+
+            if result.status == "success" {
+                self.phase = .completed
+                self.reachabilityState = self.classifiedReachability(for: result.pingMs)
+                self.message = uiText("Campus speed test complete.", "校园测速完成")
+
+                if self.restoredHistoryEndedAt != result.endedAt {
+                    self.downloadSamples.removeAll(keepingCapacity: true)
+                    self.uploadSamples.removeAll(keepingCapacity: true)
+                    self.appendMeasurement(result.downloadMbps, to: &self.downloadSamples)
+                    self.appendMeasurement(result.uploadMbps, to: &self.uploadSamples)
+                }
+                self.persistHistory(endedAt: result.endedAt)
+            } else {
+                self.phase = .failed
+                self.reachabilityState = .failed
+                self.message = result.failure?.message
+                    ?? uiText("Campus speed test failed.", "校园测速失败")
+            }
         }
     }
 
@@ -440,12 +496,14 @@ final class SpeedTestController: ObservableObject, @unchecked Sendable {
                 reachabilityState = .reachable
                 activeMeasurementPhase = "download"
                 downloadMbps = event.mbps
+                appendMeasurement(event.mbps, to: &downloadSamples)
                 message = uiText("Measuring download speed", "正在测量下载速度")
             case "upload":
                 phase = .measuring
                 reachabilityState = .reachable
                 activeMeasurementPhase = "upload"
                 uploadMbps = event.mbps
+                appendMeasurement(event.mbps, to: &uploadSamples)
                 message = uiText("Measuring upload speed", "正在测量上传速度")
             default:
                 phase = .measuring
@@ -456,6 +514,8 @@ final class SpeedTestController: ObservableObject, @unchecked Sendable {
             route = result.route
             downloadMbps = result.downloadMbps
             uploadMbps = result.uploadMbps
+            if downloadSamples.isEmpty { appendMeasurement(result.downloadMbps, to: &downloadSamples) }
+            if uploadSamples.isEmpty { appendMeasurement(result.uploadMbps, to: &uploadSamples) }
             phase = result.status == "success" ? .completed : .failed
             reachabilityState = result.status == "success" ? classifiedReachability(for: result.pingMs) : .failed
             latencyMs = result.pingMs
@@ -463,6 +523,9 @@ final class SpeedTestController: ObservableObject, @unchecked Sendable {
             message = result.status == "success"
                 ? uiText("Campus speed test complete.", "校园测速完成")
                 : (result.failure?.message ?? uiText("Campus speed test failed.", "校园测速失败"))
+            if result.status == "success" {
+                persistHistory(endedAt: result.endedAt)
+            }
         case "error":
             reachabilityState = .failed
             activeMeasurementPhase = nil
@@ -549,6 +612,62 @@ final class SpeedTestController: ObservableObject, @unchecked Sendable {
         return nil
     }
 
+    private func restorePersistedHistory() {
+        guard let data = historyDefaults.data(forKey: Self.historyDefaultsKey),
+              let history = try? decoder.decode(CampusSpeedTestHistory.self, from: data)
+        else {
+            return
+        }
+
+        restoredHistoryEndedAt = history.endedAt
+        route = history.route
+        latencyMs = history.latencyMs
+        downloadMbps = history.downloadMbps
+        uploadMbps = history.uploadMbps
+        latencySamples = validatedSamples(history.latencySamples, maximumCount: 10)
+        downloadSamples = validatedSamples(history.downloadSamples, maximumCount: 30)
+        uploadSamples = validatedSamples(history.uploadSamples, maximumCount: 30)
+
+        if !latencySamples.isEmpty {
+            reachabilityState = classifiedReachability(for: latencyMs ?? medianLatency)
+        }
+        if history.endedAt != nil || downloadMbps != nil || uploadMbps != nil {
+            phase = .completed
+            message = uiText("Previous campus speed test restored.", "已恢复上次校园测速结果")
+        }
+    }
+
+    private func persistHistory(endedAt: Date? = nil) {
+        let history = CampusSpeedTestHistory(
+            endedAt: endedAt ?? restoredHistoryEndedAt,
+            route: route,
+            latencyMs: latencyMs,
+            downloadMbps: downloadMbps,
+            uploadMbps: uploadMbps,
+            latencySamples: validatedSamples(latencySamples, maximumCount: 10),
+            downloadSamples: validatedSamples(downloadSamples, maximumCount: 30),
+            uploadSamples: validatedSamples(uploadSamples, maximumCount: 30)
+        )
+        guard history.endedAt != nil
+                || !history.latencySamples.isEmpty
+                || !history.downloadSamples.isEmpty
+                || !history.uploadSamples.isEmpty
+        else {
+            return
+        }
+        guard let data = try? historyEncoder.encode(history) else { return }
+        historyDefaults.set(data, forKey: Self.historyDefaultsKey)
+        restoredHistoryEndedAt = history.endedAt
+    }
+
+    private func validatedSamples(_ samples: [Double], maximumCount: Int) -> [Double] {
+        Array(
+            samples
+                .filter { $0.isFinite && $0 >= 0 }
+                .suffix(maximumCount)
+        )
+    }
+
     private func resetTransientState() {
         latencySamplingTask?.cancel()
         latencySamplingTask = nil
@@ -559,6 +678,8 @@ final class SpeedTestController: ObservableObject, @unchecked Sendable {
         componentProgress = 0
         downloadMbps = nil
         uploadMbps = nil
+        downloadSamples.removeAll(keepingCapacity: true)
+        uploadSamples.removeAll(keepingCapacity: true)
         route = nil
         activeMeasurementPhase = nil
     }
@@ -571,6 +692,14 @@ final class SpeedTestController: ObservableObject, @unchecked Sendable {
             return (sorted[middle - 1] + sorted[middle]) / 2
         }
         return sorted[middle]
+    }
+
+    private func appendMeasurement(_ value: Double?, to samples: inout [Double]) {
+        guard let value, value.isFinite, value >= 0 else { return }
+        samples.append(value)
+        if samples.count > 30 {
+            samples.removeFirst(samples.count - 30)
+        }
     }
 
     private func classifiedReachability(for latencyMs: Double?) -> CampusReachabilityState {

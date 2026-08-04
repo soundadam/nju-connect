@@ -41,8 +41,8 @@ private struct MenuBarLabel: View {
 #if UI_DESIGN_PREVIEW
 private struct DesignPreviewView: View {
     @StateObject private var model = DesignModel()
-    @StateObject private var speedTest = SpeedTestController(previewState: .download)
-    @State private var speedPreviewState: CampusSpeedTestPreviewState = .download
+    @StateObject private var speedTest = SpeedTestController(previewState: .idle)
+    @State private var speedPreviewState: CampusSpeedTestPreviewState = .idle
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {

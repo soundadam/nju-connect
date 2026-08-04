@@ -63,8 +63,9 @@ The helper remains a separately executed LGPL component. On macOS it is built
 and installed by the `librespeed-cli-soundconnect` Homebrew Formula; the App
 does not embed it or invoke Homebrew itself. The Formula pins the upstream
 source and applies the explicit SOCKS and structured-progress patches. The
-menu-bar UI consumes the CLI's versioned NDJSON progress stream and stores only
-the atomic schema-v1 latest result, without per-second samples or the client
+menu-bar UI consumes the CLI's versioned NDJSON progress stream. The CLI keeps
+the atomic schema-v1 latest result, while the macOS UI stores only bounded local
+graph samples and derived metrics in its own preferences, without the client
 public IP.
 
 Installation-time compilation is a local-preview delivery choice, not an LGPL
