@@ -113,6 +113,17 @@ private struct RuntimeStatus: Decodable {
     let state: String
 }
 
+func soundConnectHelperEnvironment(
+    homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser,
+    temporaryDirectory: String = NSTemporaryDirectory()
+) -> [String: String] {
+    [
+        "HOME": homeDirectory.path,
+        "PATH": "/usr/bin:/bin:/usr/sbin:/sbin",
+        "TMPDIR": temporaryDirectory,
+    ]
+}
+
 @MainActor
 final class SpeedTestController: ObservableObject, @unchecked Sendable {
     @Published private(set) var phase: CampusSpeedTestPhase = .idle
@@ -427,7 +438,7 @@ final class SpeedTestController: ObservableObject, @unchecked Sendable {
         child.arguments = arguments
         child.standardOutput = stdout
         child.standardError = stderr
-        child.environment = ["PATH": "/usr/bin:/bin:/usr/sbin:/sbin"]
+        child.environment = soundConnectHelperEnvironment()
         outputBuffer.removeAll(keepingCapacity: true)
         cancelRequested = false
         stdout.fileHandleForReading.readabilityHandler = { [weak self] handle in
@@ -586,7 +597,7 @@ final class SpeedTestController: ObservableObject, @unchecked Sendable {
         child.arguments = arguments
         child.standardOutput = output
         child.standardError = Pipe()
-        child.environment = ["PATH": "/usr/bin:/bin:/usr/sbin:/sbin"]
+        child.environment = soundConnectHelperEnvironment()
         child.terminationHandler = { finished in
             let data = output.fileHandleForReading.readDataToEndOfFile()
             Task { @MainActor in completion(data, finished.terminationStatus) }

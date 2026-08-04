@@ -53,11 +53,24 @@ struct TrafficRates {
 
 @MainActor
 final class DesignModel: ObservableObject {
+    private static let maximumTrafficRateSamples = 30
     let gatewayServer: String
+    private let controller: SoundConnectControlling?
+    private var pollingTask: Task<Void, Never>?
+    private var isRefreshingStatus = false
+	private var lastTrafficSample: (sampledAtUnixMilli: Int64, upload: UInt64, download: UInt64)?
+	private var isTrafficMonitoringActive = false
+    private var runtimeSOCKSEndpoint = "127.0.0.1:1081"
+    private var runtimeRates = TrafficRates(uploadBytesPerSecond: 0, downloadBytesPerSecond: 0)
+    private var runtimeUploadBytes: UInt64 = 0
+    private var runtimeDownloadBytes: UInt64 = 0
+    private var runtimeActiveConnections = 0
 
     @Published var scenario: DesignScenario {
         didSet {
-            actionMessage = nil
+            if oldValue != scenario {
+                actionMessage = nil
+            }
             if scenario == .setup || scenario == .stopped {
                 isServiceEnabled = false
             } else if oldValue == .setup || oldValue == .stopped {
@@ -72,14 +85,24 @@ final class DesignModel: ObservableObject {
     @Published private(set) var isPerformingAction = false
     @Published private(set) var isReconfiguringCredentials = false
     @Published private(set) var isServiceEnabled: Bool
+    @Published private(set) var uploadRateSamples: [Double] = []
+    @Published private(set) var downloadRateSamples: [Double] = []
 
     init(
         scenario: DesignScenario = .connected,
-        gatewayServer: String = "vpn.nju.edu.cn"
+        gatewayServer: String = "vpn.nju.edu.cn",
+        controller: SoundConnectControlling? = nil
     ) {
         self.scenario = scenario
         self.gatewayServer = gatewayServer
+        self.controller = controller
         self.isServiceEnabled = scenario != .stopped && scenario != .setup
+        if controller != nil {
+            self.scenario = .stopped
+            self.isServiceEnabled = false
+            refreshRuntimeStatus()
+            startPolling()
+        }
     }
 
     var menuBarGatewayLabel: String {
@@ -190,10 +213,13 @@ final class DesignModel: ObservableObject {
     }
 
     var socksEndpoint: String {
-        "127.0.0.1:1081"
+        controller == nil ? "127.0.0.1:1081" : runtimeSOCKSEndpoint
     }
 
     var rates: TrafficRates {
+        if controller != nil {
+            return runtimeRates
+        }
         switch scenario {
         case .connected:
             return TrafficRates(uploadBytesPerSecond: 128 * 1024, downloadBytesPerSecond: 1.2 * 1024 * 1024)
@@ -205,15 +231,18 @@ final class DesignModel: ObservableObject {
     }
 
     var uploadBytes: UInt64 {
-        scenario == .connected ? 4_700_000 : 0
+        if controller != nil { return runtimeUploadBytes }
+        return scenario == .connected ? 4_700_000 : 0
     }
 
     var downloadBytes: UInt64 {
-        scenario == .connected ? 82_400_000 : 0
+        if controller != nil { return runtimeDownloadBytes }
+        return scenario == .connected ? 82_400_000 : 0
     }
 
     var activeConnections: Int {
-        scenario == .connected ? 3 : 0
+        if controller != nil { return runtimeActiveConnections }
+        return scenario == .connected ? 3 : 0
     }
 
     var menuBarIconState: MenuBarIconState {
@@ -251,24 +280,77 @@ final class DesignModel: ObservableObject {
     func setServiceEnabled(_ enabled: Bool) {
         guard canControlService else { return }
         isServiceEnabled = enabled
-        scenario = enabled ? .connecting : .stopped
-        actionMessage = enabled
-            ? uiText("Starting service", "已请求启动服务")
-            : uiText("Stopping service", "已请求停止服务")
+        guard let controller else {
+            scenario = enabled ? .connecting : .stopped
+            actionMessage = enabled
+                ? uiText("Starting service", "已请求启动服务")
+                : uiText("Stopping service", "已请求停止服务")
+            return
+        }
+        isPerformingAction = true
+        if enabled {
+            scenario = .connecting
+            actionMessage = uiText("Starting service", "正在启动服务")
+            startConnection(using: controller)
+        } else {
+            actionMessage = uiText("Stopping service", "正在停止服务")
+            controller.disconnect { [weak self] result in
+                guard let self else { return }
+                self.isPerformingAction = false
+                switch result {
+                case .success:
+                    self.scenario = .stopped
+                    self.clearRuntimeTraffic()
+                case .failure(let error):
+                    self.isServiceEnabled = true
+                    self.scenario = .transportFailed
+                    self.actionMessage = error.localizedDescription
+                }
+            }
+        }
     }
 
     func submitAuthenticationCode(_ code: String) {
         guard !code.isEmpty, canSubmitAuthenticationCode else { return }
+        guard controller?.submitVerificationCode(code) ?? true else {
+            actionMessage = uiText("No active verification request.", "当前没有等待中的验证码请求")
+            return
+        }
         scenario = .connecting
         actionMessage = uiText("Code submitted. Waiting for the gateway.", "验证码已提交，等待网关确认")
     }
 
     func completeSetup(schoolAccount: String, vpnPassword: String) {
         guard !schoolAccount.isEmpty, !vpnPassword.isEmpty else { return }
+        guard let controller else {
+            isReconfiguringCredentials = false
+            isServiceEnabled = true
+            scenario = .connecting
+            actionMessage = uiText("Credentials saved. Starting connection.", "账号与密码已保存，正在启动连接")
+            return
+        }
+        isPerformingAction = true
         isReconfiguringCredentials = false
-        isServiceEnabled = true
         scenario = .connecting
-        actionMessage = uiText("Credentials saved. Starting connection.", "账号与密码已保存，正在启动连接")
+        actionMessage = uiText("Saving credentials", "正在保存账号与密码")
+        controller.saveConfiguration(
+            server: gatewayServer,
+            account: schoolAccount,
+            password: vpnPassword
+        ) { [weak self] result in
+            guard let self else { return }
+            switch result {
+            case .success:
+                self.isServiceEnabled = true
+                self.actionMessage = uiText("Credentials saved. Starting connection.", "账号与密码已保存，正在启动连接")
+                self.startConnection(using: controller)
+            case .failure(let error):
+                self.isPerformingAction = false
+                self.isServiceEnabled = false
+                self.scenario = .setup
+                self.actionMessage = error.localizedDescription
+            }
+        }
     }
 
     func beginCredentialRecovery() {
@@ -287,5 +369,175 @@ final class DesignModel: ObservableObject {
         scenario = .connecting
         isServiceEnabled = true
         actionMessage = uiText("Reconnecting", "已请求重新连接")
+        if let controller {
+            isPerformingAction = true
+            startConnection(using: controller)
+        }
+    }
+
+	func refreshRuntimeStatus() {
+        guard let controller, !isRefreshingStatus else { return }
+        isRefreshingStatus = true
+        controller.readStatus { [weak self] result in
+            guard let self else { return }
+            self.isRefreshingStatus = false
+            switch result {
+            case .success(let snapshot):
+                self.apply(snapshot)
+            case .failure(let error):
+                guard !self.isPerformingAction else { return }
+                self.isServiceEnabled = false
+                self.scenario = .transportFailed
+                self.actionMessage = error.localizedDescription
+            }
+        }
+	}
+
+	func setTrafficMonitoringActive(_ active: Bool) {
+		guard isTrafficMonitoringActive != active else {
+			if active { refreshRuntimeStatus() }
+			return
+		}
+		isTrafficMonitoringActive = active
+		lastTrafficSample = nil
+		runtimeRates = TrafficRates(uploadBytesPerSecond: 0, downloadBytesPerSecond: 0)
+		clearTrafficRateSamples()
+		if active {
+			pollingTask?.cancel()
+			pollingTask = nil
+			controller?.startStatusMonitoring { [weak self] result in
+				guard let self else { return }
+				switch result {
+				case .success(let snapshot):
+					self.apply(snapshot)
+				case .failure(let error):
+					guard !self.isPerformingAction else { return }
+					self.isServiceEnabled = false
+					self.scenario = .transportFailed
+					self.actionMessage = error.localizedDescription
+				}
+			}
+		} else {
+			controller?.stopStatusMonitoring()
+			startPolling()
+			refreshRuntimeStatus()
+		}
+	}
+
+	private func startPolling() {
+		pollingTask?.cancel()
+		pollingTask = Task { [weak self] in
+			while !Task.isCancelled {
+				guard let self else { return }
+				try? await Task.sleep(for: .seconds(5))
+				guard !Task.isCancelled else { return }
+				self.refreshRuntimeStatus()
+            }
+        }
+    }
+
+    private func startConnection(using controller: SoundConnectControlling) {
+        controller.connect(
+            verificationRequested: { [weak self] in
+                guard let self else { return }
+                self.scenario = .waitingMFA
+                self.actionMessage = uiText("Enter the verification code from the gateway.", "请输入网关发送的验证码")
+            },
+            completion: { [weak self] result in
+                guard let self else { return }
+                self.isPerformingAction = false
+                switch result {
+                case .success:
+                    self.actionMessage = uiText("Connected", "已连接")
+                    self.refreshRuntimeStatus()
+                case .failure(let error):
+                    self.isServiceEnabled = false
+                    self.scenario = self.isCredentialFailure(error.localizedDescription)
+                        ? .credentialRejected
+                        : .transportFailed
+                    self.actionMessage = error.localizedDescription
+                }
+            }
+        )
+    }
+
+    private func apply(_ snapshot: SoundConnectRuntimeSnapshot) {
+        if snapshot.running {
+            isServiceEnabled = true
+            switch snapshot.state {
+            case "connected": scenario = .connected
+            case "reconnecting": scenario = .reconnecting
+            default: scenario = .connecting
+            }
+            if !snapshot.socksListen.isEmpty {
+                runtimeSOCKSEndpoint = snapshot.socksListen
+            }
+            updateTraffic(snapshot.traffic)
+            return
+        }
+        guard !isPerformingAction else { return }
+        isServiceEnabled = false
+        scenario = snapshot.configured ? .stopped : .setup
+        clearRuntimeTraffic()
+    }
+
+	private func updateTraffic(_ traffic: SoundConnectTrafficSnapshot?) {
+        guard let traffic else {
+            clearRuntimeTraffic()
+            return
+        }
+		runtimeUploadBytes = traffic.uploadBytes
+		runtimeDownloadBytes = traffic.downloadBytes
+		runtimeActiveConnections = traffic.activeConnections
+		guard isTrafficMonitoringActive else {
+			lastTrafficSample = nil
+			runtimeRates = TrafficRates(uploadBytesPerSecond: 0, downloadBytesPerSecond: 0)
+			return
+		}
+		let sampledAtUnixMilli = traffic.sampledAtUnixMilli > 0
+			? traffic.sampledAtUnixMilli
+			: Int64(Date().timeIntervalSince1970 * 1_000)
+		if let previous = lastTrafficSample {
+			let elapsed = Double(sampledAtUnixMilli - previous.sampledAtUnixMilli) / 1_000
+			if elapsed > 0, traffic.uploadBytes >= previous.upload, traffic.downloadBytes >= previous.download {
+				runtimeRates = TrafficRates(
+                    uploadBytesPerSecond: Double(traffic.uploadBytes - previous.upload) / elapsed,
+                    downloadBytesPerSecond: Double(traffic.downloadBytes - previous.download) / elapsed
+			)
+			appendTrafficRateSamples(runtimeRates)
+			}
+		}
+		lastTrafficSample = (sampledAtUnixMilli, traffic.uploadBytes, traffic.downloadBytes)
+    }
+
+    private func clearRuntimeTraffic() {
+        lastTrafficSample = nil
+        runtimeRates = TrafficRates(uploadBytesPerSecond: 0, downloadBytesPerSecond: 0)
+        clearTrafficRateSamples()
+        runtimeUploadBytes = 0
+        runtimeDownloadBytes = 0
+        runtimeActiveConnections = 0
+    }
+
+    private func appendTrafficRateSamples(_ rates: TrafficRates) {
+        uploadRateSamples.append(rates.uploadBytesPerSecond)
+        downloadRateSamples.append(rates.downloadBytesPerSecond)
+        if uploadRateSamples.count > Self.maximumTrafficRateSamples {
+            uploadRateSamples.removeFirst(uploadRateSamples.count - Self.maximumTrafficRateSamples)
+        }
+        if downloadRateSamples.count > Self.maximumTrafficRateSamples {
+            downloadRateSamples.removeFirst(downloadRateSamples.count - Self.maximumTrafficRateSamples)
+        }
+    }
+
+    private func clearTrafficRateSamples() {
+        uploadRateSamples.removeAll(keepingCapacity: true)
+        downloadRateSamples.removeAll(keepingCapacity: true)
+    }
+
+    private func isCredentialFailure(_ message: String) -> Bool {
+        message.localizedCaseInsensitiveContains("authentication rejected")
+            || message.localizedCaseInsensitiveContains("password authentication")
+            || message.localizedCaseInsensitiveContains("credential")
     }
 }

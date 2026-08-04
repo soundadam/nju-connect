@@ -2,7 +2,11 @@ import SwiftUI
 
 @main
 struct SoundConnectApp: App {
+#if UI_DESIGN_PREVIEW
     @StateObject private var model = DesignModel()
+#else
+    @StateObject private var model = DesignModel(controller: SoundConnectController())
+#endif
     @StateObject private var speedTest = SpeedTestController()
 
     var body: some Scene {
@@ -49,7 +53,7 @@ private struct DesignPreviewView: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text("soundconnect macOS UI")
                     .font(.title2.weight(.semibold))
-                Text(uiText("Phase 1: review the menu-bar layout with simulated VPN states.", "第一阶段：开发菜单栏面板结构，用模拟状态参与视觉设计"))
+                Text(uiText("Review the menu-bar layout with simulated VPN states.", "使用模拟 VPN 状态检查菜单栏布局"))
                     .font(.callout)
                     .foregroundStyle(.secondary)
             }

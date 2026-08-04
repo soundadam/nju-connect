@@ -8,7 +8,7 @@ cli-release:
 
 .PHONY: package-macos
 package-macos:
-	@test -n "$(VERSION)" || { echo "VERSION is required (for example: make package-macos VERSION=0.1.0)" >&2; exit 64; }
+	@test -n "$(VERSION)" || { echo "VERSION is required (for example: make package-macos VERSION=1.0.0)" >&2; exit 64; }
 	./scripts/package_macos_release.zsh "$(VERSION)"
 
 .PHONY: macos-preview
@@ -17,7 +17,7 @@ macos-preview: build
 
 .PHONY: package-macos-local
 package-macos-local:
-	@test -n "$(VERSION)" || { echo "VERSION is required (for example: make package-macos-local VERSION=0.1.0)" >&2; exit 64; }
+	@test -n "$(VERSION)" || { echo "VERSION is required (for example: make package-macos-local VERSION=1.0.0)" >&2; exit 64; }
 	./scripts/package_local_macos.zsh "$(VERSION)"
 
 .PHONY: release-check

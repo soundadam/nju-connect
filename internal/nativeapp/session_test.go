@@ -2,6 +2,7 @@ package nativeapp
 
 import (
 	"context"
+	"errors"
 	"net"
 	"strings"
 	"testing"
@@ -217,12 +218,55 @@ func TestSessionRunPublishesOnlySanitizedTraffic(t *testing.T) {
 	}
 }
 
-type fakeNativeSession struct {
-	snapshot traffic.Snapshot
+func TestSessionRunPublishesTrafficWhileActive(t *testing.T) {
+	want := TrafficSnapshot{UploadBytes: 10, DownloadBytes: 20, ActiveConnections: 1, TotalConnections: 2}
+	published := make(chan TrafficSnapshot, 1)
+	observer := newSerializedObserver(ObserverFuncs{OnTraffic: func(snapshot TrafficSnapshot) {
+		select {
+		case published <- snapshot:
+		default:
+		}
+	}})
+	fake := &fakeNativeSession{
+		snapshot: traffic.Snapshot{
+			UploadBytes: 10, DownloadBytes: 20, ActiveConnections: 1, TotalConnections: 2,
+		},
+		run: func(ctx context.Context) error {
+			<-ctx.Done()
+			return ctx.Err()
+		},
+	}
+	session := &Session{native: fake, observer: observer, trafficPublishInterval: time.Millisecond}
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() { done <- session.Run(ctx) }()
+
+	select {
+	case got := <-published:
+		if got != want {
+			t.Fatalf("traffic = %+v, want %+v", got, want)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("traffic was not published while the session was active")
+	}
+	cancel()
+	if err := <-done; !errors.Is(err, context.Canceled) {
+		t.Fatalf("Run error = %v, want context canceled", err)
+	}
 }
 
-func (*fakeNativeSession) Run(context.Context) error { return nil }
-func (*fakeNativeSession) Close() error              { return nil }
+type fakeNativeSession struct {
+	snapshot traffic.Snapshot
+	run      func(context.Context) error
+}
+
+func (session *fakeNativeSession) Run(ctx context.Context) error {
+	if session.run != nil {
+		return session.run(ctx)
+	}
+	return nil
+}
+func (*fakeNativeSession) Close() error { return nil }
 func (session *fakeNativeSession) Traffic() traffic.Snapshot {
 	return session.snapshot
 }

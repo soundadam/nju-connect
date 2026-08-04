@@ -63,7 +63,7 @@ From a clean worktree, package the two supported macOS CLI architectures with
 an injected semantic version and checksums:
 
 ```sh
-make cli-release VERSION=v0.1.0
+make cli-release VERSION=v1.0.0
 ```
 
 The archives include `LICENSE`, `THIRD_PARTY_NOTICES`, and the linked modules'
@@ -81,13 +81,16 @@ xattr -d com.apple.quarantine /path/to/soundconnect
 This is a local testing workaround, not a release installation step. Release
 artifacts should be signed and notarized.
 
-The current Homebrew Cask packages an explicitly labeled macOS design preview
-plus the native universal CLI. Build it with `make package-macos VERSION=X.Y.Z`;
-the public Cask must continue to disclose that VPN setup/control remains a
-simulated design preview while campus speed testing uses the real bundled CLI,
-and that ad-hoc signing is not Apple notarization.
+The current Homebrew Cask packages the macOS menu-bar client plus the native
+universal CLI. The menu bar saves credentials through the CLI into Keychain,
+starts and stops the real background userspace runtime, submits one-time codes
+through a private stdin pipe, and streams sanitized runtime state while the
+panel is open. Build it with
+`make package-macos VERSION=X.Y.Z`; the Cask must continue to disclose that
+ad-hoc signing is not Apple notarization.
 
 For an explicitly local, dirty-tree preview, use
 `make package-macos-local VERSION=X.Y.Z`. It records `source_dirty=true`, writes
-a `file://` Cask into
-`~/workspaces/soundadam/homebrew-local`, and never publishes an artifact.
+a `file://` Cask into the installed `soundadam/local` tap checkout (falling back
+to `~/workspaces/soundadam/homebrew-local` when the tap is not installed), and
+never publishes an artifact.

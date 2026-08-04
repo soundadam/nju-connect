@@ -28,24 +28,26 @@ const (
 // NewSession only; the caller remains responsible for clearing its temporary
 // copy immediately after NewSession returns.
 type SessionConfig struct {
-	Settings           config.Config
-	Plan               core.DataplanePlan
-	NativeGatewayToken sessiontoken.NativeGatewayToken
-	NativeProfile      runtime.ProtocolProfileID
-	ResolveGatewayIP   string
-	AccessProbeURL     string
-	ResolveIPv4        runtime.ResolveIPv4Func
-	MaxSOCKSClients    int
-	Observer           Observer
-	DialTimeout        time.Duration
+	Settings               config.Config
+	Plan                   core.DataplanePlan
+	NativeGatewayToken     sessiontoken.NativeGatewayToken
+	NativeProfile          runtime.ProtocolProfileID
+	ResolveGatewayIP       string
+	AccessProbeURL         string
+	ResolveIPv4            runtime.ResolveIPv4Func
+	MaxSOCKSClients        int
+	Observer               Observer
+	DialTimeout            time.Duration
+	TrafficPublishInterval time.Duration
 }
 
 // Session exposes only lifecycle and sanitized application telemetry. It does
 // not expose the runtime's gateway identity or retained token material.
 type Session struct {
-	native   nativeSession
-	observer *serializedObserver
-	profile  runtime.ProtocolProfileMetadata
+	native                 nativeSession
+	observer               *serializedObserver
+	profile                runtime.ProtocolProfileMetadata
+	trafficPublishInterval time.Duration
 }
 
 type nativeSession interface {
@@ -103,7 +105,10 @@ func NewSession(sessionConfig SessionConfig) (*Session, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Session{native: native, observer: observer, profile: runtime.ProtocolProfileInfo(profile)}, nil
+	return &Session{
+		native: native, observer: observer, profile: runtime.ProtocolProfileInfo(profile),
+		trafficPublishInterval: sessionConfig.TrafficPublishInterval,
+	}, nil
 }
 
 func systemResolveIPv4(ctx context.Context, host string) (netip.Addr, error) {
@@ -140,7 +145,30 @@ func (session *Session) Run(ctx context.Context) error {
 	if session == nil || session.native == nil {
 		return errors.New("native application session is unavailable")
 	}
+	interval := session.trafficPublishInterval
+	if interval <= 0 {
+		err := session.native.Run(ctx)
+		session.observer.trafficSnapshot(session.native.Traffic())
+		return err
+	}
+	stopTraffic := make(chan struct{})
+	trafficStopped := make(chan struct{})
+	go func() {
+		defer close(trafficStopped)
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				session.observer.trafficSnapshot(session.native.Traffic())
+			case <-stopTraffic:
+				return
+			}
+		}
+	}()
 	err := session.native.Run(ctx)
+	close(stopTraffic)
+	<-trafficStopped
 	session.observer.trafficSnapshot(session.native.Traffic())
 	return err
 }

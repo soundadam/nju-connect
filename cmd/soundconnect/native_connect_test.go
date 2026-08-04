@@ -248,6 +248,10 @@ func (application *fakeNativeApplication) Close() error {
 	return nil
 }
 
+func (application *fakeNativeApplication) Traffic() nativeapp.TrafficSnapshot {
+	return nativeapp.TrafficSnapshot{}
+}
+
 func (application *fakeNativeApplication) Profile() runtime.ProtocolProfileMetadata {
 	return application.profile
 }

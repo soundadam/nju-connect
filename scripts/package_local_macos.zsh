@@ -10,7 +10,14 @@ usage() {
 
 readonly version="$1"
 readonly repo_root="${0:A:h:h}"
-readonly local_tap_root="${2:-${HOME}/workspaces/soundadam/homebrew-local}"
+typeset default_tap_root="${HOME}/workspaces/soundadam/homebrew-local"
+if command -v brew >/dev/null 2>&1; then
+  installed_tap_root="$(brew --repo soundadam/local 2>/dev/null || true)"
+  if [[ -n "${installed_tap_root}" && -d "${installed_tap_root}/.git" ]]; then
+    default_tap_root="${installed_tap_root}"
+  fi
+fi
+readonly local_tap_root="${2:-${default_tap_root}}"
 readonly archive="${repo_root}/dist/${version}/soundconnect-${version}-macos-universal.zip"
 readonly cask_output="${local_tap_root}/Casks/soundconnect.rb"
 

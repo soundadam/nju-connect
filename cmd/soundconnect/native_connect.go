@@ -27,6 +27,7 @@ const nativeUpstreamPreflightTimeout = 3 * time.Second
 type nativeApplicationSession interface {
 	Run(context.Context) error
 	Close() error
+	Traffic() nativeapp.TrafficSnapshot
 	Profile() runtime.ProtocolProfileMetadata
 }
 
@@ -54,6 +55,7 @@ func runNativeConnectContext(
 	flags := flag.NewFlagSet("connect", flag.ContinueOnError)
 	flags.SetOutput(stderr)
 	background := flags.Bool("background", false, "continue the native runtime as a detached process after authentication")
+	verificationCodeStdin := flags.Bool("verification-code-stdin", false, "read the verification code from standard input without requiring a terminal")
 	if err := flags.Parse(arguments); err != nil {
 		return 2
 	}
@@ -105,7 +107,7 @@ func runNativeConnectContext(
 	session, err := func() (*gatewayauth.Session, error) {
 		defer credential.Clear(password)
 		return authenticateAttendedGateway(ctx, configured, password, func() ([]byte, error) {
-			return promptVerificationCode(ctx, os.Stdin, stderr)
+			return promptVerificationCode(ctx, os.Stdin, stderr, *verificationCodeStdin)
 		})
 	}()
 	password = nil
@@ -135,10 +137,11 @@ func runNativeConnectContext(
 	statusTracker := newRuntimeStatusTracker(runtime.ProfileCommunityUTLSCompat)
 	err = session.WithNativeGatewayToken(func(token sessiontoken.NativeGatewayToken) error {
 		sessionConfig := nativeapp.SessionConfig{
-			Settings:           configured,
-			Plan:               plan,
-			NativeGatewayToken: token,
-			NativeProfile:      runtime.ProfileCommunityUTLSCompat,
+			Settings:               configured,
+			Plan:                   plan,
+			NativeGatewayToken:     token,
+			NativeProfile:          runtime.ProfileCommunityUTLSCompat,
+			TrafficPublishInterval: time.Second,
 		}
 		if *background {
 			var startErr error
@@ -163,7 +166,10 @@ func runNativeConnectContext(
 		return 1
 	}
 	defer application.Close()
-	statusServer, err := startRuntimeStatusServer(runtimeStatusPath(paths.Root), statusTracker.Snapshot)
+	statusServer, err := startRuntimeStatusServer(runtimeStatusPath(paths.Root), func() runtimeStatusSnapshot {
+		statusTracker.UpdateTraffic(application.Traffic(), time.Now())
+		return statusTracker.Snapshot()
+	})
 	if err != nil {
 		fmt.Fprintf(stderr, "prepare runtime status: %v\n", err)
 		return 1
@@ -174,8 +180,11 @@ func runNativeConnectContext(
 	fmt.Fprintf(stdout, "native-evidence: %s\n", profile.Evidence)
 	fmt.Fprintf(stdout, "native-security: encrypted=%t peer_verified=%t\n", profile.Security.Encrypted, profile.Security.PeerVerified)
 
-	err = application.Run(ctx)
-	return reportNativeRunResult(ctx, err, stderr)
+	runtimeContext, cancelRuntime := context.WithCancel(ctx)
+	defer cancelRuntime()
+	statusServer.SetStop(cancelRuntime)
+	err = application.Run(runtimeContext)
+	return reportNativeRunResult(runtimeContext, err, stderr)
 }
 
 func reportNativeRunResult(ctx context.Context, err error, stderr io.Writer) int {

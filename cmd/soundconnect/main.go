@@ -53,6 +53,8 @@ func run(arguments []string, stdout, stderr io.Writer) int {
 		return runDoctor(arguments[1:], stdout, stderr)
 	case "connect":
 		return connectCommand(arguments[1:], stdout, stderr)
+	case "disconnect":
+		return runDisconnect(arguments[1:], stdout, stderr)
 	case "dry-run":
 		return dryRunCommand(arguments[1:], stdout, stderr)
 	case "status":
@@ -158,7 +160,7 @@ func runDryRun(arguments []string, stdout, stderr io.Writer) int {
 			fmt.Fprintf(stderr, "prepare verification code authentication: %v\n", err)
 			return 1
 		}
-		code, promptErr := promptVerificationCode(context.Background(), os.Stdin, stderr)
+		code, promptErr := promptVerificationCode(context.Background(), os.Stdin, stderr, false)
 		if promptErr != nil {
 			if errors.Is(promptErr, context.Canceled) {
 				return 0
@@ -216,27 +218,34 @@ func runDryRun(arguments []string, stdout, stderr io.Writer) int {
 	return 1
 }
 
-func promptVerificationCode(ctx context.Context, input *os.File, output io.Writer) ([]byte, error) {
+func promptVerificationCode(ctx context.Context, input *os.File, output io.Writer, allowNonTerminal bool) ([]byte, error) {
 	if ctx == nil {
 		return nil, errors.New("verification code context is required")
 	}
-	if input == nil || !term.IsTerminal(int(input.Fd())) {
+	if input == nil {
+		return nil, credential.ErrNoTerminal
+	}
+	isTerminal := term.IsTerminal(int(input.Fd()))
+	if !isTerminal && !allowNonTerminal {
 		return nil, credential.ErrNoTerminal
 	}
 	if _, err := io.WriteString(output, "Verification code: "); err != nil {
 		return nil, err
 	}
-	original, err := term.MakeRaw(int(input.Fd()))
-	if err != nil {
-		return nil, err
+	if isTerminal {
+		original, err := term.MakeRaw(int(input.Fd()))
+		if err != nil {
+			return nil, err
+		}
+		defer term.Restore(int(input.Fd()), original) //nolint:errcheck // best-effort terminal restoration on every exit path
 	}
 	defer fmt.Fprintln(output)
-	defer term.Restore(int(input.Fd()), original) //nolint:errcheck // best-effort terminal restoration on every exit path
 
 	type readResult struct {
 		code []byte
 		err  error
 	}
+	var err error
 	result := make(chan readResult, 1)
 	go func() {
 		code, readErr := readRawVerificationCode(input)
@@ -312,6 +321,7 @@ func runSetup(arguments []string, stdout, stderr io.Writer) int {
 	upstreamProxy := flags.String("upstream-proxy", "", "optional socks5 upstream URL")
 	tlsInsecure := flags.Bool("tls-insecure", false, "allow an unverified development gateway certificate")
 	nativeTLSInsecure := flags.Bool("native-tls-insecure", false, "disable verification only for native protocol TLS")
+	passwordStdin := flags.Bool("password-stdin", false, "read the password from standard input without a terminal prompt")
 	if err := flags.Parse(arguments); err != nil {
 		return 2
 	}
@@ -350,6 +360,9 @@ func runSetup(arguments []string, stdout, stderr io.Writer) int {
 		NativeTLSInsecure: *nativeTLSInsecure,
 	}
 	readSecret := func(prompt string) ([]byte, error) {
+		if *passwordStdin {
+			return readSecretLine(os.Stdin)
+		}
 		return credential.NewPromptStore(credential.PromptOptions{
 			Input: os.Stdin, Output: stderr, Prompt: prompt,
 		}).Get()
@@ -365,6 +378,29 @@ func runSetup(arguments []string, stdout, stderr io.Writer) int {
 	}
 	fmt.Fprintf(stdout, "configuration: %s\ncredential: system_store\n", paths.Config)
 	return 0
+}
+
+func readSecretLine(input io.Reader) ([]byte, error) {
+	if input == nil {
+		return nil, errors.New("password input is unavailable")
+	}
+	reader := bufio.NewReader(io.LimitReader(input, 1<<20+2))
+	secret, err := reader.ReadBytes('\n')
+	if err != nil && !errors.Is(err, io.EOF) {
+		credential.Clear(secret)
+		return nil, errors.New("read password from standard input")
+	}
+	secret = bytes.TrimSuffix(secret, []byte{'\n'})
+	secret = bytes.TrimSuffix(secret, []byte{'\r'})
+	if len(secret) == 0 {
+		credential.Clear(secret)
+		return nil, credential.ErrEmptyCredential
+	}
+	if len(secret) > 1<<20 {
+		credential.Clear(secret)
+		return nil, credential.ErrCredentialTooLarge
+	}
+	return secret, nil
 }
 
 func promptLine(input *bufio.Reader, output io.Writer, prompt string) (string, error) {
@@ -453,6 +489,7 @@ commands:
   setup      configure or update the account and long-lived password
   migrate    import pre-release worktree configuration and credential state
   connect    authenticate and run the native userspace VPN core (default)
+  disconnect stop the active native userspace VPN core
   dry-run    authenticate and validate gateway handoff without starting dataplane
   status     print sanitized runtime status
   speedtest  measure the NJU campus IPv4 path

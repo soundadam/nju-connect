@@ -1,4 +1,4 @@
-# soundconnect macOS UI（第一阶段）
+# soundconnect macOS UI
 
 这一版开始开发 `soundconnect` 的菜单栏面板结构：
 
@@ -9,9 +9,10 @@
 - SOCKS5 地址、实时速率和本次累计流量
 - 重连、账号失败和传输失败的恢复入口
 
-当前 VPN 生命周期仍由 `DesignModel` 模拟；校园连通探测与测速通过本地
-`soundconnect` CLI 执行。这样可以先确认布局、文案和状态层级，再接入真实 VPN
-生命周期，避免把设计讨论和协议/服务控制问题混在一起。
+正式菜单栏 App 已通过内置 `soundconnect` CLI 接入真实 VPN 生命周期：设置会把
+非秘密配置写入用户配置目录、把长期密码写入 Keychain；开关会启动或停止后台
+userspace runtime；验证码仅通过本机 stdin 管道提交；状态、SOCKS5 地址和流量来自
+owner-only runtime socket。`make macos-preview` 仍保留模拟状态，专门用于视觉预览。
 
 ## 面板槽位拓扑
 
@@ -161,13 +162,12 @@ swift run
 
 先看“已连接”，确认主路径；再依次看“首次设置”“等待验证码”“重连中”和“传输失败”。每个状态优先讨论四件事：信息是否太密、用户下一步是否明确、诊断信息是否应该默认展示、按钮/开关是否符合 macOS 习惯。
 
-后续第二阶段再把 `DesignModel` 换成真实的 soundconnect 控制适配层，并保留这里已经确认的视觉结构。
+正式 App 使用真实控制适配层；本节的状态选择器只存在于 `make macos-preview` 的视觉预览窗口中。
 
-## Homebrew 预览包
+## Homebrew 发行包
 
 仓库根目录的 `scripts/package_macos_release.zsh` 会生成包含菜单栏 App 和
 通用架构 CLI 的 Cask ZIP。校园测速通过真实 CLI 执行；LibreSpeed helper 作为
-独立第三方 Homebrew Formula 安装，不打入 App，也不由 App 下载。当前仍只允许
-按“设计预览”发布：VPN 设置和服务控制使用
-模拟状态，产物使用 ad-hoc 签名且未经过 Apple notarization。Cask 和 Release
-说明必须保留这些边界，不能把可构建或可安装表述为生产可用。
+独立第三方 Homebrew Formula 安装，不打入 App，也不由 App 下载。当前产物使用
+ad-hoc 签名且未经过 Apple notarization。Cask 和 Release 说明必须保留这一安全
+边界，不能把可构建或可安装表述为已完成签名公证的生产发行。

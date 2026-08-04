@@ -146,20 +146,20 @@ readonly release_notes_path="${release_dir}/soundconnect-${version}-release-note
   print -- "minimum_macos=13.0"
   print -- "signature=ad-hoc"
   print -- "notarized=false"
-  print -- "ui_backend=design-preview"
+  print -- "ui_backend=native-cli-control"
   print -- "campus_speed_helper=external-homebrew-formula"
   print -- "campus_speed_helper_formula=librespeed-cli-soundconnect"
   print -- "license=proprietary; authorized users only"
 } > "$manifest_path"
 
 {
-  print -- "# soundconnect ${version} macOS design preview"
+  print -- "# soundconnect ${version} macOS release"
   print
-  print -- "This prerelease contains a universal macOS menu-bar app and the bundled native CLI."
+  print -- "This release contains a universal macOS menu-bar app and the bundled native CLI."
   print
   print -- "Release boundary:"
   print
-  print -- "- VPN setup and service controls still use simulated state; campus speed testing uses the bundled CLI."
+  print -- "- VPN setup, background runtime control, status, traffic, and campus speed testing use the bundled CLI."
   print -- "- Campus speed testing requires the separate librespeed-cli-soundconnect Homebrew Formula."
   print -- "- The app and CLI are ad-hoc signed and are not Apple-notarized."
   print -- "- The source repository is private and the software is proprietary; public download does not grant a license."

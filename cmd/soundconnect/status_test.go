@@ -9,12 +9,29 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/soundadam/soundconnect/internal/config"
 	"github.com/soundadam/soundconnect/internal/nativeapp"
 	"github.com/soundadam/soundconnect/internal/runtime"
 )
+
+func TestRuntimeStatusTrackerRecordsExactTrafficSampleTime(t *testing.T) {
+	tracker := newRuntimeStatusTracker(runtime.ProfileCommunityUTLSCompat)
+	sampledAt := time.Date(2026, time.August, 4, 8, 0, 0, 123_000_000, time.UTC)
+	tracker.UpdateTraffic(nativeapp.TrafficSnapshot{
+		UploadBytes: 12, DownloadBytes: 34, ActiveConnections: 2, TotalConnections: 3,
+	}, sampledAt)
+
+	traffic := tracker.Snapshot().Traffic
+	if traffic == nil || traffic.SampledAtUnixMilli != sampledAt.UnixMilli() ||
+		traffic.UploadBytes != 12 || traffic.DownloadBytes != 34 ||
+		traffic.ActiveConnections != 2 || traffic.TotalConnections != 3 {
+		t.Fatalf("traffic = %+v", traffic)
+	}
+}
 
 func TestRuntimeStatusServerReportsSanitizedLiveStateAndCleansUp(t *testing.T) {
 	path := runtimeStatusPath(t.TempDir())
@@ -52,6 +69,32 @@ func TestRuntimeStatusServerReportsSanitizedLiveStateAndCleansUp(t *testing.T) {
 	}
 }
 
+func TestDisconnectCommandStopsRuntimeThroughPrivateControlSocket(t *testing.T) {
+	root := t.TempDir()
+	paths := config.Paths{Root: root, Config: filepath.Join(root, "config.toml"), Credential: filepath.Join(root, "credential")}
+	previous := resolveDefaultPaths
+	resolveDefaultPaths = func() (config.Paths, error) { return paths, nil }
+	t.Cleanup(func() { resolveDefaultPaths = previous })
+
+	tracker := newRuntimeStatusTracker(runtime.ProfileCommunityUTLSCompat)
+	server, err := startRuntimeStatusServer(runtimeStatusPath(root), tracker.Snapshot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer server.Close()
+	var stopped atomic.Bool
+	server.SetStop(func() { stopped.Store(true) })
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	if code := run([]string{"disconnect"}, &stdout, &stderr); code != 0 || stdout.String() != "stopping: true\n" || stderr.Len() != 0 {
+		t.Fatalf("disconnect exit=%d stdout=%q stderr=%q", code, stdout.String(), stderr.String())
+	}
+	if !stopped.Load() {
+		t.Fatal("runtime stop callback was not called")
+	}
+}
+
 func TestStatusCommandSupportsTextJSONAndStoppedState(t *testing.T) {
 	root := t.TempDir()
 	paths := config.Paths{Root: root, Config: filepath.Join(root, "config.toml"), Credential: filepath.Join(root, "credential")}
@@ -85,6 +128,15 @@ func TestStatusCommandSupportsTextJSONAndStoppedState(t *testing.T) {
 	var snapshot runtimeStatusSnapshot
 	if err := json.Unmarshal(stdout.Bytes(), &snapshot); err != nil || !snapshot.Running || snapshot.State != "reconnecting" {
 		t.Fatalf("JSON status=%+v err=%v", snapshot, err)
+	}
+}
+
+func TestStatusWatchRequiresJSON(t *testing.T) {
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	if code := runStatus([]string{"--watch"}, &stdout, &stderr); code != 2 ||
+		stdout.Len() != 0 || stderr.String() != "status --watch requires --json\n" {
+		t.Fatalf("exit=%d stdout=%q stderr=%q", code, stdout.String(), stderr.String())
 	}
 }
 

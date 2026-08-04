@@ -2,7 +2,7 @@
 
 This is the single detailed product architecture and release-readiness document. \`README.md\` remains the one-line product narrative. The files under \`research/\` record external evidence only; they are not product runtime or release authority.
 
-The audit started from \`7e86436\` and covers the native userspace core that has already been validated against the live gateway. The first macOS UI phase adds a design-only SwiftUI shell under \`macos/\`; it does not yet connect the UI to the Go backend. It also does not change gateway wire bytes, start a vendor service, install a VPN, or change routes/DNS/PF.
+The audit started from \`7e86436\` and covers the native userspace core that has already been validated against the live gateway. The macOS SwiftUI menu-bar app invokes the bundled Go CLI for setup, attended authentication, background runtime start/stop, status, traffic, and campus speed testing. The UI integration does not change gateway wire bytes, start a vendor service, install a Network Extension, or change routes/DNS/PF.
 
 ## Ownership and data flow
 
@@ -210,7 +210,8 @@ separate release gates.
 
 \`make package-macos-local VERSION=MAJOR.MINOR.PATCH\` is a local-preview path.
 It may package a dirty tree, records that fact in the manifest, and renders a
-Cask whose URL is the absolute local ZIP. It must not be used as a public
-Release or copied into the public tap.
+Cask whose URL is the absolute local ZIP into the installed `soundadam/local`
+tap checkout when available. It must not be used as a public Release or copied
+into the public tap.
 
 The commands are compile/test gates only. They do not authenticate, perform MFA, start a vendor service, use a VPN/TUN, alter routing/DNS/PF, push, or release.

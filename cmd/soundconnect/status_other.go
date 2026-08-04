@@ -20,6 +20,12 @@ func startRuntimeStatusServer(string, func() runtimeStatusSnapshot) (*runtimeSta
 
 func (server *runtimeStatusServer) Close() error { return nil }
 
+func (server *runtimeStatusServer) SetStop(func()) {}
+
 func queryRuntimeStatus(string) (runtimeStatusSnapshot, error) {
 	return runtimeStatusSnapshot{}, errors.New("runtime status is not supported on this platform")
+}
+
+func requestRuntimeDisconnect(string) error {
+	return errors.New("runtime control is not supported on this platform")
 }

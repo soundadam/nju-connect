@@ -6,7 +6,7 @@ cask "soundconnect" do
 
   url "__URL__"
   name "soundconnect"
-  desc "Design-preview menu-bar client and native campus-connectivity CLI"
+  desc "Menu-bar controller and native campus-connectivity CLI"
   homepage "__HOMEPAGE__"
 
   depends_on macos: :ventura
@@ -24,11 +24,11 @@ cask "soundconnect" do
   ]
 
   caveats <<~EOS
-    This cask is an ad-hoc signed, non-notarized preview from the maintainer's
+    This cask is an ad-hoc signed, non-notarized release from the maintainer's
     personal tap. Homebrew preserves quarantine and this cask does not bypass
-    Gatekeeper. VPN setup and service controls remain a design preview. Campus
-    speed testing uses the bundled native soundconnect CLI and the separately
-    installed librespeed-cli-soundconnect Homebrew Formula.
+    Gatekeeper. VPN setup, connection control, runtime status, and campus speed
+    testing use the bundled native soundconnect CLI. Speed measurements also
+    require the separately installed librespeed-cli-soundconnect Homebrew Formula.
 
     The source repository is private and the bundled software is proprietary.
     Public availability of the archive does not grant a license: install or use

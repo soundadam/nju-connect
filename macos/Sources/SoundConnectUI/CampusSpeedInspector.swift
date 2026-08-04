@@ -125,23 +125,32 @@ private struct BandwidthSection: View {
                 bandwidthAction
             }
 
-            let maximum = max((speedTest.downloadSamples + speedTest.uploadSamples).max() ?? 0, 1)
+            let maximum = max(
+                max(
+                    speedTest.downloadSamples.max() ?? 0,
+                    speedTest.uploadSamples.max() ?? 0
+                ),
+                1
+            )
             ZStack {
                 if speedTest.downloadSamples.isEmpty && speedTest.uploadSamples.isEmpty {
                     Text(uiText("No bandwidth samples yet.", "尚无带宽样本"))
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                 } else {
-                    MetricSparkline(
-                        samples: speedTest.downloadSamples,
-                        color: .blue,
-                        minimum: 0,
-                        maximum: maximum
-                    )
-                    .padding(.horizontal, 5)
-                    MetricSparkline(
-                        samples: speedTest.uploadSamples,
-                        color: .green,
+                    MetricSparklineChart(
+                        series: [
+                            MetricSparklineSeries(
+                                id: "download",
+                                samples: speedTest.downloadSamples,
+                                color: .blue
+                            ),
+                            MetricSparklineSeries(
+                                id: "upload",
+                                samples: speedTest.uploadSamples,
+                                color: .green
+                            ),
+                        ],
                         minimum: 0,
                         maximum: maximum
                     )
@@ -243,49 +252,6 @@ private struct MetricValue: View {
                 .monospacedDigit()
         }
         .font(.caption2)
-    }
-}
-
-struct MetricSparkline: View {
-    let samples: [Double]
-    let color: Color
-    var minimum: Double?
-    var maximum: Double?
-
-    init(
-        samples: [Double],
-        color: Color,
-        minimum: Double? = nil,
-        maximum: Double? = nil
-    ) {
-        self.samples = samples
-        self.color = color
-        self.minimum = minimum
-        self.maximum = maximum
-    }
-
-    var body: some View {
-        GeometryReader { geometry in
-            let lowerBound = minimum ?? samples.min() ?? 0
-            let upperBound = maximum ?? samples.max() ?? (lowerBound + 1)
-            let span = max(upperBound - lowerBound, 1)
-
-            Path { path in
-                for (index, sample) in samples.enumerated() {
-                    let x = samples.count <= 1
-                        ? geometry.size.width / 2
-                        : geometry.size.width * CGFloat(index) / CGFloat(samples.count - 1)
-                    let normalized = (sample - lowerBound) / span
-                    let y = geometry.size.height - (geometry.size.height * CGFloat(normalized))
-                    if index == 0 {
-                        path.move(to: CGPoint(x: x, y: y))
-                    } else {
-                        path.addLine(to: CGPoint(x: x, y: y))
-                    }
-                }
-            }
-            .stroke(color, style: StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
-        }
     }
 }
 

@@ -18,6 +18,15 @@ import (
 )
 
 const maximumRuntimeStatus = 16 << 10
+const maximumRuntimeControl = 1024
+
+type runtimeControlRequest struct {
+	Command string `json:"command"`
+}
+
+type runtimeControlResponse struct {
+	OK bool `json:"ok"`
+}
 
 func runtimeStatusPath(root string) string {
 	digest := sha256.Sum256([]byte(filepath.Clean(root)))
@@ -26,12 +35,23 @@ func runtimeStatusPath(root string) string {
 }
 
 type runtimeStatusServer struct {
-	listener *net.UnixListener
-	path     string
-	fileInfo os.FileInfo
-	snapshot func() runtimeStatusSnapshot
-	done     chan struct{}
-	once     sync.Once
+	listener  *net.UnixListener
+	path      string
+	fileInfo  os.FileInfo
+	snapshot  func() runtimeStatusSnapshot
+	done      chan struct{}
+	once      sync.Once
+	controlMu sync.RWMutex
+	stop      func()
+}
+
+func (server *runtimeStatusServer) SetStop(stop func()) {
+	if server == nil {
+		return
+	}
+	server.controlMu.Lock()
+	server.stop = stop
+	server.controlMu.Unlock()
 }
 
 func startRuntimeStatusServer(path string, snapshot func() runtimeStatusSnapshot) (*runtimeStatusServer, error) {
@@ -135,10 +155,62 @@ func (server *runtimeStatusServer) serve() {
 		if err != nil {
 			return
 		}
+		_ = connection.SetReadDeadline(time.Now().Add(25 * time.Millisecond))
+		var control runtimeControlRequest
+		readErr := json.NewDecoder(io.LimitReader(connection, maximumRuntimeControl)).Decode(&control)
+		if readErr == nil && control.Command == "disconnect" {
+			server.controlMu.RLock()
+			stop := server.stop
+			server.controlMu.RUnlock()
+			_ = connection.SetWriteDeadline(time.Now().Add(2 * time.Second))
+			if stop != nil {
+				_ = json.NewEncoder(connection).Encode(runtimeControlResponse{OK: true})
+				stop()
+			} else {
+				_ = json.NewEncoder(connection).Encode(runtimeControlResponse{OK: false})
+			}
+			_ = connection.Close()
+			continue
+		}
+		if readErr == nil {
+			_ = connection.Close()
+			continue
+		}
 		_ = connection.SetWriteDeadline(time.Now().Add(2 * time.Second))
 		_ = json.NewEncoder(connection).Encode(server.snapshot())
 		_ = connection.Close()
 	}
+}
+
+func requestRuntimeDisconnect(path string) error {
+	directoryInfo, err := os.Lstat(filepath.Dir(path))
+	if errors.Is(err, os.ErrNotExist) {
+		return errRuntimeNotRunning
+	}
+	if err != nil || validateRuntimeDirectory(directoryInfo) != nil {
+		return errors.New("inspect runtime status directory")
+	}
+	info, err := os.Lstat(path)
+	if errors.Is(err, os.ErrNotExist) {
+		return errRuntimeNotRunning
+	}
+	if err != nil || validateRuntimeSocket(info) != nil {
+		return errors.New("inspect runtime status socket")
+	}
+	connection, err := net.DialTimeout("unix", path, 2*time.Second)
+	if err != nil {
+		return errRuntimeNotRunning
+	}
+	defer connection.Close()
+	_ = connection.SetDeadline(time.Now().Add(2 * time.Second))
+	if err := json.NewEncoder(connection).Encode(runtimeControlRequest{Command: "disconnect"}); err != nil {
+		return errors.New("send runtime disconnect request")
+	}
+	var response runtimeControlResponse
+	if err := json.NewDecoder(io.LimitReader(connection, maximumRuntimeControl)).Decode(&response); err != nil || !response.OK {
+		return errors.New("runtime rejected disconnect request")
+	}
+	return nil
 }
 
 func (server *runtimeStatusServer) Close() error {

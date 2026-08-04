@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"errors"
 	"io"
 	"os"
 	"path/filepath"
@@ -25,6 +26,20 @@ func TestVersion(t *testing.T) {
 	}
 	if stderr.Len() != 0 {
 		t.Fatalf("stderr = %q", stderr.String())
+	}
+}
+
+func TestReadSecretLine(t *testing.T) {
+	secret, err := readSecretLine(strings.NewReader("local-secret\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer credential.Clear(secret)
+	if string(secret) != "local-secret" {
+		t.Fatalf("secret = %q", secret)
+	}
+	if _, err := readSecretLine(strings.NewReader("\n")); !errors.Is(err, credential.ErrEmptyCredential) {
+		t.Fatalf("empty secret error = %v", err)
 	}
 }
 

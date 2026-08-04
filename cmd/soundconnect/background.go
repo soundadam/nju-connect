@@ -167,19 +167,23 @@ func runNativeRuntimeChild(arguments []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 	defer application.Close()
-	statusServer, err := startRuntimeStatusServer(handoff.StatusPath, statusTracker.Snapshot)
+	statusServer, err := startRuntimeStatusServer(handoff.StatusPath, func() runtimeStatusSnapshot {
+		statusTracker.UpdateTraffic(application.Traffic(), time.Now())
+		return statusTracker.Snapshot()
+	})
 	if err != nil {
 		fmt.Fprintln(stderr, "background runtime: status_control_failed")
 		return 1
 	}
 	defer statusServer.Close()
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	statusServer.SetStop(stop)
 	profile := application.Profile()
 	fmt.Fprintf(stdout, "native-profile: %s\n", profile.ID)
 	fmt.Fprintf(stdout, "native-evidence: %s\n", profile.Evidence)
 	fmt.Fprintf(stdout, "native-security: encrypted=%t peer_verified=%t\n", profile.Security.Encrypted, profile.Security.PeerVerified)
 
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
 	return reportNativeRunResult(ctx, application.Run(ctx), stderr)
 }
 

@@ -13,12 +13,30 @@ struct TrafficRow: View {
                 Spacer(minLength: 0)
             }
 
-            HStack(spacing: 9) {
-                Text(uiText("Live", "实时"))
-                    .frame(width: 42, alignment: .leading)
-                Label(formatRate(model.rates.downloadBytesPerSecond), systemImage: "arrow.down")
-                Label(formatRate(model.rates.uploadBytesPerSecond), systemImage: "arrow.up")
+            HStack {
+                Text(uiText("Live traffic", "实时流量"))
+                    .fontWeight(.medium)
                 Spacer(minLength: 0)
+                Text(uiText("Last 30 sec", "最近 30 秒"))
+                    .font(.system(size: 9))
+                    .foregroundStyle(.tertiary)
+            }
+
+            HStack(spacing: 6) {
+                TrafficRateChart(
+                    title: uiText("Download", "下载"),
+                    systemImage: "arrow.down",
+                    rate: model.rates.downloadBytesPerSecond,
+                    samples: model.downloadRateSamples,
+                    color: .blue
+                )
+                TrafficRateChart(
+                    title: uiText("Upload", "上传"),
+                    systemImage: "arrow.up",
+                    rate: model.rates.uploadBytesPerSecond,
+                    samples: model.uploadRateSamples,
+                    color: .green
+                )
             }
 
             HStack(spacing: 9) {
@@ -47,5 +65,36 @@ struct TrafficRow: View {
                 "本次下载 \(formatBytes(model.downloadBytes))，上传 \(formatBytes(model.uploadBytes))，活跃连接 \(model.activeConnections)"
             )
         )
+    }
+}
+
+private struct TrafficRateChart: View {
+    let title: String
+    let systemImage: String
+    let rate: Double
+    let samples: [Double]
+    let color: Color
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            HStack(spacing: 3) {
+                Label(title, systemImage: systemImage)
+                    .foregroundStyle(color)
+                Spacer(minLength: 2)
+                Text(formatRate(rate))
+                    .fontWeight(.medium)
+                    .foregroundStyle(.secondary)
+            }
+            MetricSparklineChart(
+                series: [MetricSparklineSeries(id: title, samples: samples, color: color)],
+                minimum: 0,
+                maximum: max(samples.max() ?? 0, 1)
+            )
+            .frame(height: 40)
+        }
+        .padding(.horizontal, 6)
+        .padding(.vertical, 5)
+        .background(.quaternary.opacity(0.28), in: RoundedRectangle(cornerRadius: 6))
+        .accessibilityLabel("\(title), \(formatRate(rate))")
     }
 }

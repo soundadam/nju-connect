@@ -20,9 +20,13 @@ struct DashboardView: View {
                 TrafficRow(model: model)
             }
         }
-        .frame(width: 292)
-        .onAppear {
-            speedTest.beginLatencySamplingIfNeeded()
-        }
-    }
+		.frame(width: 292)
+		.onAppear {
+			model.setTrafficMonitoringActive(true)
+			speedTest.beginLatencySamplingIfNeeded()
+		}
+		.onDisappear {
+			model.setTrafficMonitoringActive(false)
+		}
+	}
 }
