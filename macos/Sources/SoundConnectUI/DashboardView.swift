@@ -7,6 +7,9 @@ struct DashboardView: View {
     @State private var schoolAccount = ""
     @State private var vpnPassword = ""
     @State private var setupValidationMessage: String?
+    @State private var showsLatencyDetails = false
+    @State private var isHoveringLatencyControl = false
+    @State private var isHoveringLatencyDetails = false
     @FocusState private var codeFieldFocused: Bool
     @FocusState private var setupFieldFocused: SetupField?
 
@@ -59,6 +62,9 @@ struct DashboardView: View {
             }
         }
         .frame(width: 292)
+        .onAppear {
+            speedTest.beginLatencySamplingIfNeeded()
+        }
     }
 
     private var header: some View {
@@ -342,9 +348,9 @@ struct DashboardView: View {
                     Button(uiText("Cancel", "取消"), action: speedTest.cancel)
                         .controlSize(.small)
                 } else if speedTest.phase == .componentRequired {
-                    Button(uiText("Install", "安装组件"), action: speedTest.confirmComponentDownload)
+                    Button(uiText("Dependency Missing", "缺少依赖"), action: speedTest.confirmComponentDownload)
                         .controlSize(.small)
-                        .disabled(speedTest.componentSize <= 0)
+                        .disabled(speedTest.componentInstallSource.isEmpty)
                         .help(componentDownloadDescription)
                 } else if speedTest.phase == .connectionRequired,
                           speedTest.canRetryAfterConnection
@@ -356,23 +362,38 @@ struct DashboardView: View {
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                 } else {
-                    if let compactSpeedResult {
-                        Text(compactSpeedResult)
-                            .font(.system(size: 10))
-                            .foregroundStyle(.secondary)
-                            .monospacedDigit()
-                            .lineLimit(1)
+                    Button {
+                        showsLatencyDetails = true
+                    } label: {
+                        HStack(spacing: 3) {
+                            if speedTest.isLatencySampling, !speedTest.latencySamples.isEmpty {
+                                ProgressView()
+                                    .controlSize(.mini)
+                            }
+                            Text(uiText("Ping \(compactLatency)", "延迟 \(compactLatency)"))
+                                .monospacedDigit()
+                        }
+                        .frame(minWidth: 58, alignment: .trailing)
                     }
-
-                    Button(action: speedTest.start) {
-                        if compactSpeedResult == nil {
-                            Text(speedTest.phase == .failed ? uiText("Retry", "重试") : uiText("Test", "测速"))
+                    .buttonStyle(.plain)
+                    .onHover { hovering in
+                        isHoveringLatencyControl = hovering
+                        if hovering {
+                            showsLatencyDetails = true
                         } else {
-                            Image(systemName: "arrow.clockwise")
+                            scheduleLatencyDetailDismissal()
                         }
                     }
+                    .popover(isPresented: $showsLatencyDetails, arrowEdge: .bottom) {
+                        latencyDetails
+                    }
+                    .help(uiText("Show recent latency", "查看近期延迟"))
+
+                    Button(action: speedTest.start) {
+                        Text(uiText("Speed", "测速"))
+                    }
                     .controlSize(.small)
-                    .help(compactSpeedResult == nil ? speedTest.message : uiText("Test again", "再测一次"))
+                    .help(compactSpeedResult == nil ? uiText("Run bandwidth test", "进行带宽测速") : uiText("Run bandwidth test again", "再次进行带宽测速"))
                 }
             }
             .frame(width: 116, alignment: .trailing)
@@ -380,6 +401,84 @@ struct DashboardView: View {
         .padding(.horizontal, 12)
         .frame(height: 32)
         .help(speedTestHelp)
+    }
+
+    private var compactLatency: String {
+        guard let latency = speedTest.latencyMs else { return "— ms" }
+        return "\(String(format: "%.0f", latency)) ms"
+    }
+
+    private var latencyDetails: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 8) {
+                Text(latencyRouteTitle)
+                    .font(.headline)
+                    .foregroundStyle(speedTest.reachabilityState == .failed ? Color.secondary : Color.green)
+                Spacer(minLength: 12)
+                Text(compactLatency)
+                    .font(.headline)
+                    .monospacedDigit()
+            }
+
+            LatencySparkline(samples: speedTest.latencySamples)
+                .frame(height: 48)
+
+            if let minimum = speedTest.latencySamples.min(),
+               let maximum = speedTest.latencySamples.max(),
+               let median = speedTest.latencyMs
+            {
+                Text(String(format: uiText("min %.0f · median %.0f · max %.0f ms", "最低 %.0f · 中位 %.0f · 最高 %.0f ms"), minimum, median, maximum))
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .monospacedDigit()
+            } else {
+                Text(uiText("No successful samples yet.", "尚无成功样本"))
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+
+            if let compactSpeedResult {
+                Text(uiText("Last speed test: \(compactSpeedResult)", "最近测速：\(compactSpeedResult)"))
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+
+            HStack {
+                Text(uiText("Last 10 HTTP probes", "最近 10 次 HTTP 探测"))
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+                Spacer()
+                Button(uiText("Refresh", "刷新")) {
+                    speedTest.beginLatencySampling(force: true)
+                }
+                .controlSize(.small)
+                .disabled(speedTest.isLatencySampling || speedTest.isRunning)
+            }
+        }
+        .padding(12)
+        .frame(width: 244)
+        .onHover { hovering in
+            isHoveringLatencyDetails = hovering
+            if !hovering {
+                scheduleLatencyDetailDismissal()
+            }
+        }
+    }
+
+    private func scheduleLatencyDetailDismissal() {
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(600))
+            guard !isHoveringLatencyControl, !isHoveringLatencyDetails else { return }
+            showsLatencyDetails = false
+        }
+    }
+
+    private var latencyRouteTitle: String {
+        switch speedTest.route {
+        case "direct": return uiText("→ Direct", "→ 直连")
+        case "soundconnect": return uiText("→ Via VPN", "→ 经 VPN")
+        default: return uiText("Latency", "延迟")
+        }
     }
 
     private var liveSpeedResult: String? {
@@ -403,11 +502,13 @@ struct DashboardView: View {
     }
 
     private var componentDownloadDescription: String {
-        guard speedTest.componentSize > 0 else { return uiText("Component unavailable", "组件当前不可用") }
-        let source = speedTest.componentInstallSource == "bundled"
-            ? uiText("Bundled with app", "随 App 提供")
-            : uiText("Download required", "需要下载")
-        return "\(speedTest.componentVersion) · \(ByteCountFormatter.string(fromByteCount: speedTest.componentSize, countStyle: .file)) · \(source)"
+        guard !speedTest.componentInstallSource.isEmpty else {
+            return uiText(
+                "Install with: brew install soundadam/local/librespeed-cli-soundconnect",
+                "请运行：brew install soundadam/local/librespeed-cli-soundconnect"
+            )
+        }
+        return "\(speedTest.componentVersion) · Homebrew"
     }
 
     private var statusColor: Color {
@@ -491,5 +592,34 @@ struct DashboardView: View {
         setupValidationMessage = nil
         model.completeSetup(schoolAccount: account, vpnPassword: vpnPassword)
         vpnPassword.removeAll(keepingCapacity: false)
+    }
+}
+
+private struct LatencySparkline: View {
+    let samples: [Double]
+
+    var body: some View {
+        GeometryReader { geometry in
+            let minimum = samples.min() ?? 0
+            let maximum = samples.max() ?? 1
+            let span = max(maximum - minimum, 1)
+            Path { path in
+                for (index, sample) in samples.enumerated() {
+                    let x = samples.count <= 1
+                        ? geometry.size.width / 2
+                        : geometry.size.width * CGFloat(index) / CGFloat(samples.count - 1)
+                    let normalized = (sample - minimum) / span
+                    let y = geometry.size.height - (geometry.size.height * CGFloat(normalized))
+                    if index == 0 {
+                        path.move(to: CGPoint(x: x, y: y))
+                    } else {
+                        path.addLine(to: CGPoint(x: x, y: y))
+                    }
+                }
+            }
+            .stroke(.blue, style: StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
+        }
+        .padding(.vertical, 5)
+        .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 6))
     }
 }

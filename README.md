@@ -37,11 +37,12 @@ soundconnect runtime may provide its owner-only loopback SOCKS5 path; otherwise
 the command asks the user to connect soundconnect and retry. Results always
 identify the selected path and never infer it from connection state alone.
 
-Release archives carry the pinned helper as a checksum-verified, non-executable
-resource. After confirmation, soundconnect copies the matching architecture to
-its owner-only component directory and enables it there; packaged App and CLI
-users do not depend on a separate network download. Development builds without
-the bundled resource retain the explicit HTTPS download path. JSON and
+LibreSpeed remains a separate third-party executable. On macOS, the preview
+Cask depends on the `librespeed-cli-soundconnect` Formula, which builds the
+pinned upstream source with the explicit SOCKS and structured-progress patches
+required by soundconnect. The App neither embeds nor downloads this helper.
+Linux packaging remains a separate decision; developers may point to a
+compatible absolute helper path with `SOUNDCONNECT_LIBRESPEED_CLI`. JSON and
 redirected modes fail closed instead of waiting for input. Useful machine
 interfaces are:
 
@@ -86,6 +87,6 @@ simulated design preview while campus speed testing uses the real bundled CLI,
 and that ad-hoc signing is not Apple notarization.
 
 For an explicitly local, dirty-tree preview, use
-`make package-macos-local VERSION=X.Y.Z`. It records `source_dirty=true`, embeds
-the campus speed-test helper, writes a `file://` Cask into
+`make package-macos-local VERSION=X.Y.Z`. It records `source_dirty=true`, writes
+a `file://` Cask into
 `~/workspaces/soundadam/homebrew-local`, and never publishes an artifact.

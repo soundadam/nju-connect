@@ -138,7 +138,13 @@ make macos-preview UI_LANGUAGE=zh-Hans
 ```
 
 预览窗口顶部的 `Speed test` 选择器可固定展示待测速、探测、下载、上传、完成和
-失败状态；启动时默认停在 `Download`，便于直接检查测速中的单行 UI。
+失败状态。启动时默认停在 `Idle`：测速栏显示最近三次轻量 HTTP 探测的中位延迟；
+点击毫秒值可查看最近十个样本的折线、最小值、中位数、最大值和当前路径。
+
+真实菜单栏面板每次打开时会在缓存超过 10 秒后自动采集三个样本，样本间隔
+400 ms。单行右侧明确分为 `Ping 16 ms` 与 `Speed`：前者 hover 时打开缓存的
+延迟折线，后者才运行完整带宽测速。hover 本身不产生网络请求；主动刷新位于延迟
+详情浮层，从而避免鼠标经过时反复探测。
 
 预览窗口顶部的“状态”菜单可以切换所有主要页面。默认不加编译条件时，运行的是菜单栏面板：
 
@@ -156,8 +162,8 @@ swift run
 ## Homebrew 预览包
 
 仓库根目录的 `scripts/package_macos_release.zsh` 会生成包含菜单栏 App 和
-通用架构 CLI 的 Cask ZIP。校园测速通过真实 CLI 执行，固定版本测速组件作为
-只读资源随 App 提供，用户确认后才校验并安装到 Application Support；不依赖
-单独的公网组件下载。当前仍只允许按“设计预览”发布：VPN 设置和服务控制使用
+通用架构 CLI 的 Cask ZIP。校园测速通过真实 CLI 执行；LibreSpeed helper 作为
+独立第三方 Homebrew Formula 安装，不打入 App，也不由 App 下载。当前仍只允许
+按“设计预览”发布：VPN 设置和服务控制使用
 模拟状态，产物使用 ad-hoc 签名且未经过 Apple notarization。Cask 和 Release
 说明必须保留这些边界，不能把可构建或可安装表述为生产可用。

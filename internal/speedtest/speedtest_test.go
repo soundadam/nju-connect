@@ -243,32 +243,26 @@ func TestComponentInstallVerifiesAndPublishesAtomically(t *testing.T) {
 	}
 }
 
-func TestComponentInstallUsesVerifiedBundledAssetWithoutNetwork(t *testing.T) {
-	payload := []byte("bundled synthetic executable payload")
-	digest := sha256.Sum256(payload)
-	bundledPath := filepath.Join(t.TempDir(), "librespeed-cli")
-	if err := os.WriteFile(bundledPath, payload, 0o755); err != nil {
+func TestComponentManagerUsesExternalHelperWithoutDownload(t *testing.T) {
+	externalPath := filepath.Join(t.TempDir(), "librespeed-cli")
+	if err := os.WriteFile(externalPath, []byte("external helper"), 0o755); err != nil {
 		t.Fatal(err)
 	}
 	manager := ComponentManager{
-		Root: filepath.Join(t.TempDir(), "components"), BundledPath: bundledPath,
+		Root: filepath.Join(t.TempDir(), "components"), ExternalPath: externalPath,
 		Asset: ComponentAsset{
 			Version: "test", HelperVersion: HelperVersion, OS: runtime.GOOS, Architecture: runtime.GOARCH,
-			URL: "https://invalid.example/component", Size: int64(len(payload)), SHA256: hex.EncodeToString(digest[:]),
+			URL: "", Size: 1, SHA256: strings.Repeat("a", 64),
 		},
-		Client: &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
-			t.Fatal("bundled install attempted a network request")
-			return nil, errors.New("unexpected network request")
-		})},
 	}
-	if status := manager.Status(); !status.DownloadReady || status.InstallSource != "bundled" {
+	if status := manager.Status(); !status.Installed || !status.DownloadReady || status.InstallSource != "homebrew" || status.Path != externalPath {
 		t.Fatalf("status = %#v", status)
-	}
-	if err := manager.Install(context.Background(), nil); err != nil {
-		t.Fatal(err)
 	}
 	if err := manager.Validate(); err != nil {
 		t.Fatal(err)
+	}
+	if manager.ExecutablePath() != externalPath {
+		t.Fatalf("executable path = %q", manager.ExecutablePath())
 	}
 }
 
@@ -358,10 +352,4 @@ func containsPair(values []string, first, second string) bool {
 		}
 	}
 	return false
-}
-
-type roundTripFunc func(*http.Request) (*http.Response, error)
-
-func (function roundTripFunc) RoundTrip(request *http.Request) (*http.Response, error) {
-	return function(request)
 }

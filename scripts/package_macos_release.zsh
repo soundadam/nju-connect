@@ -55,20 +55,7 @@ mkdir -p -- \
   "${contents_root}/MacOS" \
   "${contents_root}/Helpers" \
   "${contents_root}/Resources/third_party_licenses" \
-  "${contents_root}/Resources/speedtest_component_source" \
   "$release_dir"
-
-readonly component_build_root="${stage_root}/component-build"
-"${repo_root}/scripts/build_speedtest_component.sh" "$component_build_root"
-readonly component_version="$(plutil -extract component_version raw -o - "${component_build_root}/component-manifest.json")"
-readonly helper_version="$(plutil -extract helper_version raw -o - "${component_build_root}/component-manifest.json")"
-for arch in arm64 amd64; do
-  component_destination="${contents_root}/Resources/campus-speed/${component_version}/${arch}"
-  mkdir -p -- "$component_destination"
-  install -m 0644 "${component_build_root}/librespeed-cli-${arch}" \
-    "${component_destination}/librespeed-cli.component"
-done
-cp -R "${component_build_root}/source/." "${contents_root}/Resources/speedtest_component_source/"
 
 swift build \
   --package-path "${repo_root}/macos" \
@@ -104,9 +91,6 @@ install -m 0644 "${repo_root}/LICENSE" "${contents_root}/Resources/LICENSE"
 install -m 0644 "${repo_root}/THIRD_PARTY_NOTICES" "${contents_root}/Resources/THIRD_PARTY_NOTICES"
 install -m 0644 "${repo_root}/packaging/licenses/librespeed-cli-LGPL-3.0.txt" \
   "${contents_root}/Resources/third_party_licenses/librespeed-cli-LGPL-3.0.txt"
-install -m 0644 "${repo_root}/patches/librespeed-cli-v1.0.13-progress-json.patch" \
-  "${repo_root}/patches/librespeed-cli-v1.0.13-socks5.patch" \
-  "${contents_root}/Resources/speedtest_component_source/"
 
 typeset -A copied_license_paths
 while IFS='|' read -r module_path module_dir; do
@@ -163,9 +147,8 @@ readonly release_notes_path="${release_dir}/soundconnect-${version}-release-note
   print -- "signature=ad-hoc"
   print -- "notarized=false"
   print -- "ui_backend=design-preview"
-  print -- "campus_speed_component=bundled"
-  print -- "campus_speed_component_version=${component_version}"
-  print -- "campus_speed_helper_version=${helper_version}"
+  print -- "campus_speed_helper=external-homebrew-formula"
+  print -- "campus_speed_helper_formula=librespeed-cli-soundconnect"
   print -- "license=proprietary; authorized users only"
 } > "$manifest_path"
 
@@ -177,7 +160,7 @@ readonly release_notes_path="${release_dir}/soundconnect-${version}-release-note
   print -- "Release boundary:"
   print
   print -- "- VPN setup and service controls still use simulated state; campus speed testing uses the bundled CLI."
-  print -- "- The verified campus speed-test helper is bundled and installed locally after explicit confirmation."
+  print -- "- Campus speed testing requires the separate librespeed-cli-soundconnect Homebrew Formula."
   print -- "- The app and CLI are ad-hoc signed and are not Apple-notarized."
   print -- "- The source repository is private and the software is proprietary; public download does not grant a license."
   print -- "- The Cask does not remove quarantine or bypass Gatekeeper."

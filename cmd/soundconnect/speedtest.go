@@ -18,12 +18,12 @@ import (
 )
 
 var (
-	speedtestStdin       io.Reader = os.Stdin
-	speedtestIsTerminal            = func() bool { return term.IsTerminal(int(os.Stdin.Fd())) }
-	speedtestAsset                 = speedtest.DefaultComponentAsset
-	speedtestBundledPath           = bundledSpeedtestComponentPath
-	speedtestHTTPClient            = func() *http.Client { return nil }
-	speedtestProbe                 = speedtest.ProbeReachability
+	speedtestStdin        io.Reader = os.Stdin
+	speedtestIsTerminal             = func() bool { return term.IsTerminal(int(os.Stdin.Fd())) }
+	speedtestAsset                  = speedtest.DefaultComponentAsset
+	speedtestExternalPath           = externalSpeedtestHelperPath
+	speedtestHTTPClient             = func() *http.Client { return nil }
+	speedtestProbe                  = speedtest.ProbeReachability
 )
 
 func signalContext() (context.Context, context.CancelFunc) {
@@ -71,12 +71,10 @@ func runSpeedtest(arguments []string, stdout, stderr io.Writer) int {
 		status := manager.Status()
 		if status.DownloadReady {
 			action := "Download"
-			if status.InstallSource == "bundled" {
-				action = "Install the bundled"
-			}
 			fmt.Fprintf(stderr, "Campus speed testing requires component %s (%d bytes). %s component now? [y/N] ", status.HelperVersion, status.DownloadSize, action)
 		} else {
-			fmt.Fprintf(stderr, "Campus speed-test component %s is not installed and has not been published.\n", status.HelperVersion)
+			fmt.Fprintln(stderr, "Campus speed testing requires the external librespeed-cli-soundconnect helper.")
+			fmt.Fprintln(stderr, "On macOS install it with: brew install soundadam/local/librespeed-cli-soundconnect")
 			return 1
 		}
 		answer, readErr := bufio.NewReader(speedtestStdin).ReadString('\n')
@@ -100,7 +98,7 @@ func runSpeedtest(arguments []string, stdout, stderr io.Writer) int {
 		sink = nil
 	}
 	service := speedtest.Service{
-		HelperPath: manager.Path(), Store: speedtest.Store{Path: speedtest.LastResultPath(paths.Root)},
+		HelperPath: manager.ExecutablePath(), Store: speedtest.Store{Path: speedtest.LastResultPath(paths.Root)},
 		Probe: speedtestProbe,
 		RuntimeStatus: func() (speedtest.RuntimeState, error) {
 			snapshot, err := queryRuntimeStatus(runtimeStatusPath(paths.Root))
@@ -234,6 +232,10 @@ func runSpeedtestComponent(arguments []string, stdout, stderr io.Writer) int {
 				return 1
 			}
 		}
+		if manager.Status().InstallSource == "" {
+			return writeSpeedtestError(false, *jsonEvents, stdout, stderr, "component_install_failed",
+				errors.New("install the external helper with: brew install soundadam/local/librespeed-cli-soundconnect"), 1)
+		}
 		sink := plainSpeedtestSink(stderr)
 		if *jsonEvents {
 			sink = jsonSpeedtestSink(stdout)
@@ -305,7 +307,7 @@ func newSpeedtestComponentManager(root string) speedtest.ComponentManager {
 	asset := speedtestAsset()
 	return speedtest.ComponentManager{
 		Root: speedtest.ComponentRoot(root), Asset: asset,
-		BundledPath: speedtestBundledPath(asset), Client: speedtestHTTPClient(),
+		ExternalPath: speedtestExternalPath(), Client: speedtestHTTPClient(),
 	}
 }
 

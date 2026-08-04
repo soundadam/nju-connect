@@ -59,11 +59,22 @@ helper ignores ambient proxy variables, disables telemetry and sharing, and
 receives an explicit `socks5h://` argument only for that fallback. This does not
 change runtime readiness or make speed-test state another VPN state authority.
 
-The helper is downloaded after user confirmation into an owner-only component
-directory and validated by exact version, architecture, size, and SHA-256. It
-remains a separately executed LGPL component. The menu-bar UI consumes the
-CLI's versioned NDJSON progress stream and stores only the atomic schema-v1
-latest result, without per-second samples or the client public IP.
+The helper remains a separately executed LGPL component. On macOS it is built
+and installed by the `librespeed-cli-soundconnect` Homebrew Formula; the App
+does not embed it or invoke Homebrew itself. The Formula pins the upstream
+source and applies the explicit SOCKS and structured-progress patches. The
+menu-bar UI consumes the CLI's versioned NDJSON progress stream and stores only
+the atomic schema-v1 latest result, without per-second samples or the client
+public IP.
+
+Installation-time compilation is a local-preview delivery choice, not an LGPL
+requirement. Before distributing a prebuilt helper, maintain its modified source
+as a separate LGPL-covered source repository or corresponding-source archive,
+including the upstream version, license, complete patches, and reproducible
+build instructions. Do not copy that source into the proprietary soundconnect
+module or relicense it under the soundconnect license. A future Homebrew bottle
+may install a prebuilt helper from that source, but only after its source and
+binary provenance, signing, and release assets are independently verifiable.
 
 The two token types remain deliberately incompatible:
 
@@ -189,13 +200,12 @@ git diff --check
 
 For standalone macOS CLI archives, \`make cli-release VERSION=vMAJOR.MINOR.PATCH\`
 requires a clean worktree, builds cgo-enabled amd64 and arm64 binaries with the
-version injected, includes the license, notice index, linked dependency license
-texts, the matching checksum-pinned campus speed-test helper, and its
-corresponding source bundle, then writes SHA-256 checksums. The helper remains a
-separate process and is installed into owner-only Application Support only after
-explicit confirmation. Packaged CLI and App artifacts therefore do not depend
-on a separate component Release. Signing, notarization, tag creation, and
-publication remain separate release gates.
+version injected, includes the license, notice index, and linked dependency
+license texts, then writes SHA-256 checksums. LibreSpeed remains an external
+third-party process. The macOS Cask depends on the separately installed
+`librespeed-cli-soundconnect` Formula; Linux distribution remains a separate
+packaging decision. Signing, notarization, tag creation, and publication remain
+separate release gates.
 
 \`make package-macos-local VERSION=MAJOR.MINOR.PATCH\` is a local-preview path.
 It may package a dirty tree, records that fact in the manifest, and renders a

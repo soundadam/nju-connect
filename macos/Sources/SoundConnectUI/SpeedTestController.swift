@@ -116,16 +116,22 @@ final class SpeedTestController: ObservableObject, @unchecked Sendable {
     @Published private(set) var route: String?
     @Published private(set) var reachabilityState: CampusReachabilityState = .unknown
     @Published private(set) var latencyMs: Double?
+    @Published private(set) var latencySamples: [Double] = []
+    @Published private(set) var isLatencySampling = false
     @Published private(set) var activeMeasurementPhase: String?
     @Published private(set) var canRetryAfterConnection = false
 
     private var process: Process?
     private var cancelRequested = false
     private var pollTask: Task<Void, Never>?
+    private var latencySamplingTask: Task<Void, Never>?
+    private var lastLatencySamplingAt: Date?
     private var outputBuffer = Data()
     private let decoder: JSONDecoder
+    private let isPreviewMode: Bool
 
     init(loadRuntimeState: Bool = true, previewState: CampusSpeedTestPreviewState? = nil) {
+        isPreviewMode = previewState != nil
         decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
         decoder.dateDecodingStrategy = .iso8601
@@ -133,7 +139,6 @@ final class SpeedTestController: ObservableObject, @unchecked Sendable {
             applyPreviewState(previewState)
         } else if loadRuntimeState {
             refreshInitialState()
-            refreshReachability()
         }
     }
 
@@ -143,7 +148,8 @@ final class SpeedTestController: ObservableObject, @unchecked Sendable {
 
     func applyPreviewState(_ state: CampusSpeedTestPreviewState) {
         resetTransientState()
-        latencyMs = 8
+        latencySamples = [19, 17, 16, 15, 15, 16]
+        latencyMs = 16
         route = "direct"
         switch state {
         case .idle:
@@ -194,13 +200,9 @@ final class SpeedTestController: ObservableObject, @unchecked Sendable {
                 self.componentSize = status.downloadSize
                 self.componentInstallSource = status.installSource ?? ""
                 self.phase = .componentRequired
-                if status.installSource == "bundled" {
-                    self.message = uiText("Install the bundled component before the first test.", "首次测速需要安装随 App 提供的组件")
-                } else {
-                    self.message = status.downloadReady
-                        ? uiText("Download the optional component before the first test.", "首次测速需要下载可选组件")
-                        : uiText("Speed-test component unavailable.", "测速组件当前不可用")
-                }
+                self.message = status.downloadReady
+                    ? uiText("The external speed-test helper is ready.", "外部测速依赖已就绪")
+                    : uiText("Install librespeed-cli-soundconnect with Homebrew first.", "请先通过 Homebrew 安装测速依赖")
             }
         }
     }
@@ -208,9 +210,7 @@ final class SpeedTestController: ObservableObject, @unchecked Sendable {
     func confirmComponentDownload() {
         guard phase == .componentRequired else { return }
         phase = .downloading
-        message = componentInstallSource == "bundled"
-            ? uiText("Installing speed-test component", "正在安装校园测速组件")
-            : uiText("Downloading speed-test component", "正在下载校园测速组件")
+        message = uiText("Installing speed-test helper", "正在安装校园测速依赖")
         launch(arguments: ["speedtest", "component", "install", "--yes", "--json-events"]) { [weak self] code in
             guard let self else { return }
             if code == 0 {
@@ -238,23 +238,82 @@ final class SpeedTestController: ObservableObject, @unchecked Sendable {
         runMeasurement()
     }
 
-    func refreshReachability() {
-        guard !isRunning else { return }
-        reachabilityState = .probing
-        runCapture(arguments: ["speedtest", "probe", "--route", "auto", "--json"]) { [weak self] data, code in
+    func beginLatencySamplingIfNeeded(maxAge: TimeInterval = 10) {
+        guard let lastLatencySamplingAt else {
+            beginLatencySampling()
+            return
+        }
+        guard Date().timeIntervalSince(lastLatencySamplingAt) >= maxAge else { return }
+        beginLatencySampling()
+    }
+
+    func beginLatencySampling(force: Bool = false) {
+        guard !isPreviewMode, !isRunning, !isLatencySampling else { return }
+        if !force, let lastLatencySamplingAt,
+           Date().timeIntervalSince(lastLatencySamplingAt) < 10
+        {
+            return
+        }
+
+        isLatencySampling = true
+        if latencySamples.isEmpty {
+            reachabilityState = .probing
+        }
+        latencySamplingTask = Task { [weak self] in
             guard let self else { return }
-            guard code == 0,
-                  let result = try? self.decoder.decode(CampusProbeResult.self, from: data),
-                  result.schemaVersion == 1,
-                  result.target == "speed.nju.edu.cn"
-            else {
-                self.reachabilityState = code == 127 ? .unknown : .failed
-                self.latencyMs = nil
-                return
+            var successfulSamples = 0
+            for sampleIndex in 0..<3 {
+                guard !Task.isCancelled else { return }
+                let (result, code) = await self.captureLatencyProbe()
+                guard !Task.isCancelled else { return }
+                if let result,
+                   result.schemaVersion == 1,
+                   result.target == "speed.nju.edu.cn"
+                {
+                    if self.route != nil, self.route != result.route {
+                        self.latencySamples.removeAll(keepingCapacity: true)
+                    }
+                    self.route = result.route
+                    self.latencySamples.append(result.latencyMs)
+                    if self.latencySamples.count > 10 {
+                        self.latencySamples.removeFirst(self.latencySamples.count - 10)
+                    }
+                    self.latencyMs = self.medianLatency
+                    self.reachabilityState = self.classifiedReachability(for: self.latencyMs)
+                    self.message = uiText("Campus speed-test route reachable.", "校园测速线路可达")
+                    successfulSamples += 1
+                } else if code == 127, self.latencySamples.isEmpty {
+                    self.reachabilityState = .unknown
+                }
+                if sampleIndex < 2 {
+                    try? await Task.sleep(for: .milliseconds(400))
+                }
             }
-            self.route = result.route
-            self.latencyMs = result.latencyMs
-            self.reachabilityState = result.latencyMs >= 200 ? .slow : .reachable
+            if successfulSamples == 0 {
+                self.reachabilityState = .failed
+                self.latencyMs = nil
+                self.route = nil
+                self.message = uiText("Campus speed-test route unavailable.", "校园测速线路不可达")
+            }
+            self.lastLatencySamplingAt = Date()
+            self.isLatencySampling = false
+            self.latencySamplingTask = nil
+        }
+    }
+
+    func refreshReachability() {
+        beginLatencySampling(force: true)
+    }
+
+    private func captureLatencyProbe() async -> (CampusProbeResult?, Int32) {
+        await withCheckedContinuation { continuation in
+            runCapture(arguments: ["speedtest", "probe", "--route", "auto", "--json"]) { [weak self] data, code in
+                guard let self else {
+                    continuation.resume(returning: (nil, code))
+                    return
+                }
+                continuation.resume(returning: (try? self.decoder.decode(CampusProbeResult.self, from: data), code))
+            }
         }
     }
 
@@ -491,6 +550,9 @@ final class SpeedTestController: ObservableObject, @unchecked Sendable {
     }
 
     private func resetTransientState() {
+        latencySamplingTask?.cancel()
+        latencySamplingTask = nil
+        isLatencySampling = false
         pollTask?.cancel()
         pollTask = nil
         canRetryAfterConnection = false
@@ -499,6 +561,16 @@ final class SpeedTestController: ObservableObject, @unchecked Sendable {
         uploadMbps = nil
         route = nil
         activeMeasurementPhase = nil
+    }
+
+    private var medianLatency: Double? {
+        guard !latencySamples.isEmpty else { return nil }
+        let sorted = latencySamples.sorted()
+        let middle = sorted.count / 2
+        if sorted.count.isMultiple(of: 2) {
+            return (sorted[middle - 1] + sorted[middle]) / 2
+        }
+        return sorted[middle]
     }
 
     private func classifiedReachability(for latencyMs: Double?) -> CampusReachabilityState {

@@ -10,6 +10,7 @@ cask "soundconnect" do
   homepage "__HOMEPAGE__"
 
   depends_on macos: :ventura
+  depends_on formula: "librespeed-cli-soundconnect"
 
   app "soundconnect.app"
   binary "#{appdir}/soundconnect.app/Contents/Helpers/soundconnect"
@@ -26,8 +27,8 @@ cask "soundconnect" do
     This cask is an ad-hoc signed, non-notarized preview from the maintainer's
     personal tap. Homebrew preserves quarantine and this cask does not bypass
     Gatekeeper. VPN setup and service controls remain a design preview. Campus
-    speed testing uses the bundled native CLI and installs its verified bundled
-    helper after explicit confirmation; it does not require a separate download.
+    speed testing uses the bundled native soundconnect CLI and the separately
+    installed librespeed-cli-soundconnect Homebrew Formula.
 
     The source repository is private and the bundled software is proprietary.
     Public availability of the archive does not grant a license: install or use

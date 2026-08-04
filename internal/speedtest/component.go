@@ -43,10 +43,10 @@ type ComponentStatus struct {
 }
 
 type ComponentManager struct {
-	Root        string
-	Asset       ComponentAsset
-	BundledPath string
-	Client      *http.Client
+	Root         string
+	Asset        ComponentAsset
+	ExternalPath string
+	Client       *http.Client
 }
 
 func DefaultComponentAsset() ComponentAsset {
@@ -84,10 +84,17 @@ func (manager ComponentManager) Path() string {
 	return filepath.Join(manager.Root, manager.Asset.Version, manager.Asset.Architecture, HelperName)
 }
 
+func (manager ComponentManager) ExecutablePath() string {
+	if manager.externalReady() == nil {
+		return manager.ExternalPath
+	}
+	return manager.Path()
+}
+
 func (manager ComponentManager) Status() ComponentStatus {
 	status := ComponentStatus{
 		Version: manager.Asset.Version, HelperVersion: manager.Asset.HelperVersion,
-		Architecture: manager.Asset.Architecture, Path: manager.Path(), DownloadSize: manager.Asset.Size,
+		Architecture: manager.Asset.Architecture, Path: manager.ExecutablePath(), DownloadSize: manager.Asset.Size,
 		DownloadReady: manager.installSourceReady() == nil, InstallSource: manager.installSource(),
 	}
 	status.Installed = manager.Validate() == nil
@@ -95,6 +102,9 @@ func (manager ComponentManager) Status() ComponentStatus {
 }
 
 func (manager ComponentManager) Validate() error {
+	if manager.externalReady() == nil {
+		return nil
+	}
 	if err := manager.validateIdentity(); err != nil {
 		return err
 	}
@@ -255,10 +265,8 @@ func (manager ComponentManager) assetReady() error {
 }
 
 func (manager ComponentManager) installSource() string {
-	if manager.BundledPath != "" {
-		if manager.bundledReady() == nil {
-			return "bundled"
-		}
+	if manager.externalReady() == nil {
+		return "homebrew"
 	}
 	if manager.assetReady() == nil {
 		return "download"
@@ -267,39 +275,27 @@ func (manager ComponentManager) installSource() string {
 }
 
 func (manager ComponentManager) installSourceReady() error {
-	if manager.BundledPath != "" {
-		if err := manager.bundledReady(); err == nil {
-			return nil
-		}
+	if manager.externalReady() == nil {
+		return nil
 	}
 	return manager.assetReady()
 }
 
-func (manager ComponentManager) bundledReady() error {
-	if err := manager.validateIdentity(); err != nil {
-		return err
+func (manager ComponentManager) externalReady() error {
+	if manager.ExternalPath == "" || !filepath.IsAbs(manager.ExternalPath) {
+		return errors.New("external campus speed-test helper is unavailable")
 	}
-	if manager.BundledPath == "" {
-		return errors.New("bundled campus speed-test component is unavailable")
-	}
-	info, err := os.Lstat(manager.BundledPath)
+	info, err := os.Lstat(manager.ExternalPath)
 	if err != nil {
-		return fmt.Errorf("inspect bundled campus speed-test component: %w", err)
+		return fmt.Errorf("inspect external campus speed-test helper: %w", err)
 	}
-	if !info.Mode().IsRegular() || info.Size() != manager.Asset.Size {
-		return errors.New("bundled campus speed-test component has invalid file properties")
+	if !info.Mode().IsRegular() || info.Mode().Perm()&0o111 == 0 || info.Mode().Perm()&0o022 != 0 {
+		return errors.New("external campus speed-test helper has unsafe file properties")
 	}
 	return nil
 }
 
 func (manager ComponentManager) openInstallSource(ctx context.Context) (io.Reader, func(), string, error) {
-	if manager.BundledPath != "" && manager.bundledReady() == nil {
-		file, err := os.Open(manager.BundledPath)
-		if err != nil {
-			return nil, func() {}, "", fmt.Errorf("open bundled campus speed-test component: %w", err)
-		}
-		return &contextReader{Context: ctx, Reader: file}, func() { _ = file.Close() }, "installing", nil
-	}
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, manager.Asset.URL, nil)
 	if err != nil {
 		return nil, func() {}, "", fmt.Errorf("prepare campus speed-test component download: %w", err)

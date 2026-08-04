@@ -154,7 +154,7 @@ func installSpeedtestTestDependencies(t *testing.T, root string) {
 	t.Helper()
 	previousPaths := resolveDefaultPaths
 	previousAsset := speedtestAsset
-	previousBundledPath := speedtestBundledPath
+	previousExternalPath := speedtestExternalPath
 	previousHTTP := speedtestHTTPClient
 	previousTerminal := speedtestIsTerminal
 	previousStdin := speedtestStdin
@@ -162,11 +162,11 @@ func installSpeedtestTestDependencies(t *testing.T, root string) {
 	resolveDefaultPaths = func() (config.Paths, error) {
 		return config.Paths{Root: root, Config: filepath.Join(root, "config.toml"), Credential: filepath.Join(root, "credential")}, nil
 	}
-	speedtestBundledPath = func(speedtest.ComponentAsset) string { return "" }
+	speedtestExternalPath = func() string { return "" }
 	t.Cleanup(func() {
 		resolveDefaultPaths = previousPaths
 		speedtestAsset = previousAsset
-		speedtestBundledPath = previousBundledPath
+		speedtestExternalPath = previousExternalPath
 		speedtestHTTPClient = previousHTTP
 		speedtestIsTerminal = previousTerminal
 		speedtestStdin = previousStdin
