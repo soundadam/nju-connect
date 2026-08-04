@@ -124,9 +124,10 @@ func newProtocolProfile(profileID runtime.ProtocolProfileID, rawDial runtime.Com
 	switch profileID {
 	case runtime.ProfileCommunityUTLSCompat:
 		return runtime.NewProtocolTLSDialer(runtime.ProtocolTLSDialerConfig{
-			Dial:        rawDial,
-			ServerName:  serverName,
-			TLSInsecure: tlsInsecure,
+			Dial:             rawDial,
+			ServerName:       serverName,
+			TLSInsecure:      tlsInsecure,
+			BootstrapRootCAs: !tlsInsecure,
 		})
 	case runtime.ProfileEasyConnect767FixedPreface:
 		return runtime.NewEasyConnect767FixedPreface(runtime.EasyConnect767FixedPrefaceConfig{Dial: rawDial})

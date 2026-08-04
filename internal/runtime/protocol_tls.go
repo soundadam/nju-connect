@@ -3,6 +3,7 @@ package runtime
 import (
 	"context"
 	"crypto/rand"
+	"crypto/tls"
 	"crypto/x509"
 	"errors"
 	"io"
@@ -16,10 +17,11 @@ import (
 const emptyRenegotiationSCSV uint16 = 0x00ff
 
 type ProtocolTLSDialerConfig struct {
-	Dial        CommandDialer
-	ServerName  string
-	RootCAs     *x509.CertPool
-	TLSInsecure bool
+	Dial             CommandDialer
+	ServerName       string
+	RootCAs          *x509.CertPool
+	TLSInsecure      bool
+	BootstrapRootCAs bool
 }
 
 // ProtocolTLSDialer implements the community uTLS compatibility profile. It
@@ -30,6 +32,9 @@ type ProtocolTLSDialer struct {
 	random io.Reader
 	now    func() time.Time
 	mu     sync.Mutex
+
+	rootMu        sync.Mutex
+	protocolRoots *x509.CertPool
 }
 
 var _ ProtocolProfile = (*ProtocolTLSDialer)(nil)
@@ -67,6 +72,10 @@ func (dialer *ProtocolTLSDialer) EstablishedDataFraming() EstablishedDataFraming
 }
 
 func (dialer *ProtocolTLSDialer) Dial(ctx context.Context) (net.Conn, error) {
+	rootCAs, err := dialer.rootCAs(ctx)
+	if err != nil {
+		return nil, err
+	}
 	raw, err := dialer.config.Dial(ctx)
 	if err != nil {
 		if raw != nil {
@@ -97,7 +106,7 @@ func (dialer *ProtocolTLSDialer) Dial(ctx context.Context) (net.Conn, error) {
 		clear(clientRandom)
 		return nil, newStageFailure(StageProtocolTLSHandshakeFailed, nil)
 	}
-	connection := utls.UClient(raw, dialer.tlsConfig(), utls.HelloCustom)
+	connection := utls.UClient(raw, dialer.tlsConfig(rootCAs), utls.HelloCustom)
 	if err := connection.ApplyPreset(protocolClientHelloSpec()); err != nil {
 		clear(clientRandom)
 		return nil, newStageFailure(StageProtocolTLSHandshakeFailed, nil)
@@ -169,10 +178,69 @@ func (dialer *ProtocolTLSDialer) ReadInitialDataReply(reader io.Reader) (uint32,
 	return code, nil
 }
 
-func (dialer *ProtocolTLSDialer) tlsConfig() *utls.Config {
+// rootCAs bootstraps the legacy L3IP handshake from a separately verified,
+// modern TLS handshake to the same gateway. Some gateways omit their
+// intermediate certificate only for the legacy EasyConnect ClientHello. Go
+// does not fetch AIA intermediates, so verification otherwise starts failing
+// when that gateway certificate chain rotates even though HTTPS remains valid.
+func (dialer *ProtocolTLSDialer) rootCAs(ctx context.Context) (*x509.CertPool, error) {
+	if dialer.config.TLSInsecure || !dialer.config.BootstrapRootCAs {
+		return dialer.config.RootCAs, nil
+	}
+	dialer.rootMu.Lock()
+	defer dialer.rootMu.Unlock()
+	if dialer.protocolRoots != nil {
+		return dialer.protocolRoots, nil
+	}
+	raw, err := dialer.config.Dial(ctx)
+	if err != nil {
+		if raw != nil {
+			_ = raw.Close()
+		}
+		return nil, newStageFailure(StageUpstreamConnectFailed, nil)
+	}
+	if raw == nil {
+		return nil, newStageFailure(StageUpstreamConnectFailed, nil)
+	}
+	defer raw.Close()
+	stopMonitor := monitorContext(ctx, raw)
+	defer stopMonitor()
+	if err := raw.SetDeadline(protocolDeadline(ctx, dialer.now())); err != nil {
+		return nil, newStageFailure(StageProtocolTLSHandshakeFailed, nil)
+	}
+	connection := tls.Client(raw, &tls.Config{
+		ServerName: dialer.config.ServerName,
+		RootCAs:    dialer.config.RootCAs,
+		MinVersion: tls.VersionTLS12,
+	})
+	if err := connection.HandshakeContext(ctx); err != nil {
+		return nil, newStageFailure(protocolTLSFailureStage(err), nil)
+	}
+	state := connection.ConnectionState()
+	roots, added := protocolRootsFromVerifiedChains(state.VerifiedChains)
+	if !added {
+		return nil, newStageFailure(StageProtocolTLSCertificateFailed, nil)
+	}
+	dialer.protocolRoots = roots
+	return roots, nil
+}
+
+func protocolRootsFromVerifiedChains(chains [][]*x509.Certificate) (*x509.CertPool, bool) {
+	roots := x509.NewCertPool()
+	added := false
+	for _, chain := range chains {
+		for _, certificate := range chain[1:] {
+			roots.AddCert(certificate)
+			added = true
+		}
+	}
+	return roots, added
+}
+
+func (dialer *ProtocolTLSDialer) tlsConfig(rootCAs *x509.CertPool) *utls.Config {
 	return &utls.Config{
 		ServerName:         dialer.config.ServerName,
-		RootCAs:            dialer.config.RootCAs,
+		RootCAs:            rootCAs,
 		InsecureSkipVerify: dialer.config.TLSInsecure, // #nosec G402 -- compatibility downgrade is explicit configuration.
 		MinVersion:         utls.VersionTLS11,
 		MaxVersion:         utls.VersionTLS11,

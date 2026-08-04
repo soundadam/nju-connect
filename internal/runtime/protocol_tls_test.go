@@ -8,6 +8,7 @@ import (
 	"errors"
 	"io"
 	"net"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -150,7 +151,7 @@ func TestCommunityUTLSProfileCertificatePolicyIsExplicitAndScoped(t *testing.T) 
 	if err != nil {
 		t.Fatal(err)
 	}
-	config := profile.tlsConfig()
+	config := profile.tlsConfig(roots)
 	if !config.InsecureSkipVerify || config.ServerName != "vpn.example.edu" || config.RootCAs != roots {
 		t.Fatalf("TLS config = %+v", config)
 	}
@@ -159,6 +160,23 @@ func TestCommunityUTLSProfileCertificatePolicyIsExplicitAndScoped(t *testing.T) 
 	}
 	if got := profile.SecurityProperties(); !got.Encrypted || got.PeerVerified {
 		t.Fatalf("insecure security properties = %+v", got)
+	}
+}
+
+func TestProtocolRootsComeFromVerifiedHTTPSChainWithoutTrustingLeaf(t *testing.T) {
+	leaf := &x509.Certificate{Raw: []byte("leaf cert"), RawSubject: []byte("leaf")}
+	intermediate := &x509.Certificate{Raw: []byte("intermediate cert"), RawSubject: []byte("intermediate")}
+	root := &x509.Certificate{Raw: []byte("root cert"), RawSubject: []byte("root")}
+	pool, added := protocolRootsFromVerifiedChains([][]*x509.Certificate{{leaf, intermediate, root}})
+	if !added {
+		t.Fatal("verified HTTPS chain produced no protocol roots")
+	}
+	want := [][]byte{[]byte("intermediate"), []byte("root")}
+	if got := pool.Subjects(); !slices.EqualFunc(got, want, bytes.Equal) {
+		t.Fatalf("protocol root subjects = %q, want %q", got, want)
+	}
+	if pool, added := protocolRootsFromVerifiedChains([][]*x509.Certificate{{leaf}}); added || len(pool.Subjects()) != 0 {
+		t.Fatal("leaf-only verified chain was promoted to a protocol root")
 	}
 }
 
