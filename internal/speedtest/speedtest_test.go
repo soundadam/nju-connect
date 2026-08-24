@@ -98,7 +98,9 @@ func TestRunHelperUsesPinnedArgumentsAndExplicitProxy(t *testing.T) {
 	helper, argsPath := fakeHelper(t)
 	result, err := runHelper(context.Background(), helperRunOptions{
 		Path: helper, Route: RouteSoundConnect, SOCKSListen: "127.0.0.1:1081",
-		Timeout: time.Second, VersionTimeout: time.Second, StartedAt: time.Unix(100, 0),
+		// Generous timeouts: the fake helper exits immediately, but race-mode
+		// process startup latency must not expire the measurement window.
+		Timeout: 30 * time.Second, VersionTimeout: 30 * time.Second, StartedAt: time.Unix(100, 0),
 		Now: func() time.Time { return time.Unix(120, 0) },
 	})
 	if err != nil {
@@ -133,7 +135,7 @@ func TestRunHelperUsesPinnedArgumentsAndExplicitProxy(t *testing.T) {
 func TestRunHelperDirectDoesNotPassProxy(t *testing.T) {
 	helper, argsPath := fakeHelper(t)
 	_, err := runHelper(context.Background(), helperRunOptions{
-		Path: helper, Route: RouteDirect, Timeout: time.Second, VersionTimeout: time.Second,
+		Path: helper, Route: RouteDirect, Timeout: 30 * time.Second, VersionTimeout: 30 * time.Second,
 		StartedAt: time.Unix(100, 0), Now: func() time.Time { return time.Unix(120, 0) },
 	})
 	if err != nil {
