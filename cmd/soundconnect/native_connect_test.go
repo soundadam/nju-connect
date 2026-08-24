@@ -213,7 +213,7 @@ func TestNativeConnectReturnsActionableRenewalWithoutReauthentication(t *testing
 	var stderr bytes.Buffer
 	code := reportNativeRunResult(context.Background(),
 		&runtime.RenewalRequired{Reason: runtime.RenewalGatewayRejected}, &stderr)
-	if code != 1 || stderr.String() != "renewal_required: run connect again to reauthenticate\n" {
+	if code != 1 || stderr.String() != "renewal_required: run \"soundconnect connect\" to sign in again\n" {
 		t.Fatalf("exit=%d stderr=%q", code, stderr.String())
 	}
 }

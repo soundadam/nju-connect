@@ -4,6 +4,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"os"
@@ -137,6 +138,37 @@ func TestStatusWatchRequiresJSON(t *testing.T) {
 	if code := runStatus([]string{"--watch"}, &stdout, &stderr); code != 2 ||
 		stdout.Len() != 0 || stderr.String() != "status --watch requires --json\n" {
 		t.Fatalf("exit=%d stdout=%q stderr=%q", code, stdout.String(), stderr.String())
+	}
+}
+
+func TestConnectGuidesUserWhenRuntimeIsAlreadyActive(t *testing.T) {
+	root := t.TempDir()
+	paths := config.Paths{Root: root, Config: filepath.Join(root, "config.toml"), Credential: filepath.Join(root, "credential")}
+	previous := resolveDefaultPaths
+	resolveDefaultPaths = func() (config.Paths, error) { return paths, nil }
+	t.Cleanup(func() { resolveDefaultPaths = previous })
+
+	tracker := newRuntimeStatusTracker(runtime.ProfileCommunityUTLSCompat)
+	server, err := startRuntimeStatusServer(runtimeStatusPath(root), tracker.Snapshot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer server.Close()
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	code := runNativeConnectContext(context.Background(), nil, &stdout, &stderr,
+		func(nativeapp.SessionConfig) (nativeApplicationSession, error) {
+			t.Fatal("session factory was reached while a runtime is active")
+			return nil, nil
+		}, nil)
+	if code != 1 {
+		t.Fatalf("exit = %d, stderr = %q", code, stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "already running") ||
+		!strings.Contains(stderr.String(), `"soundconnect disconnect"`) ||
+		!strings.Contains(stderr.String(), `"soundconnect status"`) {
+		t.Fatalf("stderr = %q", stderr.String())
 	}
 }
 

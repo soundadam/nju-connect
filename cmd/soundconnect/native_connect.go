@@ -76,6 +76,10 @@ func runNativeConnectContext(
 		return 1
 	}
 	if err := ensureNoActiveRuntime(runtimeStatusPath(paths.Root)); err != nil {
+		if errors.Is(err, errRuntimeAlreadyActive) {
+			fmt.Fprintln(stderr, `soundconnect is already running; run "soundconnect status" to inspect it or "soundconnect disconnect" to stop it`)
+			return 1
+		}
 		fmt.Fprintf(stderr, "prepare runtime status: %v\n", err)
 		return 1
 	}
@@ -191,7 +195,7 @@ func reportNativeRunResult(ctx context.Context, err error, stderr io.Writer) int
 		return 0
 	}
 	if errors.Is(err, runtime.ErrRenewalRequired) {
-		fmt.Fprintln(stderr, "renewal_required: run connect again to reauthenticate")
+		fmt.Fprintln(stderr, `renewal_required: run "soundconnect connect" to sign in again`)
 		return 1
 	}
 	var failure *runtime.TransportFailure

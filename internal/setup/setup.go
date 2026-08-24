@@ -23,7 +23,7 @@ func Save(paths config.Paths, configured config.Config, store credential.Store, 
 		return err
 	}
 
-	password, err := read("soundconnect password: ")
+	password, err := read("VPN password: ")
 	if err != nil {
 		return fmt.Errorf("read password: %w", err)
 	}

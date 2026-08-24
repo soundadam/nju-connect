@@ -15,7 +15,10 @@ import (
 
 const runtimeStatusSchema = 1
 
-var errRuntimeNotRunning = errors.New("native runtime is not running")
+var (
+	errRuntimeNotRunning    = errors.New("native runtime is not running")
+	errRuntimeAlreadyActive = errors.New("another native runtime is already active")
+)
 
 type runtimeTrafficStatus struct {
 	SessionStartedAt   *time.Time `json:"session_started_at,omitempty"`
@@ -123,7 +126,7 @@ func runtimeStatusObserver(base nativeapp.ObserverFuncs, tracker *runtimeStatusT
 func ensureNoActiveRuntime(path string) error {
 	_, err := queryRuntimeStatus(path)
 	if err == nil {
-		return errors.New("another native runtime is already active")
+		return errRuntimeAlreadyActive
 	}
 	if errors.Is(err, errRuntimeNotRunning) {
 		return nil
