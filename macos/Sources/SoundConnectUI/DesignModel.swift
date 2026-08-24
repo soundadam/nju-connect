@@ -21,7 +21,7 @@ enum DesignScenario: String, CaseIterable, Identifiable, Hashable {
         case .waitingMFA: return uiText("Verification", "等待验证码")
         case .connected: return uiText("Connected", "已连接")
         case .reconnecting: return uiText("Reconnecting", "重连中")
-        case .credentialRejected: return uiText("Auth failed", "账号失败")
+        case .credentialRejected: return uiText("Authentication failed", "认证失败")
         case .transportFailed: return uiText("Transport failed", "传输失败")
         }
     }
@@ -283,17 +283,17 @@ final class DesignModel: ObservableObject {
         guard let controller else {
             scenario = enabled ? .connecting : .stopped
             actionMessage = enabled
-                ? uiText("Starting service", "已请求启动服务")
-                : uiText("Stopping service", "已请求停止服务")
+                ? uiText("Starting service…", "已请求启动服务")
+                : uiText("Stopping service…", "已请求停止服务")
             return
         }
         isPerformingAction = true
         if enabled {
             scenario = .connecting
-            actionMessage = uiText("Starting service", "正在启动服务")
+            actionMessage = uiText("Starting service…", "正在启动服务")
             startConnection(using: controller)
         } else {
-            actionMessage = uiText("Stopping service", "正在停止服务")
+            actionMessage = uiText("Stopping service…", "正在停止服务")
             controller.disconnect { [weak self] result in
                 guard let self else { return }
                 self.isPerformingAction = false
@@ -332,7 +332,7 @@ final class DesignModel: ObservableObject {
         isPerformingAction = true
         isReconfiguringCredentials = false
         scenario = .connecting
-        actionMessage = uiText("Saving credentials", "正在保存账号与密码")
+        actionMessage = uiText("Saving credentials…", "正在保存账号与密码")
         controller.saveConfiguration(
             server: gatewayServer,
             account: schoolAccount,
@@ -368,7 +368,7 @@ final class DesignModel: ObservableObject {
     func retry() {
         scenario = .connecting
         isServiceEnabled = true
-        actionMessage = uiText("Reconnecting", "已请求重新连接")
+        actionMessage = uiText("Reconnecting…", "已请求重新连接")
         if let controller {
             isPerformingAction = true
             startConnection(using: controller)

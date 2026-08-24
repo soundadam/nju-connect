@@ -55,6 +55,11 @@ protocol SoundConnectControlling: AnyObject {
     func disconnect(completion: @escaping SoundConnectActionCompletion)
 }
 
+let missingHelperMessage = uiText(
+    "The bundled soundconnect CLI is missing. Reinstall soundconnect to restore it.",
+    "找不到内置 soundconnect CLI，请重新安装应用以修复"
+)
+
 private struct RuntimeStatusPayload: Decodable {
 	struct Traffic: Decodable {
 		let uploadBytes: UInt64
@@ -117,7 +122,7 @@ final class SoundConnectController: SoundConnectControlling {
     func startStatusMonitoring(completion: @escaping SoundConnectStatusCompletion) {
         stopStatusMonitoring()
         guard let executable = helperExecutable() else {
-            completion(.failure(SoundConnectBackendError(message: "soundconnect helper not found.")))
+            completion(.failure(SoundConnectBackendError(message: missingHelperMessage)))
             return
         }
         let child = Process()
@@ -165,7 +170,7 @@ final class SoundConnectController: SoundConnectControlling {
         completion: @escaping SoundConnectActionCompletion
     ) {
         guard let executable = helperExecutable() else {
-            completion(.failure(SoundConnectBackendError(message: "soundconnect helper not found.")))
+            completion(.failure(SoundConnectBackendError(message: missingHelperMessage)))
             return
         }
         let child = Process()
@@ -206,7 +211,7 @@ final class SoundConnectController: SoundConnectControlling {
             return
         }
         guard let executable = helperExecutable() else {
-            completion(.failure(SoundConnectBackendError(message: "soundconnect helper not found.")))
+            completion(.failure(SoundConnectBackendError(message: missingHelperMessage)))
             return
         }
         let child = Process()
@@ -364,7 +369,7 @@ final class SoundConnectController: SoundConnectControlling {
         completion: @escaping @MainActor @Sendable (Data, Int32, String) -> Void
     ) {
         guard let executable = helperExecutable() else {
-            completion(Data(), 127, "soundconnect helper not found.")
+            completion(Data(), 127, missingHelperMessage)
             return
         }
         let child = Process()
