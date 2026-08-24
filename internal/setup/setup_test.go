@@ -23,7 +23,7 @@ func TestSaveWritesPrivateConfigAndCredential(t *testing.T) {
 	readCount := 0
 	err = Save(paths, configured, store, func(prompt string) ([]byte, error) {
 		readCount++
-		if prompt != "soundconnect password: " {
+		if prompt != "VPN password: " {
 			t.Fatalf("prompt = %q", prompt)
 		}
 		return []byte("synthetic-password"), nil

@@ -199,7 +199,7 @@ private struct BandwidthSection: View {
             Button(
                 campusSpeedResultText(for: speedTest) == nil
                     ? uiText("Start", "开始")
-                    : uiText("Again", "再测"),
+                    : uiText("Test Again", "再测一次"),
                 action: speedTest.start
             )
             .controlSize(.small)

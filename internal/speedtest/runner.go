@@ -61,7 +61,9 @@ func (service Service) Run(ctx context.Context, requested Route, sink ProgressSi
 		service.Timeout = 60 * time.Second
 	}
 	if service.VersionTimeout <= 0 {
-		service.VersionTimeout = 5 * time.Second
+		// The first execution of a freshly installed helper can be delayed
+		// by several seconds of on-demand malware scanning on macOS.
+		service.VersionTimeout = 15 * time.Second
 	}
 	selected, socks, err := service.selectRoute(ctx, requested, sink)
 	if err != nil {
@@ -226,6 +228,9 @@ func runHelper(ctx context.Context, options helperRunOptions) (Result, error) {
 	if versionErr != nil {
 		if ctx.Err() != nil || errors.Is(versionCtx.Err(), context.Canceled) {
 			return cancelledResult(options), nil
+		}
+		if errors.Is(versionCtx.Err(), context.DeadlineExceeded) {
+			return Result{}, errors.New("campus speed-test component did not respond to a version check; try again")
 		}
 		return Result{}, fmt.Errorf("inspect campus speed-test component: %w", versionErr)
 	}

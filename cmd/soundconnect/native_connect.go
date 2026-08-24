@@ -52,12 +52,11 @@ func runNativeConnectContext(
 	newSession nativeSessionFactory,
 	startBackground nativeBackgroundStarter,
 ) int {
-	flags := flag.NewFlagSet("connect", flag.ContinueOnError)
-	flags.SetOutput(stderr)
+	flags := flag.NewFlagSet("soundconnect connect", flag.ContinueOnError)
 	background := flags.Bool("background", false, "continue the native runtime as a detached process after authentication")
 	verificationCodeStdin := flags.Bool("verification-code-stdin", false, "read the verification code from standard input without requiring a terminal")
-	if err := flags.Parse(arguments); err != nil {
-		return 2
+	if code, ok := parseFlags(flags, arguments, stdout, stderr); !ok {
+		return code
 	}
 	if flags.NArg() != 0 {
 		fmt.Fprintln(stderr, "connect accepts no positional arguments")
@@ -77,6 +76,10 @@ func runNativeConnectContext(
 		return 1
 	}
 	if err := ensureNoActiveRuntime(runtimeStatusPath(paths.Root)); err != nil {
+		if errors.Is(err, errRuntimeAlreadyActive) {
+			fmt.Fprintln(stderr, `soundconnect is already running; run "soundconnect status" to inspect it or "soundconnect disconnect" to stop it`)
+			return 1
+		}
 		fmt.Fprintf(stderr, "prepare runtime status: %v\n", err)
 		return 1
 	}
@@ -192,7 +195,7 @@ func reportNativeRunResult(ctx context.Context, err error, stderr io.Writer) int
 		return 0
 	}
 	if errors.Is(err, runtime.ErrRenewalRequired) {
-		fmt.Fprintln(stderr, "renewal_required: run connect again to reauthenticate")
+		fmt.Fprintln(stderr, `renewal_required: run "soundconnect connect" to sign in again`)
 		return 1
 	}
 	var failure *runtime.TransportFailure

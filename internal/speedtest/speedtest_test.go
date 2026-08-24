@@ -98,7 +98,9 @@ func TestRunHelperUsesPinnedArgumentsAndExplicitProxy(t *testing.T) {
 	helper, argsPath := fakeHelper(t)
 	result, err := runHelper(context.Background(), helperRunOptions{
 		Path: helper, Route: RouteSoundConnect, SOCKSListen: "127.0.0.1:1081",
-		Timeout: time.Second, VersionTimeout: time.Second, StartedAt: time.Unix(100, 0),
+		// Generous timeouts: the fake helper exits immediately, but race-mode
+		// process startup latency must not expire the measurement window.
+		Timeout: 30 * time.Second, VersionTimeout: 30 * time.Second, StartedAt: time.Unix(100, 0),
 		Now: func() time.Time { return time.Unix(120, 0) },
 	})
 	if err != nil {
@@ -133,7 +135,7 @@ func TestRunHelperUsesPinnedArgumentsAndExplicitProxy(t *testing.T) {
 func TestRunHelperDirectDoesNotPassProxy(t *testing.T) {
 	helper, argsPath := fakeHelper(t)
 	_, err := runHelper(context.Background(), helperRunOptions{
-		Path: helper, Route: RouteDirect, Timeout: time.Second, VersionTimeout: time.Second,
+		Path: helper, Route: RouteDirect, Timeout: 30 * time.Second, VersionTimeout: 30 * time.Second,
 		StartedAt: time.Unix(100, 0), Now: func() time.Time { return time.Unix(120, 0) },
 	})
 	if err != nil {
@@ -171,6 +173,39 @@ exec sleep 10
 		}
 	} else if !errors.Is(err, context.Canceled) {
 		t.Fatalf("error = %v", err)
+	}
+}
+
+func TestRunHelperReportsVersionCheckTimeoutWithoutRawSignalError(t *testing.T) {
+	root := t.TempDir()
+	helper := filepath.Join(root, "librespeed-cli")
+	script := `#!/bin/sh
+exec sleep 10
+`
+	if err := os.WriteFile(helper, []byte(script), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	_, err := runHelper(context.Background(), helperRunOptions{
+		Path: helper, Route: RouteDirect, Timeout: time.Second, VersionTimeout: 50 * time.Millisecond,
+		StartedAt: time.Unix(100, 0), Now: func() time.Time { return time.Unix(101, 0) },
+	})
+	if err == nil || !strings.Contains(err.Error(), "did not respond to a version check") {
+		t.Fatalf("error = %v", err)
+	}
+	if strings.Contains(err.Error(), "signal") {
+		t.Fatalf("raw process signal leaked into user-facing error: %v", err)
+	}
+}
+
+func TestExitCodesReserveTwoForUsageErrors(t *testing.T) {
+	for status, want := range map[Status]int{
+		StatusSuccess:   0,
+		StatusFailed:    1,
+		StatusCancelled: 130,
+	} {
+		if got := (Result{Status: status}).ExitCode(); got != want {
+			t.Fatalf("ExitCode(%s) = %d, want %d", status, got, want)
+		}
 	}
 }
 

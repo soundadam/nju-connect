@@ -122,7 +122,7 @@ func prepareRuntimeSocket(path string) error {
 	connection, dialErr := net.DialTimeout("unix", path, 250*time.Millisecond)
 	if dialErr == nil {
 		_ = connection.Close()
-		return errors.New("another native runtime is already active")
+		return errRuntimeAlreadyActive
 	}
 	current, err := os.Lstat(path)
 	if err != nil || !os.SameFile(current, info) {

@@ -200,20 +200,20 @@ final class SpeedTestController: ObservableObject, @unchecked Sendable {
         case .probing:
             phase = .probing
             reachabilityState = .probing
-            message = uiText("Probing direct campus route", "正在验证校内直连路径")
+            message = uiText("Probing direct campus route…", "正在验证校内直连路径")
         case .download:
             phase = .measuring
             reachabilityState = .reachable
             activeMeasurementPhase = "download"
             downloadMbps = 53
-            message = uiText("Measuring download speed", "正在测量下载速度")
+            message = uiText("Measuring download speed…", "正在测量下载速度")
         case .upload:
             phase = .measuring
             reachabilityState = .reachable
             activeMeasurementPhase = "upload"
             downloadMbps = 53
             uploadMbps = 12
-            message = uiText("Measuring upload speed", "正在测量上传速度")
+            message = uiText("Measuring upload speed…", "正在测量上传速度")
         case .completed:
             phase = .completed
             reachabilityState = .reachable
@@ -234,7 +234,7 @@ final class SpeedTestController: ObservableObject, @unchecked Sendable {
         resetTransientState()
         phase = .probing
         reachabilityState = .probing
-        message = uiText("Preparing campus speed test", "正在准备校园测速")
+        message = uiText("Preparing campus speed test…", "正在准备校园测速")
         inspectComponent { [weak self] status in
             guard let self else { return }
             if status.installed {
@@ -254,7 +254,7 @@ final class SpeedTestController: ObservableObject, @unchecked Sendable {
     func confirmComponentDownload() {
         guard phase == .componentRequired else { return }
         phase = .downloading
-        message = uiText("Installing speed-test helper", "正在安装校园测速依赖")
+        message = uiText("Installing speed-test helper…", "正在安装校园测速依赖")
         launch(arguments: ["speedtest", "component", "install", "--yes", "--json-events"]) { [weak self] code in
             guard let self else { return }
             if code == 0 {
@@ -414,7 +414,7 @@ final class SpeedTestController: ObservableObject, @unchecked Sendable {
         phase = .probing
         reachabilityState = .probing
         activeMeasurementPhase = nil
-        message = uiText("Probing campus speed-test route", "正在探测校园测速线路")
+        message = uiText("Probing campus speed-test route…", "正在探测校园测速线路")
         launch(arguments: ["speedtest", "campus", "--route", "auto", "--json-events"]) { [weak self] code in
             guard let self else { return }
             if code != 0, self.phase != .connectionRequired, self.phase != .completed {
@@ -428,7 +428,7 @@ final class SpeedTestController: ObservableObject, @unchecked Sendable {
         guard process == nil else { return }
         guard let executable = helperExecutable() else {
             phase = .failed
-            message = uiText("soundconnect helper not found.", "找不到 soundconnect 后端")
+            message = missingHelperMessage
             return
         }
         let child = Process()
@@ -490,8 +490,8 @@ final class SpeedTestController: ObservableObject, @unchecked Sendable {
             phase = .downloading
             componentProgress = event.progress ?? componentProgress
             message = event.phase == "installing"
-                ? uiText("Installing speed-test component", "正在安装校园测速组件")
-                : uiText("Downloading speed-test component", "正在下载校园测速组件")
+                ? uiText("Installing speed-test component…", "正在安装校园测速组件")
+                : uiText("Downloading speed-test component…", "正在下载校园测速组件")
         case "measurement_progress":
             route = event.route ?? route
             switch event.phase {
@@ -500,22 +500,22 @@ final class SpeedTestController: ObservableObject, @unchecked Sendable {
                 reachabilityState = .probing
                 activeMeasurementPhase = nil
                 message = event.route == "soundconnect"
-                    ? uiText("Probing soundconnect route", "正在验证 soundconnect 路径")
-                    : uiText("Probing direct campus route", "正在验证校内直连路径")
+                    ? uiText("Probing soundconnect route…", "正在验证 soundconnect 路径")
+                    : uiText("Probing direct campus route…", "正在验证校内直连路径")
             case "download":
                 phase = .measuring
                 reachabilityState = .reachable
                 activeMeasurementPhase = "download"
                 downloadMbps = event.mbps
                 appendMeasurement(event.mbps, to: &downloadSamples)
-                message = uiText("Measuring download speed", "正在测量下载速度")
+                message = uiText("Measuring download speed…", "正在测量下载速度")
             case "upload":
                 phase = .measuring
                 reachabilityState = .reachable
                 activeMeasurementPhase = "upload"
                 uploadMbps = event.mbps
                 appendMeasurement(event.mbps, to: &uploadSamples)
-                message = uiText("Measuring upload speed", "正在测量上传速度")
+                message = uiText("Measuring upload speed…", "正在测量上传速度")
             default:
                 phase = .measuring
             }
@@ -564,7 +564,7 @@ final class SpeedTestController: ObservableObject, @unchecked Sendable {
                 let connected = await self.readConnectedStatus()
                 if connected {
                     self.canRetryAfterConnection = true
-                    self.message = uiText("soundconnect connected. Ready to retry.", "soundconnect 已连接，可以重新测速")
+                    self.message = uiText("soundconnect is connected. Ready to retry.", "soundconnect 已连接，可以重新测速")
                     return
                 }
                 try? await Task.sleep(for: .seconds(1))

@@ -41,18 +41,27 @@ func runSpeedtest(arguments []string, stdout, stderr io.Writer) int {
 			return runSpeedtestProbe(arguments[1:], stdout, stderr)
 		case "campus":
 			arguments = arguments[1:]
+		default:
+			if !strings.HasPrefix(arguments[0], "-") {
+				fmt.Fprintf(stderr, "unknown speedtest command %q\n", arguments[0])
+				fmt.Fprintln(stderr, "speedtest commands are campus (default), component, and last")
+				return 2
+			}
 		}
 	}
-	flags := flag.NewFlagSet("speedtest campus", flag.ContinueOnError)
-	flags.SetOutput(stderr)
+	flags := flag.NewFlagSet("soundconnect speedtest campus", flag.ContinueOnError)
 	routeValue := flags.String("route", string(speedtest.RouteAuto), "auto, direct, or soundconnect")
 	asJSON := flags.Bool("json", false, "print one JSON result")
 	jsonEvents := flags.Bool("json-events", false, "emit versioned NDJSON events")
-	if err := flags.Parse(arguments); err != nil {
+	if code, ok := parseFlags(flags, arguments, stdout, stderr); !ok {
+		return code
+	}
+	if flags.NArg() != 0 {
+		fmt.Fprintln(stderr, "speedtest campus accepts no positional arguments")
 		return 2
 	}
-	if flags.NArg() != 0 || (*asJSON && *jsonEvents) {
-		fmt.Fprintln(stderr, "speedtest campus accepts no positional arguments and JSON modes are mutually exclusive")
+	if *asJSON && *jsonEvents {
+		fmt.Fprintln(stderr, "--json and --json-events are mutually exclusive")
 		return 2
 	}
 	route, err := speedtest.ParseRoute(*routeValue)
@@ -70,8 +79,7 @@ func runSpeedtest(arguments []string, stdout, stderr io.Writer) int {
 		}
 		status := manager.Status()
 		if status.DownloadReady {
-			action := "Download"
-			fmt.Fprintf(stderr, "Campus speed testing requires component %s (%d bytes). %s component now? [y/N] ", status.HelperVersion, status.DownloadSize, action)
+			fmt.Fprintf(stderr, "Campus speed testing requires the %s component (%d bytes). Download it now? [y/N] ", status.HelperVersion, status.DownloadSize)
 		} else {
 			fmt.Fprintln(stderr, "Campus speed testing requires the external librespeed-cli-soundconnect helper.")
 			fmt.Fprintln(stderr, "On macOS install it with: brew install soundadam/local/librespeed-cli-soundconnect")
@@ -134,11 +142,14 @@ func runSpeedtest(arguments []string, stdout, stderr io.Writer) int {
 }
 
 func runSpeedtestProbe(arguments []string, stdout, stderr io.Writer) int {
-	flags := flag.NewFlagSet("speedtest probe", flag.ContinueOnError)
-	flags.SetOutput(stderr)
+	flags := flag.NewFlagSet("soundconnect speedtest probe", flag.ContinueOnError)
 	routeValue := flags.String("route", string(speedtest.RouteAuto), "auto, direct, or soundconnect")
 	asJSON := flags.Bool("json", false, "print JSON")
-	if err := flags.Parse(arguments); err != nil || flags.NArg() != 0 {
+	if code, ok := parseFlags(flags, arguments, stdout, stderr); !ok {
+		return code
+	}
+	if flags.NArg() != 0 {
+		fmt.Fprintln(stderr, "speedtest probe accepts no positional arguments")
 		return 2
 	}
 	route, err := speedtest.ParseRoute(*routeValue)
@@ -186,15 +197,19 @@ func runSpeedtestComponent(arguments []string, stdout, stderr io.Writer) int {
 		return 2
 	}
 	command := arguments[0]
-	flags := flag.NewFlagSet("speedtest component "+command, flag.ContinueOnError)
-	flags.SetOutput(stderr)
+	flags := flag.NewFlagSet("soundconnect speedtest component "+command, flag.ContinueOnError)
 	asJSON := flags.Bool("json", false, "print JSON")
 	yes := flags.Bool("yes", false, "install without a terminal prompt")
 	jsonEvents := flags.Bool("json-events", false, "emit versioned NDJSON events")
-	if err := flags.Parse(arguments[1:]); err != nil {
+	if code, ok := parseFlags(flags, arguments[1:], stdout, stderr); !ok {
+		return code
+	}
+	if flags.NArg() != 0 {
+		fmt.Fprintf(stderr, "speedtest component %s accepts no positional arguments\n", command)
 		return 2
 	}
-	if flags.NArg() != 0 || (*asJSON && *jsonEvents) {
+	if *asJSON && *jsonEvents {
+		fmt.Fprintln(stderr, "--json and --json-events are mutually exclusive")
 		return 2
 	}
 	paths, err := commandPaths()
@@ -205,6 +220,7 @@ func runSpeedtestComponent(arguments []string, stdout, stderr io.Writer) int {
 	switch command {
 	case "status":
 		if *yes || *jsonEvents {
+			fmt.Fprintln(stderr, "speedtest component status supports only --json")
 			return 2
 		}
 		status := manager.Status()
@@ -220,6 +236,7 @@ func runSpeedtestComponent(arguments []string, stdout, stderr io.Writer) int {
 		return 0
 	case "install":
 		if *asJSON {
+			fmt.Fprintln(stderr, "speedtest component install streams progress; use --json-events instead of --json")
 			return 2
 		}
 		if !*yes {
@@ -254,15 +271,18 @@ func runSpeedtestComponent(arguments []string, stdout, stderr io.Writer) int {
 }
 
 func runSpeedtestLast(arguments []string, stdout, stderr io.Writer) int {
-	flags := flag.NewFlagSet("speedtest last", flag.ContinueOnError)
-	flags.SetOutput(stderr)
+	flags := flag.NewFlagSet("soundconnect speedtest last", flag.ContinueOnError)
 	asJSON := flags.Bool("json", false, "print JSON")
-	if err := flags.Parse(arguments); err != nil || flags.NArg() != 0 {
+	if code, ok := parseFlags(flags, arguments, stdout, stderr); !ok {
+		return code
+	}
+	if flags.NArg() != 0 {
+		fmt.Fprintln(stderr, "speedtest last accepts no positional arguments")
 		return 2
 	}
 	paths, err := commandPaths()
 	if err != nil {
-		return 1
+		return writeSpeedtestError(*asJSON, false, stdout, stderr, "local_state", err, 1)
 	}
 	result, err := (speedtest.Store{Path: speedtest.LastResultPath(paths.Root)}).Load()
 	if err != nil {

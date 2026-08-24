@@ -15,7 +15,10 @@ import (
 
 const runtimeStatusSchema = 1
 
-var errRuntimeNotRunning = errors.New("native runtime is not running")
+var (
+	errRuntimeNotRunning    = errors.New("native runtime is not running")
+	errRuntimeAlreadyActive = errors.New("another native runtime is already active")
+)
 
 type runtimeTrafficStatus struct {
 	SessionStartedAt   *time.Time `json:"session_started_at,omitempty"`
@@ -123,7 +126,7 @@ func runtimeStatusObserver(base nativeapp.ObserverFuncs, tracker *runtimeStatusT
 func ensureNoActiveRuntime(path string) error {
 	_, err := queryRuntimeStatus(path)
 	if err == nil {
-		return errors.New("another native runtime is already active")
+		return errRuntimeAlreadyActive
 	}
 	if errors.Is(err, errRuntimeNotRunning) {
 		return nil
@@ -132,12 +135,11 @@ func ensureNoActiveRuntime(path string) error {
 }
 
 func runStatus(arguments []string, stdout, stderr io.Writer) int {
-	flags := flag.NewFlagSet("status", flag.ContinueOnError)
-	flags.SetOutput(stderr)
+	flags := flag.NewFlagSet("soundconnect status", flag.ContinueOnError)
 	asJSON := flags.Bool("json", false, "print JSON")
 	watch := flags.Bool("watch", false, "stream JSON status once per second")
-	if err := flags.Parse(arguments); err != nil {
-		return 2
+	if code, ok := parseFlags(flags, arguments, stdout, stderr); !ok {
+		return code
 	}
 	if flags.NArg() != 0 {
 		fmt.Fprintln(stderr, "status accepts no positional arguments")
@@ -210,10 +212,9 @@ func writeRuntimeStatus(stdout io.Writer, snapshot runtimeStatusSnapshot, asJSON
 }
 
 func runDisconnect(arguments []string, stdout, stderr io.Writer) int {
-	flags := flag.NewFlagSet("disconnect", flag.ContinueOnError)
-	flags.SetOutput(stderr)
-	if err := flags.Parse(arguments); err != nil {
-		return 2
+	flags := flag.NewFlagSet("soundconnect disconnect", flag.ContinueOnError)
+	if code, ok := parseFlags(flags, arguments, stdout, stderr); !ok {
+		return code
 	}
 	if flags.NArg() != 0 {
 		fmt.Fprintln(stderr, "disconnect accepts no positional arguments")
