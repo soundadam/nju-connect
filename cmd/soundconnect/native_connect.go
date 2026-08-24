@@ -52,12 +52,11 @@ func runNativeConnectContext(
 	newSession nativeSessionFactory,
 	startBackground nativeBackgroundStarter,
 ) int {
-	flags := flag.NewFlagSet("connect", flag.ContinueOnError)
-	flags.SetOutput(stderr)
+	flags := flag.NewFlagSet("soundconnect connect", flag.ContinueOnError)
 	background := flags.Bool("background", false, "continue the native runtime as a detached process after authentication")
 	verificationCodeStdin := flags.Bool("verification-code-stdin", false, "read the verification code from standard input without requiring a terminal")
-	if err := flags.Parse(arguments); err != nil {
-		return 2
+	if code, ok := parseFlags(flags, arguments, stdout, stderr); !ok {
+		return code
 	}
 	if flags.NArg() != 0 {
 		fmt.Fprintln(stderr, "connect accepts no positional arguments")

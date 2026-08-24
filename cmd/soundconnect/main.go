@@ -63,9 +63,6 @@ func run(arguments []string, stdout, stderr io.Writer) int {
 		return runSpeedtest(arguments[1:], stdout, stderr)
 	case "_native-runtime":
 		return runNativeRuntimeChild(arguments[1:], stdout, stderr)
-	case "observe":
-		fmt.Fprintf(stderr, "soundconnect %s is not implemented yet\n", arguments[0])
-		return 2
 	default:
 		fmt.Fprintf(stderr, "unknown command %q\n", arguments[0])
 		writeUsage(stderr)
@@ -74,11 +71,10 @@ func run(arguments []string, stdout, stderr io.Writer) int {
 }
 
 func runMigrate(arguments []string, stdout, stderr io.Writer) int {
-	flags := flag.NewFlagSet("migrate", flag.ContinueOnError)
-	flags.SetOutput(stderr)
+	flags := flag.NewFlagSet("soundconnect migrate", flag.ContinueOnError)
 	legacyRoot := flags.String("from", ".", "directory containing the legacy .config state")
-	if err := flags.Parse(arguments); err != nil {
-		return 2
+	if code, ok := parseFlags(flags, arguments, stdout, stderr); !ok {
+		return code
 	}
 	if flags.NArg() != 0 {
 		fmt.Fprintln(stderr, "migrate accepts no positional arguments")
@@ -110,10 +106,9 @@ func runMigrate(arguments []string, stdout, stderr io.Writer) int {
 }
 
 func runDryRun(arguments []string, stdout, stderr io.Writer) int {
-	flags := flag.NewFlagSet("dry-run", flag.ContinueOnError)
-	flags.SetOutput(stderr)
-	if err := flags.Parse(arguments); err != nil {
-		return 2
+	flags := flag.NewFlagSet("soundconnect dry-run", flag.ContinueOnError)
+	if code, ok := parseFlags(flags, arguments, stdout, stderr); !ok {
+		return code
 	}
 	if flags.NArg() != 0 {
 		fmt.Fprintln(stderr, "dry-run accepts no positional arguments")
@@ -313,8 +308,7 @@ func readRawVerificationCode(input io.Reader) ([]byte, error) {
 }
 
 func runSetup(arguments []string, stdout, stderr io.Writer) int {
-	flags := flag.NewFlagSet("setup", flag.ContinueOnError)
-	flags.SetOutput(stderr)
+	flags := flag.NewFlagSet("soundconnect setup", flag.ContinueOnError)
 	server := flags.String("server", "", "campus VPN gateway host or host:port")
 	username := flags.String("username", "", "campus account")
 	socksListen := flags.String("socks-listen", config.DefaultSOCKSListen, "numeric loopback SOCKS5 listener")
@@ -322,8 +316,8 @@ func runSetup(arguments []string, stdout, stderr io.Writer) int {
 	tlsInsecure := flags.Bool("tls-insecure", false, "allow an unverified development gateway certificate")
 	nativeTLSInsecure := flags.Bool("native-tls-insecure", false, "disable verification only for native protocol TLS")
 	passwordStdin := flags.Bool("password-stdin", false, "read the password from standard input without a terminal prompt")
-	if err := flags.Parse(arguments); err != nil {
-		return 2
+	if code, ok := parseFlags(flags, arguments, stdout, stderr); !ok {
+		return code
 	}
 	if flags.NArg() != 0 {
 		fmt.Fprintln(stderr, "setup accepts no positional arguments")
@@ -444,11 +438,10 @@ func promptLineAllowEmpty(input *bufio.Reader, output io.Writer, prompt string) 
 }
 
 func runDoctor(arguments []string, stdout, stderr io.Writer) int {
-	flags := flag.NewFlagSet("doctor", flag.ContinueOnError)
-	flags.SetOutput(stderr)
+	flags := flag.NewFlagSet("soundconnect doctor", flag.ContinueOnError)
 	asJSON := flags.Bool("json", false, "print JSON")
-	if err := flags.Parse(arguments); err != nil {
-		return 2
+	if code, ok := parseFlags(flags, arguments, stdout, stderr); !ok {
+		return code
 	}
 	if flags.NArg() != 0 {
 		fmt.Fprintln(stderr, "doctor accepts no positional arguments")
@@ -481,7 +474,7 @@ func runDoctor(arguments []string, stdout, stderr io.Writer) int {
 }
 
 func writeUsage(output io.Writer) {
-	fmt.Fprintln(output, `usage: soundconnect [command]
+	fmt.Fprintln(output, `usage: soundconnect [command] [flags]
 
 With no command, soundconnect runs connect.
 
@@ -494,6 +487,25 @@ commands:
   status     print sanitized runtime status
   speedtest  measure the NJU campus IPv4 path
   doctor     inspect the local soundconnect configuration
-  observe    record a sanitized behavior timeline
-  version    print build identity`)
+  version    print build identity
+
+Run "soundconnect <command> -h" for command flags.`)
+}
+
+// parseFlags parses command flags, sending an explicitly requested help text
+// to stdout with a success code while keeping parse errors on stderr.
+func parseFlags(flags *flag.FlagSet, arguments []string, stdout, stderr io.Writer) (int, bool) {
+	var buffered bytes.Buffer
+	flags.SetOutput(&buffered)
+	err := flags.Parse(arguments)
+	flags.SetOutput(stderr)
+	if err == nil {
+		return 0, true
+	}
+	if errors.Is(err, flag.ErrHelp) {
+		_, _ = io.Copy(stdout, &buffered)
+		return 0, false
+	}
+	_, _ = io.Copy(stderr, &buffered)
+	return 2, false
 }

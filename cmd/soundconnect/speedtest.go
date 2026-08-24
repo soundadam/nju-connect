@@ -43,13 +43,12 @@ func runSpeedtest(arguments []string, stdout, stderr io.Writer) int {
 			arguments = arguments[1:]
 		}
 	}
-	flags := flag.NewFlagSet("speedtest campus", flag.ContinueOnError)
-	flags.SetOutput(stderr)
+	flags := flag.NewFlagSet("soundconnect speedtest campus", flag.ContinueOnError)
 	routeValue := flags.String("route", string(speedtest.RouteAuto), "auto, direct, or soundconnect")
 	asJSON := flags.Bool("json", false, "print one JSON result")
 	jsonEvents := flags.Bool("json-events", false, "emit versioned NDJSON events")
-	if err := flags.Parse(arguments); err != nil {
-		return 2
+	if code, ok := parseFlags(flags, arguments, stdout, stderr); !ok {
+		return code
 	}
 	if flags.NArg() != 0 || (*asJSON && *jsonEvents) {
 		fmt.Fprintln(stderr, "speedtest campus accepts no positional arguments and JSON modes are mutually exclusive")
@@ -134,11 +133,14 @@ func runSpeedtest(arguments []string, stdout, stderr io.Writer) int {
 }
 
 func runSpeedtestProbe(arguments []string, stdout, stderr io.Writer) int {
-	flags := flag.NewFlagSet("speedtest probe", flag.ContinueOnError)
-	flags.SetOutput(stderr)
+	flags := flag.NewFlagSet("soundconnect speedtest probe", flag.ContinueOnError)
 	routeValue := flags.String("route", string(speedtest.RouteAuto), "auto, direct, or soundconnect")
 	asJSON := flags.Bool("json", false, "print JSON")
-	if err := flags.Parse(arguments); err != nil || flags.NArg() != 0 {
+	if code, ok := parseFlags(flags, arguments, stdout, stderr); !ok {
+		return code
+	}
+	if flags.NArg() != 0 {
+		fmt.Fprintln(stderr, "speedtest probe accepts no positional arguments")
 		return 2
 	}
 	route, err := speedtest.ParseRoute(*routeValue)
@@ -186,13 +188,12 @@ func runSpeedtestComponent(arguments []string, stdout, stderr io.Writer) int {
 		return 2
 	}
 	command := arguments[0]
-	flags := flag.NewFlagSet("speedtest component "+command, flag.ContinueOnError)
-	flags.SetOutput(stderr)
+	flags := flag.NewFlagSet("soundconnect speedtest component "+command, flag.ContinueOnError)
 	asJSON := flags.Bool("json", false, "print JSON")
 	yes := flags.Bool("yes", false, "install without a terminal prompt")
 	jsonEvents := flags.Bool("json-events", false, "emit versioned NDJSON events")
-	if err := flags.Parse(arguments[1:]); err != nil {
-		return 2
+	if code, ok := parseFlags(flags, arguments[1:], stdout, stderr); !ok {
+		return code
 	}
 	if flags.NArg() != 0 || (*asJSON && *jsonEvents) {
 		return 2
@@ -254,10 +255,13 @@ func runSpeedtestComponent(arguments []string, stdout, stderr io.Writer) int {
 }
 
 func runSpeedtestLast(arguments []string, stdout, stderr io.Writer) int {
-	flags := flag.NewFlagSet("speedtest last", flag.ContinueOnError)
-	flags.SetOutput(stderr)
+	flags := flag.NewFlagSet("soundconnect speedtest last", flag.ContinueOnError)
 	asJSON := flags.Bool("json", false, "print JSON")
-	if err := flags.Parse(arguments); err != nil || flags.NArg() != 0 {
+	if code, ok := parseFlags(flags, arguments, stdout, stderr); !ok {
+		return code
+	}
+	if flags.NArg() != 0 {
+		fmt.Fprintln(stderr, "speedtest last accepts no positional arguments")
 		return 2
 	}
 	paths, err := commandPaths()
