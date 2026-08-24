@@ -25,7 +25,8 @@ authentication and the gateway handoff without starting the dataplane.
 
 While a foreground or detached native runtime is active, `soundconnect status`
 queries its owner-only local control socket and prints only sanitized state.
-Use `soundconnect status --json` for the versioned machine-readable form. A
+Use `soundconnect status --json` for the versioned machine-readable form, and
+add `--watch` to stream that snapshot once per second. A
 stopped runtime is reported explicitly and returns a nonzero status; the
 command does not infer liveness from a PID file or `runtime.log`.
 
@@ -74,9 +75,9 @@ remain separate release gates.
 
 For an unsigned or quarantined development copy only:
 
-\`\`\`sh
+```sh
 xattr -d com.apple.quarantine /path/to/soundconnect
-\`\`\`
+```
 
 This is a local testing workaround, not a release installation step. Release
 artifacts should be signed and notarized.
