@@ -107,6 +107,9 @@ func (result Result) Validate() error {
 	return nil
 }
 
+// ExitCode maps a result to the CLI convention: 0 for success, 1 for a failed
+// measurement, and 130 for user cancellation. Exit code 2 stays reserved for
+// usage errors.
 func (result Result) ExitCode() int {
 	switch result.Status {
 	case StatusSuccess:
@@ -114,7 +117,7 @@ func (result Result) ExitCode() int {
 	case StatusCancelled:
 		return 130
 	default:
-		return 2
+		return 1
 	}
 }
 

@@ -174,6 +174,39 @@ exec sleep 10
 	}
 }
 
+func TestRunHelperReportsVersionCheckTimeoutWithoutRawSignalError(t *testing.T) {
+	root := t.TempDir()
+	helper := filepath.Join(root, "librespeed-cli")
+	script := `#!/bin/sh
+exec sleep 10
+`
+	if err := os.WriteFile(helper, []byte(script), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	_, err := runHelper(context.Background(), helperRunOptions{
+		Path: helper, Route: RouteDirect, Timeout: time.Second, VersionTimeout: 50 * time.Millisecond,
+		StartedAt: time.Unix(100, 0), Now: func() time.Time { return time.Unix(101, 0) },
+	})
+	if err == nil || !strings.Contains(err.Error(), "did not respond to a version check") {
+		t.Fatalf("error = %v", err)
+	}
+	if strings.Contains(err.Error(), "signal") {
+		t.Fatalf("raw process signal leaked into user-facing error: %v", err)
+	}
+}
+
+func TestExitCodesReserveTwoForUsageErrors(t *testing.T) {
+	for status, want := range map[Status]int{
+		StatusSuccess:   0,
+		StatusFailed:    1,
+		StatusCancelled: 130,
+	} {
+		if got := (Result{Status: status}).ExitCode(); got != want {
+			t.Fatalf("ExitCode(%s) = %d, want %d", status, got, want)
+		}
+	}
+}
+
 func TestClassifyHelperFailureUsesStableSanitizedCodes(t *testing.T) {
 	for input, want := range map[string]string{
 		"Failed to get download speed: secret raw detail": "download_failure",

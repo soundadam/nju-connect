@@ -102,6 +102,21 @@ printf '%s\n' '[{"server":{"name":"NJU Campus IPv4","url":"http://speed.nju.edu.
 	}
 }
 
+func TestSpeedtestRejectsUnknownSubcommandWithGuidance(t *testing.T) {
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	if code := run([]string{"speedtest", "bogus"}, &stdout, &stderr); code != 2 {
+		t.Fatalf("code = %d stderr=%q", code, stderr.String())
+	}
+	if !strings.Contains(stderr.String(), `unknown speedtest command "bogus"`) ||
+		!strings.Contains(stderr.String(), "campus (default), component, and last") {
+		t.Fatalf("stderr = %q", stderr.String())
+	}
+	if stdout.Len() != 0 {
+		t.Fatalf("stdout = %q", stdout.String())
+	}
+}
+
 func TestSpeedtestLastJSONReadsSavedResult(t *testing.T) {
 	root := t.TempDir()
 	installSpeedtestTestDependencies(t, root)
