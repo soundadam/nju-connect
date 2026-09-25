@@ -18,6 +18,7 @@ import (
 )
 
 const maxSOCKSConnections = 256
+const socksRelayDrainTimeout = 2 * time.Second
 
 type ResolveIPv4Func func(context.Context, string) (netip.Addr, error)
 
@@ -279,6 +280,10 @@ func writeSOCKSReply(connection net.Conn, status byte) error {
 }
 
 func relayPayload(client, upstream net.Conn, counters *traffic.Counters) {
+	relayPayloadWithDrain(client, upstream, counters, socksRelayDrainTimeout)
+}
+
+func relayPayloadWithDrain(client, upstream net.Conn, counters *traffic.Counters, drainTimeout time.Duration) {
 	completed := make(chan struct{}, 2)
 	copyDirection := func(destination, source net.Conn, account func(uint64)) {
 		_, _ = io.Copy(payloadAccountingWriter{Writer: destination, account: account}, source)
@@ -290,7 +295,12 @@ func relayPayload(client, upstream net.Conn, counters *traffic.Counters) {
 	go copyDirection(upstream, client, counters.AddUpload)
 	go copyDirection(client, upstream, counters.AddDownload)
 	<-completed
+	drainTimer := time.AfterFunc(drainTimeout, func() {
+		_ = client.Close()
+		_ = upstream.Close()
+	})
 	<-completed
+	drainTimer.Stop()
 }
 
 type payloadAccountingWriter struct {

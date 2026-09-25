@@ -101,6 +101,27 @@ func TestSOCKSRejectsNonLoopbackBindAndExcessConcurrency(t *testing.T) {
 	}
 }
 
+func TestRelayPayloadBoundsHalfCloseDrain(t *testing.T) {
+	clientSide, clientPeer := net.Pipe()
+	upstreamSide, upstreamPeer := net.Pipe()
+	defer clientPeer.Close()
+	defer upstreamPeer.Close()
+
+	done := make(chan struct{})
+	go func() {
+		relayPayloadWithDrain(clientSide, upstreamSide, &traffic.Counters{}, 25*time.Millisecond)
+		close(done)
+	}()
+	if err := clientPeer.Close(); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("relayPayloadWithDrain() did not bound a half-closed peer")
+	}
+}
+
 func eventuallyTraffic(t *testing.T, counters *traffic.Counters, upload, download uint64, active int64) {
 	t.Helper()
 	deadline := time.Now().Add(time.Second)
