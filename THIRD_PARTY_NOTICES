@@ -38,6 +38,49 @@ golang.org/x/term                               v0.45.0                         
 golang.org/x/time                               v0.15.0                                      indirect       Go BSD-style
 inet.af/netaddr                                 v0.0.0-20230525184311-b8eac61e914a         indirect       BSD-3-Clause
 
+Keyring and terminal UI components
+----------------------------------
+
+Added for the system keyring store (github.com/zalando/go-keyring) and the
+interactive terminal forms (github.com/charmbracelet/huh). “linux” or
+“windows” marks a module linked only into that platform's binary.
+
+Component                                      Version                                      Link-time use  License
+---------------------------------------------- -------------------------------------------- --------------  -------------------------------
+github.com/atotto/clipboard                    v0.1.4                                       indirect       BSD-3-Clause
+github.com/aymanbagabas/go-osc52/v2            v2.0.1                                       indirect       MIT
+github.com/catppuccin/go                       v0.3.0                                       indirect       MIT
+github.com/charmbracelet/bubbles               v0.21.1-0.20250623103423-23b8fd6302d7      indirect       MIT
+github.com/charmbracelet/bubbletea             v1.3.6                                       indirect       MIT
+github.com/charmbracelet/colorprofile          v0.2.3-0.20250311203215-f60798e515dc       indirect       MIT
+github.com/charmbracelet/huh                   v1.0.0                                       direct         MIT
+github.com/charmbracelet/lipgloss              v1.1.0                                       indirect       MIT
+github.com/charmbracelet/x/ansi                v0.9.3                                       indirect       MIT
+github.com/charmbracelet/x/cellbuf             v0.0.13                                      indirect       MIT
+github.com/charmbracelet/x/exp/strings         v0.0.0-20240722160745-212f7b056ed0         indirect       MIT
+github.com/charmbracelet/x/term                v0.2.1                                       indirect       MIT
+github.com/danieljoos/wincred                  v1.2.3                                       windows        MIT
+github.com/dustin/go-humanize                  v1.0.1                                       indirect       MIT-style
+github.com/erikgeiser/coninput                 v0.0.0-20211004153227-1c3628e74d0f         windows        MIT
+github.com/godbus/dbus/v5                      v5.2.2                                       linux          BSD-2-Clause
+github.com/lucasb-eyer/go-colorful             v1.2.0                                       indirect       MIT
+github.com/mattn/go-isatty                     v0.0.20                                      indirect       MIT
+github.com/mattn/go-localereader               v0.0.1                                       windows        MIT (per upstream; no license file in the module)
+github.com/mattn/go-runewidth                  v0.0.16                                      indirect       MIT
+github.com/mitchellh/hashstructure/v2          v2.0.2                                       indirect       MIT
+github.com/muesli/ansi                         v0.0.0-20230316100256-276c6243b2f6         indirect       MIT
+github.com/muesli/cancelreader                 v0.2.2                                       indirect       MIT
+github.com/muesli/termenv                      v0.16.0                                      indirect       MIT
+github.com/rivo/uniseg                         v0.4.7                                       indirect       MIT
+github.com/xo/terminfo                         v0.0.0-20220910002029-abceb7e1c41e         indirect       MIT
+github.com/zalando/go-keyring                  v0.2.8                                       direct         MIT; keyring_darwin.go carries a Google Apache-2.0 header
+golang.org/x/sync                              v0.22.0                                      indirect       Go BSD-style
+golang.org/x/text                              v0.40.0                                      windows        Go BSD-style
+
+go-keyring shells out to /usr/bin/security on macOS and talks to the Secret
+Service over D-Bus on Linux; neither is linked. mattn/go-localereader ships
+no license file; confirm its terms with upstream before a Windows release.
+
 Required release obligations
 ----------------------------
 
@@ -83,6 +126,9 @@ The audit found these files in the exact pinned module roots:
 * go4.org/unsafe/assume-no-moving-gc: LICENSE
 * golang.org/x/crypto, x/net, x/sys, x/term, x/time: LICENSE
 * inet.af/netaddr: LICENSE
+* Every module in “Keyring and terminal UI components”: LICENSE (LICENSE.txt
+  for rivo/uniseg), except mattn/go-localereader, which has none
+* golang.org/x/sync, x/text: LICENSE
 
 The release packager should copy these files verbatim, preserving their
 copyright and disclaimer text. Do not place research/upstream or research/work
@@ -124,6 +170,10 @@ Source and license references
 * x/time v0.15.0: https://github.com/golang/time/blob/v0.15.0/LICENSE
 * inet.af/netaddr pinned license: https://github.com/inetaf/netaddr/blob/b8eac61e914a/LICENSE
 
-'golang.org/x/text v0.40.0' is present in the module graph but is not linked
-by 'cmd/soundconnect' at this revision, so it is not included above. Re-run
-the link-time audit and update this file whenever imports or build tags change.
+Keyring and terminal UI modules: the license of each is at
+https://pkg.go.dev/<module>@<version>?tab=licenses for the versions listed
+above.
+
+golang.org/x/text is linked only into the Windows binary. Re-run the
+link-time audit ('go list -deps ./cmd/soundconnect' for each GOOS) and update
+this file whenever imports or build tags change.

@@ -15,7 +15,7 @@ interface; see `docs/atrust-dual-backend.md`.
 ```mermaid
 flowchart TD
     cfg["internal/config\nsole Config authority"] --> auth["internal/backend/easyconnect/auth\nHTTPS auth and bootstrap"]
-    cred["internal/credential\nKeychain, file, or hidden prompt"] --> auth
+    cred["internal/credential\nsystem keyring, file, or hidden prompt"] --> auth
     auth --> state["SessionState + Bootstrap"]
     state --> plan["internal/core\nDataplanePlan"]
     auth --> token["NativeGatewayToken\ntyped gateway boundary"]
@@ -135,22 +135,24 @@ The portable core is the Go userspace path in `internal/core`, `internal/backend
 
 | Capability | Linux | macOS | Windows |
 | --- | --- | --- | --- |
-| Compile-only matrix (`CGO_ENABLED=0`) | amd64, arm64 | amd64, arm64; Keychain fails closed, while release builds enable native cgo | amd64, arm64 |
+| Compile-only matrix (`CGO_ENABLED=0`) | amd64, arm64 | amd64, arm64; the keyring works without cgo, only the one-time import of pre-keyring Keychain items needs a cgo release build | amd64, arm64 |
 | Owner/mode checks | Implemented through `syscall.Stat_t` and `euid` | Implemented through `syscall.Stat_t` and `euid` | Blocked: `owner_other.go` deliberately rejects ownership; ACL implementation is not present |
-| Credential storage | Explicitly opted-in plaintext 0600 file or hidden prompt; no Secret Service adapter | Login Keychain generic-password item through the Security framework; explicit migration preserves the legacy owner-only file | No supported secure file ownership/ACL or credential adapter |
+| Credential storage | Secret Service through go-keyring, or `credential_store = "file"` for an owner-only 0600 file | Login Keychain through go-keyring (`/usr/bin/security`); pre-keyring items and files are moved in once | Credential Manager through go-keyring; the config ownership check still blocks runtime use |
 | Stop/signals | CLI handles interrupt and `SIGTERM` | CLI handles interrupt and `SIGTERM` | Binary compiles, but service stop semantics and a Windows service host are not implemented |
 | SOCKS exposure | Numeric IPv4 loopback only | Numeric IPv4 loopback only | Numeric IPv4 loopback only after the storage blocker is resolved |
 | Certificate storage | Go system roots; no installed certificate manager | Go system roots; no Keychain/trust-store integration | Go system roots at compile level; runtime packaging policy is unvalidated |
 | UI/service/package | Not present | Not present | Not present |
 
-The current build tags are intentionally narrow: `owner_unix.go` applies only to Linux and macOS, while `owner_other.go` fails closed on other systems. The macOS Keychain adapter requires a cgo-enabled release build; the cgo-disabled Darwin variant compiles but fails closed if invoked. This makes a Windows build useful for API work without falsely claiming runtime release readiness. `make build-platforms` performs the compile-only matrix; it does not run a service or network connection.
+The current build tags are intentionally narrow: `owner_unix.go` applies only to Linux and macOS, while `owner_other.go` fails closed on other systems. The keyring store is pure Go on every platform; only the read-and-delete import of the pre-keyring macOS Keychain items uses the cgo Security framework bridge, kept for one release.
+
+On macOS go-keyring stores items through `/usr/bin/security`, so the item's access list trusts `security` rather than the soundconnect binary. Any process running as the user can therefore read the password without a Keychain prompt, where the earlier cgo item allowed only the binary that created it. In exchange, rebuilt or re-signed binaries no longer re-prompt, and every platform shares one credential code path. The one-time import of an old item may show a single Keychain prompt. This makes a Windows build useful for API work without falsely claiming runtime release readiness. `make build-platforms` performs the compile-only matrix; it does not run a service or network connection.
 
 Release blockers are therefore explicit: a Windows ownership/ACL implementation, native credential adapters for any additional shipping platforms, host-specific certificate/trust policy, packaging and service lifecycle adapters, and a production UI host. None should be solved by adding a TUN, routes, DNS, PF, or a vendor service to this core.
 
 The release CLI has no worktree override. Every command uses only the
 operating-system user configuration directory. `migrate --from PATH` is the explicit bridge from
 the pre-release worktree `.config` layout. It validates and copies
-configuration, imports a missing credential into the platform store, never
+configuration, imports a missing credential into the system keyring, never
 overwrites an existing destination, and preserves the source for rollback.
 
 ## Attended authentication and background runtime
