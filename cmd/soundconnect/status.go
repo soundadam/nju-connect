@@ -204,11 +204,15 @@ func writeRuntimeStatus(stdout io.Writer, snapshot runtimeStatusSnapshot, asJSON
 		fmt.Fprintf(stdout, "last_data_failure: %s\n", snapshot.LastDataFailure)
 	}
 	if snapshot.Traffic != nil {
-		fmt.Fprintf(stdout, "traffic: upload=%d download=%d active=%d total=%d\n",
-			snapshot.Traffic.UploadBytes, snapshot.Traffic.DownloadBytes,
+		fmt.Fprintf(stdout, "traffic: upload=%s download=%s active=%d total=%d\n",
+			formatTotalBytes(snapshot.Traffic.UploadBytes), formatTotalBytes(snapshot.Traffic.DownloadBytes),
 			snapshot.Traffic.ActiveConnections, snapshot.Traffic.TotalConnections)
 	}
 	return nil
+}
+
+func formatTotalBytes(bytes uint64) string {
+	return fmt.Sprintf("%.1f KB", float64(bytes)/1_000)
 }
 
 func runDisconnect(arguments []string, stdout, stderr io.Writer) int {

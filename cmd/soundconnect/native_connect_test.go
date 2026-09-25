@@ -99,7 +99,7 @@ func TestNativeConnectWiresAuthenticatedSessionWithoutLeakingMaterial(t *testing
 		"data: stage=rx_handshake_failed\n",
 		"socks: 127.0.0.1:1081\n",
 		"access: available=true\n",
-		"traffic: upload=7 download=9 active=0 total=0\n",
+		"traffic: upload=0.0 KB download=0.0 KB active=0 total=0\n",
 	} {
 		if !strings.Contains(stdout.String(), expected) {
 			t.Fatalf("stdout %q lacks %q", stdout.String(), expected)

@@ -276,8 +276,9 @@ func nativeCLIObserver(output io.Writer) nativeapp.ObserverFuncs {
 			fmt.Fprintf(output, "socks: %s\n", address)
 		},
 		OnTraffic: func(snapshot nativeapp.TrafficSnapshot) {
-			fmt.Fprintf(output, "traffic: upload=%d download=%d active=%d total=%d\n",
-				snapshot.UploadBytes, snapshot.DownloadBytes, snapshot.ActiveConnections, snapshot.TotalConnections)
+			fmt.Fprintf(output, "traffic: upload=%s download=%s active=%d total=%d\n",
+				formatTotalBytes(snapshot.UploadBytes), formatTotalBytes(snapshot.DownloadBytes),
+				snapshot.ActiveConnections, snapshot.TotalConnections)
 		},
 		OnAccessEvidence: func(available bool) {
 			fmt.Fprintf(output, "access: available=%t\n", available)

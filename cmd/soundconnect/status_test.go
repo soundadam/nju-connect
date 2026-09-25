@@ -141,6 +141,21 @@ func TestStatusWatchRequiresJSON(t *testing.T) {
 	}
 }
 
+func TestTextStatusFormatsTrafficTotalsInKB(t *testing.T) {
+	snapshot := runtimeStatusSnapshot{
+		Running: true, State: "connected", Traffic: &runtimeTrafficStatus{
+			UploadBytes: 1_500, DownloadBytes: 2_750,
+		},
+	}
+	var output bytes.Buffer
+	if err := writeRuntimeStatus(&output, snapshot, false); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(output.String(), "traffic: upload=1.5 KB download=2.8 KB") {
+		t.Fatalf("text status = %q", output.String())
+	}
+}
+
 func TestConnectGuidesUserWhenRuntimeIsAlreadyActive(t *testing.T) {
 	root := t.TempDir()
 	paths := config.Paths{Root: root, Config: filepath.Join(root, "config.toml"), Credential: filepath.Join(root, "credential")}
