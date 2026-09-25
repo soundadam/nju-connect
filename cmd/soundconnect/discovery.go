@@ -51,8 +51,8 @@ func runDoctor(arguments []string, stdout, stderr io.Writer) error {
 			return fmt.Errorf("encode report: %w", err)
 		}
 	} else {
-		fmt.Fprintf(stdout, "ready: %t\nconfiguration: %s\ncredential_store: %s\nupstream_proxy: %s\n",
-			report.Ready, report.Configuration, report.CredentialStore, report.UpstreamProxy)
+		fmt.Fprintf(stdout, "ready: %t\nconfiguration: %s\ncredential_store: %s\nupstream_proxy: %s\nnext: %s\n",
+			report.Ready, report.Configuration, report.CredentialStore, report.UpstreamProxy, report.NextStep)
 	}
 	if !report.Ready {
 		return exitCode(1)

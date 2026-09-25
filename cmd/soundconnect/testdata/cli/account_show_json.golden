@@ -1,0 +1,5 @@
+$ soundconnect account show --json
+exit: 0
+--- stdout
+{"schema_version":1,"configuration":"ready","backend":"atrust","server":"vpn.nju.edu.cn","username":"student","auth_type":"auth/psw","credential_store":"keyring","password":"saved","atrust_session":"missing"}
+--- stderr

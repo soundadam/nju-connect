@@ -38,6 +38,8 @@ type Interaction interface {
 	// OAuthCallback shows loginURL and asks for the callback URL the browser
 	// lands on after signing in.
 	OAuthCallback(ctx context.Context, loginURL string) (string, error)
+	// Wait runs work, which may take a while, showing title as progress.
+	Wait(ctx context.Context, title string, work func(context.Context) error) error
 }
 
 // Option is one choice offered by Select.
@@ -240,6 +242,11 @@ func (line *LineInteraction) OAuthCallback(ctx context.Context, loginURL string)
 	case result := <-completed:
 		return result.line, result.err
 	}
+}
+
+// Wait runs work without output: line prompts keep stderr to questions.
+func (line *LineInteraction) Wait(ctx context.Context, _ string, work func(context.Context) error) error {
+	return work(ctx)
 }
 
 // readLine reads up to and excluding '\n' without reading ahead. A trailing

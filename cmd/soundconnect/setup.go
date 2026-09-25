@@ -10,32 +10,64 @@ import (
 	"github.com/soundadam/soundconnect/internal/app"
 	"github.com/soundadam/soundconnect/internal/backend"
 	"github.com/soundadam/soundconnect/internal/config"
+	"github.com/soundadam/soundconnect/internal/tui"
 )
 
 func runSetup(arguments []string, stdout, stderr io.Writer) error {
 	flags := flag.NewFlagSet("soundconnect setup", flag.ContinueOnError)
 	var request app.SetupRequest
-	flags.StringVar(&request.Backend, "backend", string(backend.EasyConnect), "protocol backend (easyconnect or atrust)")
+	backendValue := flags.String("backend", string(backend.EasyConnect), "protocol backend (easyconnect or atrust)")
 	flags.StringVar(&request.Server, "server", "", "campus VPN gateway host or host:port")
 	flags.StringVar(&request.Username, "username", "", "campus account")
 	flags.StringVar(&request.AuthType, "auth-type", "", "aTrust authentication type (auth/httpsOauth2 or auth/psw)")
 	flags.StringVar(&request.LoginDomain, "login-domain", "", "aTrust login domain override")
-	flags.StringVar(&request.SOCKSListen, "socks-listen", config.DefaultSOCKSListen, "numeric loopback SOCKS5 listener")
-	flags.StringVar(&request.UpstreamProxy, "upstream-proxy", "", "optional socks5 upstream URL")
-	flags.BoolVar(&request.TLSInsecure, "tls-insecure", false, "allow an unverified development gateway certificate")
-	flags.BoolVar(&request.NativeTLSInsecure, "native-tls-insecure", false, "disable verification only for native protocol TLS")
+	socksListen := flags.String("socks-listen", config.DefaultSOCKSListen, "numeric loopback SOCKS5 listener")
+	upstreamProxy := flags.String("upstream-proxy", "", "optional socks5 upstream URL")
+	tlsInsecure := flags.Bool("tls-insecure", false, "allow an unverified development gateway certificate")
+	nativeTLSInsecure := flags.Bool("native-tls-insecure", false, "disable verification only for native protocol TLS")
 	flags.BoolVar(&request.PasswordSupplied, "password-stdin", false, "read the password from standard input without a terminal prompt")
 	if err := parseCommand(flags, arguments, stdout, stderr); err != nil {
 		return err
 	}
-	interaction := app.NewLineInteraction(app.LineOptions{
-		Input: os.Stdin, Output: stderr, PasswordFromStdin: request.PasswordSupplied,
+	// Flags left out keep the saved settings.
+	flags.Visit(func(set *flag.Flag) {
+		switch set.Name {
+		case "backend":
+			request.Backend = *backendValue
+		case "socks-listen":
+			request.SOCKSListen = socksListen
+		case "upstream-proxy":
+			request.UpstreamProxy = upstreamProxy
+		case "tls-insecure":
+			request.TLSInsecure = tlsInsecure
+		case "native-tls-insecure":
+			request.NativeTLSInsecure = nativeTLSInsecure
+		}
 	})
-	result, err := app.Setup(context.Background(), commandDeps(interaction, stderr), request)
+	// A terminal user gets the guided wizard; piped input keeps the
+	// line-prompt contract the macOS app drives.
+	interaction, interactive := tui.ForCommand(app.LineOptions{
+		Input: os.Stdin, PasswordFromStdin: request.PasswordSupplied,
+	}, stderr)
+	request.Guided = interactive
+	ctx := context.Background()
+	result, err := app.Setup(ctx, commandDeps(interaction, stderr), request)
 	if err != nil {
 		return err
 	}
 	fmt.Fprintf(stdout, "configuration: %s\nbackend: %s\ncredential: %s\n", result.Path, result.Backend, result.Credential)
+	if !interactive || result.Backend != backend.EasyConnect {
+		return nil
+	}
+	// aTrust sign-in needs the full connect flow, so only EasyConnect
+	// offers a quick check.
+	test, err := interaction.Confirm(ctx, "Test the login now?", true)
+	if err != nil || !test {
+		return err
+	}
+	if code := runDryRun(nil, stdout, stderr); code != 0 {
+		return exitCode(code)
+	}
 	return nil
 }
 

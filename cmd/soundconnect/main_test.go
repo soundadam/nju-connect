@@ -200,7 +200,7 @@ func TestMigrateCommandCopiesConfigAndImportsCredential(t *testing.T) {
 	previousPaths := resolveDefaultPaths
 	previousStore := newSystemCredentialStore
 	resolveDefaultPaths = func() (config.Paths, error) { return destination, nil }
-	newSystemCredentialStore = func(string) (credential.Store, error) { return store, nil }
+	newSystemCredentialStore = func(credential.Location) (credential.Store, error) { return store, nil }
 	t.Cleanup(func() {
 		resolveDefaultPaths = previousPaths
 		newSystemCredentialStore = previousStore

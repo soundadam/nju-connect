@@ -33,8 +33,12 @@ func useATrustTestState(t *testing.T) config.Paths {
 	previousPassword := newSystemCredentialStore
 	previousClientData := newATrustClientDataStore
 	resolveDefaultPaths = func() (config.Paths, error) { return paths, nil }
-	newSystemCredentialStore = func(path string) (credential.Store, error) { return credential.NewFileStore(path, true) }
-	newATrustClientDataStore = func(path string) (credential.Store, error) { return credential.NewFileStore(path, true) }
+	newSystemCredentialStore = func(location credential.Location) (credential.Store, error) {
+		return credential.NewFileStore(location.File, true)
+	}
+	newATrustClientDataStore = func(location credential.Location) (credential.Store, error) {
+		return credential.NewFileStore(location.File, true)
+	}
 	t.Cleanup(func() {
 		resolveDefaultPaths = previousPaths
 		newSystemCredentialStore = previousPassword
@@ -167,7 +171,7 @@ func TestAuthInfoListsDiscoveredMethods(t *testing.T) {
 
 func TestLogoutClearsATrustClientDataAndOAuthProfile(t *testing.T) {
 	paths := useATrustTestState(t)
-	store, err := newATrustClientDataStore(paths.ATrustClientData)
+	store, err := newATrustClientDataStore(credential.Location{File: paths.ATrustClientData})
 	if err != nil {
 		t.Fatal(err)
 	}

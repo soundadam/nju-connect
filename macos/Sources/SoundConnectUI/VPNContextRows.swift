@@ -117,6 +117,18 @@ struct VPNContextRows: View {
             HStack(spacing: 8) {
                 Spacer(minLength: 4)
 
+                if model.canForgetSession {
+                    Button(uiText("Forget session", "清除会话")) {
+                        model.forgetSavedSession()
+                    }
+                    .controlSize(.small)
+                    .disabled(model.isPerformingAction)
+                    .help(uiText(
+                        "Forget the saved aTrust session and browser sign-in; the password is kept.",
+                        "清除保存的 aTrust 会话与浏览器登录状态，保留密码"
+                    ))
+                }
+
                 if model.isReconfiguringCredentials {
                     Button(uiText("Cancel", "取消")) {
                         model.cancelCredentialRecovery()
@@ -141,8 +153,8 @@ struct VPNContextRows: View {
         }
         .help(
             uiText(
-                "The account and long-lived password are stored in Keychain and shared by both backends. Verification codes are never saved.",
-                "账号与长期密码存储在钥匙串中，两个后端共用；短信或动态口令不会保存"
+                "The account is saved in soundconnect's settings; the long-lived password stays in Keychain and is shared by both backends. Verification codes are never saved.",
+                "账号保存在 soundconnect 设置中，长期密码存储在钥匙串，两个后端共用；短信或动态口令不会保存"
             )
         )
     }

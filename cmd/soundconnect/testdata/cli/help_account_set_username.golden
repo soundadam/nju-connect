@@ -1,0 +1,5 @@
+$ soundconnect account set-username -h
+exit: 0
+--- stdout
+usage: soundconnect account set-username <name>
+--- stderr

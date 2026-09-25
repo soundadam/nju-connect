@@ -167,6 +167,9 @@ type keychainBackend interface {
 	delete(service, account string) error
 }
 
+// KeychainStore reads and deletes the login Keychain items written by
+// pre-keyring releases. It remains for one release as a migration source;
+// KeyringStore holds every secret now.
 type KeychainStore struct {
 	service string
 	account string

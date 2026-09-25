@@ -3,6 +3,8 @@ package config
 import (
 	"path/filepath"
 	"testing"
+
+	"github.com/soundadam/soundconnect/internal/credential"
 )
 
 func TestLegacyPathsStayInsideWorktree(t *testing.T) {
@@ -53,6 +55,9 @@ func TestDefaultPathsUseUserConfigDirectory(t *testing.T) {
 	if filepath.Base(paths.Root) != applicationDirectory {
 		t.Fatalf("Root = %q, want suffix %q", paths.Root, applicationDirectory)
 	}
+	if paths.KeyringService != credential.DefaultKeyringService {
+		t.Fatalf("KeyringService = %q", paths.KeyringService)
+	}
 }
 
 func TestDefaultPathsUseExplicitConfigDirectory(t *testing.T) {
@@ -65,6 +70,10 @@ func TestDefaultPathsUseExplicitConfigDirectory(t *testing.T) {
 	}
 	if paths.Root != root {
 		t.Fatalf("Root = %q, want %q", paths.Root, root)
+	}
+	// An isolated directory never shares the real keyring items.
+	if paths.KeyringService != credential.KeyringService(root, true) || paths.KeyringService == credential.DefaultKeyringService {
+		t.Fatalf("KeyringService = %q", paths.KeyringService)
 	}
 }
 

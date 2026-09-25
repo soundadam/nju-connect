@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+
+	"github.com/soundadam/soundconnect/internal/credential"
 )
 
 const (
@@ -20,6 +22,8 @@ type Paths struct {
 	Config           string
 	Credential       string
 	ATrustClientData string
+	// KeyringService names this state directory's system keyring items.
+	KeyringService string
 }
 
 // DefaultPaths resolves the operating-system user configuration directory.
@@ -30,7 +34,9 @@ func DefaultPaths() (Paths, error) {
 		if !filepath.IsAbs(configured) {
 			return Paths{}, fmt.Errorf("%s must be an absolute path", configDirectoryEnv)
 		}
-		return pathsAt(filepath.Clean(configured)), nil
+		paths := pathsAt(filepath.Clean(configured))
+		paths.KeyringService = credential.KeyringService(paths.Root, true)
+		return paths, nil
 	}
 	configDir, err := os.UserConfigDir()
 	if err != nil {
@@ -59,5 +65,6 @@ func pathsAt(root string) Paths {
 		Config:           filepath.Join(root, "config.toml"),
 		Credential:       filepath.Join(root, "credential"),
 		ATrustClientData: filepath.Join(root, "atrust-client-data"),
+		KeyringService:   credential.DefaultKeyringService,
 	}
 }

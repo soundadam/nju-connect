@@ -12,7 +12,6 @@ import (
 
 	"github.com/soundadam/soundconnect/internal/app"
 	"github.com/soundadam/soundconnect/internal/backend/easyconnect/auth"
-	"github.com/soundadam/soundconnect/internal/config"
 	"github.com/soundadam/soundconnect/internal/core"
 	"github.com/soundadam/soundconnect/internal/credential"
 )
@@ -42,6 +41,8 @@ func run(arguments []string, stdout, stderr io.Writer) int {
 		return 0
 	case "setup":
 		return exitStatus(runSetup(arguments[1:], stdout, stderr), stderr)
+	case "account":
+		return exitStatus(runAccount(arguments[1:], stdout, stderr), stderr)
 	case "configure":
 		return exitStatus(runConfigure(arguments[1:], stdout, stderr), stderr)
 	case "backends":
@@ -87,19 +88,13 @@ func runDryRun(arguments []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "resolve local state: %v\n", err)
 		return 1
 	}
-	configured, err := config.Load(paths.Config)
+	configured, err := loadProfile(context.Background(), paths, true, stderr)
 	if err != nil {
-		fmt.Fprintf(stderr, "load configuration: %v\n", err)
-		return 1
+		return exitStatus(err, stderr)
 	}
-	passwordStore, _, err := commandCredentialStore(paths)
+	password, err := readSavedPassword(paths, configured)
 	if err != nil {
-		fmt.Fprintf(stderr, "open credential: %v\n", err)
-		return 1
-	}
-	password, err := passwordStore.Get()
-	if err != nil {
-		fmt.Fprintf(stderr, "read credential: %v\n", err)
+		fmt.Fprintln(stderr, err)
 		return 1
 	}
 	defer credential.Clear(password)
@@ -189,6 +184,7 @@ With no command, soundconnect runs connect.
 
 commands:
   setup      configure backend, account, and long-lived password
+  account    show or change the saved account, password and aTrust session
   configure  switch non-secret backend and listener settings
   backends   print non-secret backend metadata and capabilities
   auth-info  discover public aTrust authentication methods without logging in

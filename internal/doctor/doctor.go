@@ -18,9 +18,34 @@ type Report struct {
 	Configuration   string `json:"configuration"`
 	CredentialStore string `json:"credential_store"`
 	UpstreamProxy   string `json:"upstream_proxy"`
+	// NextStep is the command that moves the user forward.
+	NextStep string `json:"next_step"`
 }
 
+// Next steps reported by Build.
+const (
+	NextSetup          = "soundconnect setup"
+	NextSetPassword    = "soundconnect account set-password"
+	NextConfigureProxy = "soundconnect configure --upstream-proxy"
+	NextConnect        = "soundconnect connect"
+)
+
 func Build(paths config.Paths, store credential.Store) Report {
+	report := build(paths, store)
+	switch {
+	case report.Configuration != "ready" || report.CredentialStore == "invalid":
+		report.NextStep = NextSetup
+	case report.CredentialStore == "missing":
+		report.NextStep = NextSetPassword
+	case report.UpstreamProxy == "unavailable":
+		report.NextStep = NextConfigureProxy
+	default:
+		report.NextStep = NextConnect
+	}
+	return report
+}
+
+func build(paths config.Paths, store credential.Store) Report {
 	report := Report{
 		Configuration:   "invalid",
 		CredentialStore: "not_checked",

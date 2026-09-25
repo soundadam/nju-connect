@@ -1,0 +1,5 @@
+$ soundconnect account set-username student
+exit: 1
+--- stdout
+--- stderr
+no configuration to change; run "soundconnect setup" first

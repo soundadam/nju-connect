@@ -1,0 +1,5 @@
+$ soundconnect account forget
+exit: 2
+--- stdout
+--- stderr
+choose --password, --session, or both

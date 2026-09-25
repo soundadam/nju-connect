@@ -9,6 +9,7 @@ With no command, soundconnect runs connect.
 
 commands:
   setup      configure backend, account, and long-lived password
+  account    show or change the saved account, password and aTrust session
   configure  switch non-secret backend and listener settings
   backends   print non-secret backend metadata and capabilities
   auth-info  discover public aTrust authentication methods without logging in

@@ -4,9 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"os"
-	"os/exec"
 	"runtime"
 	"time"
 
@@ -29,7 +27,7 @@ func Logout(ctx context.Context, deps Deps) (LogoutResult, error) {
 	if err != nil {
 		return LogoutResult{}, fmt.Errorf("resolve local state: %w", err)
 	}
-	store, err := deps.ATrustSessionStore(paths.ATrustClientData)
+	store, err := deps.ATrustSessionStore(ATrustSessionLocation(paths, savedCredentialBackend(paths)))
 	if err != nil {
 		return LogoutResult{}, fmt.Errorf("prepare aTrust session store: %w", err)
 	}
@@ -41,25 +39,11 @@ func Logout(ctx context.Context, deps Deps) (LogoutResult, error) {
 		return LogoutResult{}, fmt.Errorf("clear aTrust session: %w", err)
 	}
 
-	helperPath, available := deps.OAuthHelper()
-	if !available {
-		if runtime.GOOS == "darwin" {
-			return LogoutResult{}, errors.New("clear OAuth profile: bundled aTrust OAuth helper is unavailable")
-		}
-		return LogoutResult{}, nil
+	if _, available := deps.OAuthHelper(); !available && runtime.GOOS == "darwin" {
+		return LogoutResult{}, errors.New("clear OAuth profile: bundled aTrust OAuth helper is unavailable")
 	}
-	clearContext, cancel := context.WithTimeout(ctx, atrustLogoutTimeout)
-	defer cancel()
-	command := exec.CommandContext(clearContext, helperPath, "--clear-data")
-	command.Stdout = io.Discard
-	command.Stderr = deps.diagnostics()
-	if err := command.Run(); err != nil {
-		if clearContext.Err() != nil {
-			return LogoutResult{}, errors.New("clear OAuth profile: timed out")
-		}
-		return LogoutResult{}, fmt.Errorf("clear OAuth profile: %w", err)
-	}
-	return LogoutResult{OAuthProfileCleared: true}, nil
+	cleared, err := clearOAuthProfile(ctx, deps)
+	return LogoutResult{OAuthProfileCleared: cleared}, err
 }
 
 // Status reads the snapshot of the runtime that belongs to this state

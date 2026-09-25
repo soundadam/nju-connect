@@ -2,23 +2,18 @@
 
 package credential
 
-const (
-	keychainService = "com.soundadam.soundconnect"
-	// EasyConnect and aTrust password authentication intentionally share this item.
-	keychainAccount         = "vpn-password"
-	aTrustClientDataAccount = "atrust-client-data"
-)
-
-// NewSystemStore uses the current user's login Keychain on macOS. The legacy
-// path is intentionally ignored here and is accepted only by the explicit
-// migration helper.
-func NewSystemStore(_ string) (Store, error) {
-	return newKeychainStore(keychainService, keychainAccount, systemKeychainBackend{}), nil
+// Pre-keyring releases stored secrets in these login Keychain items through
+// the Security framework. They are read once, moved into the keyring and
+// deleted; the real items exist only under DefaultKeyringService.
+var legacyKeychainAccounts = map[string]string{
+	PasswordAccount:      "vpn-password",
+	ATrustSessionAccount: "atrust-client-data",
 }
 
-// NewATrustClientDataStore stores the opaque aTrust session material in a
-// separate Keychain generic-password item. The path is accepted for parity
-// with the non-macOS fallback and is deliberately ignored on macOS.
-func NewATrustClientDataStore(_ string) (Store, error) {
-	return newKeychainStore(keychainService, aTrustClientDataAccount, systemKeychainBackend{}), nil
+func legacyKeychainStore(location Location) Clearable {
+	account, ok := legacyKeychainAccounts[location.Account]
+	if !ok || location.Service != DefaultKeyringService {
+		return nil
+	}
+	return newKeychainStore(DefaultKeyringService, account, systemKeychainBackend{})
 }

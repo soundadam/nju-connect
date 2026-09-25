@@ -1,28 +1,26 @@
 package main
 
 import (
+	"github.com/soundadam/soundconnect/internal/app"
 	"github.com/soundadam/soundconnect/internal/config"
 	"github.com/soundadam/soundconnect/internal/credential"
 )
 
 var (
 	resolveDefaultPaths      = config.DefaultPaths
-	newSystemCredentialStore = credential.NewSystemStore
-	newATrustClientDataStore = credential.NewATrustClientDataStore
+	newSystemCredentialStore = openCredentialStore
+	newATrustClientDataStore = openCredentialStore
 )
+
+func openCredentialStore(location credential.Location) (credential.Store, error) {
+	return credential.Open(location)
+}
 
 func commandPaths() (config.Paths, error) {
 	return resolveDefaultPaths()
 }
 
-func commandCredentialStore(paths config.Paths) (credential.Store, bool, error) {
-	store, err := newSystemCredentialStore(paths.Credential)
-	if err != nil {
-		return nil, false, err
-	}
-	migrated, err := credential.MigrateFile(store, paths.Credential)
-	if err != nil {
-		return nil, false, err
-	}
-	return store, migrated, nil
+// commandPasswordStore opens the shared password for a loaded configuration.
+func commandPasswordStore(paths config.Paths, configured config.Config) (credential.Store, error) {
+	return newSystemCredentialStore(app.PasswordLocation(paths, configured.CredentialStore))
 }

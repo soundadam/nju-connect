@@ -19,10 +19,12 @@ type Deps struct {
 	// Paths resolves the state directory: SOUNDCONNECT_CONFIG_DIR, or the
 	// user configuration directory.
 	Paths func() (config.Paths, error)
-	// PasswordStore opens the long-lived VPN password shared by both backends.
-	PasswordStore func(path string) (credential.Store, error)
-	// ATrustSessionStore opens the saved aTrust client data.
-	ATrustSessionStore func(path string) (credential.Store, error)
+	// PasswordStore opens the long-lived VPN password shared by both
+	// backends, at PasswordLocation.
+	PasswordStore func(credential.Location) (credential.Store, error)
+	// ATrustSessionStore opens the saved aTrust client data, at
+	// ATrustSessionLocation.
+	ATrustSessionStore func(credential.Location) (credential.Store, error)
 	// ATrustCore constructs the aTrust protocol core linked into this build.
 	ATrustCore func() atrustbackend.Core
 	// OAuthHelper locates the bundled aTrust OAuth helper, if any.
@@ -32,6 +34,31 @@ type Deps struct {
 	// Diagnostics receives helper-process output meant for the user. The
 	// command layer points it at stderr so stdout stays machine-readable.
 	Diagnostics io.Writer
+}
+
+// PasswordLocation is where the shared password lives. backend is the
+// configuration's credential_store.
+func PasswordLocation(paths config.Paths, backend string) credential.Location {
+	return credential.Location{
+		Backend: backend, Service: paths.KeyringService, Account: credential.PasswordAccount, File: paths.Credential,
+	}
+}
+
+// ATrustSessionLocation is where the aTrust client data lives.
+func ATrustSessionLocation(paths config.Paths, backend string) credential.Location {
+	return credential.Location{
+		Backend: backend, Service: paths.KeyringService, Account: credential.ATrustSessionAccount, File: paths.ATrustClientData,
+	}
+}
+
+// savedCredentialBackend is the credential_store of the saved configuration,
+// or the default when there is none to read.
+func savedCredentialBackend(paths config.Paths) string {
+	configured, err := config.Load(paths.Config)
+	if err != nil {
+		return ""
+	}
+	return configured.CredentialStore
 }
 
 func (deps Deps) diagnostics() io.Writer {

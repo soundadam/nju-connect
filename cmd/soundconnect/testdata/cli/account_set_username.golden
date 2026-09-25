@@ -1,0 +1,6 @@
+$ soundconnect account set-username classmate
+exit: 0
+--- stdout
+username: classmate
+atrust_session_cleared: true
+--- stderr

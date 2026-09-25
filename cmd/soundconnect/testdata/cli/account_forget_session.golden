@@ -1,0 +1,6 @@
+$ soundconnect account forget --session
+exit: 0
+--- stdout
+atrust_session_forgotten: true
+oauth_profile_cleared: true
+--- stderr

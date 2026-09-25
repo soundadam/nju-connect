@@ -1,5 +1,5 @@
 $ soundconnect doctor --json
 exit: 0
 --- stdout
-{"ready":true,"configuration":"ready","credential_store":"ready","upstream_proxy":"not_configured"}
+{"ready":true,"configuration":"ready","credential_store":"ready","upstream_proxy":"not_configured","next_step":"soundconnect connect"}
 --- stderr

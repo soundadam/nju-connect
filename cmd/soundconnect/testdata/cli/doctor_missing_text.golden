@@ -5,4 +5,5 @@ ready: false
 configuration: missing
 credential_store: not_checked
 upstream_proxy: not_checked
+next: soundconnect setup
 --- stderr

@@ -13,6 +13,7 @@ import (
 
 	"github.com/pelletier/go-toml/v2"
 	"github.com/soundadam/soundconnect/internal/backend"
+	"github.com/soundadam/soundconnect/internal/credential"
 )
 
 const (
@@ -36,6 +37,9 @@ type Config struct {
 	NativeTLSInsecure bool   `toml:"native_tls_insecure"`
 	AuthType          string `toml:"auth_type,omitempty"`
 	LoginDomain       string `toml:"login_domain,omitempty"`
+	// CredentialStore is "keyring" (the default when empty) or "file", for
+	// Linux hosts without a Secret Service.
+	CredentialStore string `toml:"credential_store,omitempty"`
 }
 
 func Default() Config {
@@ -54,6 +58,9 @@ func (configured Config) Validate() error {
 		return err
 	}
 	if err := validateLoopback(configured.SOCKSListen); err != nil {
+		return err
+	}
+	if err := credential.ValidateBackend(configured.CredentialStore); err != nil {
 		return err
 	}
 	if backendName == backend.ATrust {

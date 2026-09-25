@@ -40,7 +40,26 @@ Cobra) are checked against the same surface.
 - `SOUNDCONNECT_CONFIG_DIR` (an absolute path) replaces the default state
   directory, which is `os.UserConfigDir()/soundconnect`. The runtime control
   socket is derived from this directory, so an isolated directory also
-  isolates `status`, `disconnect` and `connect`.
+  isolates `status`, `disconnect` and `connect`, and gets its own keyring
+  service (`com.soundadam.soundconnect.<hash>`) so it never touches the real
+  saved password.
+- When standard input and standard error are both terminals and no
+  `--*-stdin` flag is given, `setup`, `account` and a first-run `connect`
+  show interactive forms on stderr (`internal/tui`). `TERM=dumb` or
+  `SOUNDCONNECT_ACCESSIBLE=1` keeps plain line prompts. Anything piped or
+  redirected gets the line prompts described below, byte for byte.
+
+### Credential storage
+
+The password (keyring account `password`) and the aTrust session
+(`atrust-session`) live in the system keyring through go-keyring: the macOS
+login Keychain, the Secret Service on Linux, or the Windows Credential
+Manager. Secrets too large for one item are split into chunk items behind a
+header item. `credential_store = "file"` in `config.toml` keeps them in
+owner-only files (`credential`, `atrust-client-data`) instead, for hosts
+without a keyring. A secret left by an earlier release (the pre-keyring
+Keychain items `vpn-password` / `atrust-client-data`, or those files) is moved
+into the keyring the first time it is read, and the old copy is removed.
 
 ### Exit codes
 
@@ -60,12 +79,17 @@ is the one place that turns errors into exit codes and stderr lines.
 | Command | Flags | stdout | Notes |
 |---|---|---|---|
 | *(none)*, `connect` | `--background`, `--verification-code-stdin` | Progress lines (`authentication: accepted`, `state: …`, `socks: …`); `background: pid=<n> log=<path>` | Foreground runs until Ctrl-C or `disconnect`. `--background` is EasyConnect only. |
-| `setup` | `--backend` (`easyconnect`), `--server`, `--username`, `--auth-type`, `--login-domain`, `--socks-listen`, `--upstream-proxy`, `--tls-insecure`, `--native-tls-insecure`, `--password-stdin` | `configuration:`, `backend:`, `credential:` | Prompts on stderr for a missing gateway or account. Rewrites the whole configuration from its flags. |
+| `setup` | `--backend` (`easyconnect`), `--server`, `--username`, `--auth-type`, `--login-domain`, `--socks-listen`, `--upstream-proxy`, `--tls-insecure`, `--native-tls-insecure`, `--password-stdin` | `configuration:`, `backend:`, `credential:` | Prompts on stderr for a missing gateway or account; on a terminal it runs the guided wizard. Merges into the saved configuration: flags left out keep their saved values. Stores the password before the configuration. Changing the account, gateway or backend forgets the aTrust session. Refuses (exit 1) while a runtime is active. |
+| `account` | — | Same as `account show` | On a terminal, opens a menu to change the account instead. |
+| `account show` | `--json` | `configuration:`, `backend:`, `server:`, `username:`, `auth_type:`, `credential_store:`, `password:`, `atrust_session:` | Never reads a secret; `password` and `atrust_session` are `saved`, `missing`, `not_required` or `unavailable`. |
+| `account set-password` | `--password-stdin` | `password: saved` | Replaces only the password. |
+| `account set-username <name>` | — | `username:`, `atrust_session_cleared:` | Forgets the aTrust session when the name changes. |
+| `account forget` | `--password`, `--session` | `password_forgotten:`, `atrust_session_forgotten:`, `oauth_profile_cleared:` | At least one flag (exit 2 otherwise). `--session` also clears the OAuth helper's browser profile when the helper is present. |
 | `configure` | `--backend`, `--server`, `--username`, `--auth-type`, `--login-domain`, `--socks-listen`, `--upstream-proxy` | `configuration:`, `backend:`, `server:`, `socks_listen:` (and `auth_type:`, `login_domain:` for aTrust) | Merges into the existing configuration and never touches secrets. Refuses (exit 1) while a runtime is active. |
 | `backends` | `--json` | Tab-separated catalog, or JSON | Strong: `--json`. |
 | `auth-info` | `--backend` (`atrust`), `--server`, `--json` | Discovered aTrust methods | aTrust only; EasyConnect exits 2. |
 | `migrate` | `--from` (`.`) | `configuration_migrated:`, `credential_migrated:`, `source_preserved: true` | Idempotent; copies, never moves. |
-| `doctor` | `--json` | `ready`, `configuration`, `credential_store`, `upstream_proxy` | Exit 1 when not ready. Strong: `--json`. |
+| `doctor` | `--json` | `ready`, `configuration`, `credential_store`, `upstream_proxy`, `next_step` (text: `next:`) | Exit 1 when not ready. `next_step` is the command to run next: `soundconnect setup`, `soundconnect account set-password`, `soundconnect configure --upstream-proxy` or `soundconnect connect`. Strong: `--json`. |
 | `disconnect` | — | `stopping: true`, or `running: false` | Exit 0 in both cases. |
 | `logout` | — | `atrust_session_cleared: true`, `oauth_profile_cleared: <bool>` | Clears only aTrust state; the shared password and the configuration stay. |
 | `dry-run` | — | Authentication and bootstrap summary | EasyConnect; never starts the dataplane. |
@@ -87,8 +111,14 @@ stderr kept empty. The error codes are `invalid_arguments`, `local_state`,
 
 ## Stdin line protocols
 
-- `setup --password-stdin` reads exactly one line, the password; `\n` or
-  `\r\n` is stripped. An empty line exits 1 with `credential is empty`.
+- `setup --password-stdin` and `account set-password --password-stdin` read
+  exactly one line, the password; `\n` or `\r\n` is stripped. An empty line
+  exits 1 with `credential is empty`.
+- Without a configuration, `connect`, the default command and `dry-run`
+  fail with `load configuration: no configuration yet; run "soundconnect
+  setup" first`; on a terminal they offer the guided setup instead. A missing
+  password fails with `no saved VPN password; run "soundconnect account
+  set-password"`.
 - `connect --verification-code-stdin` prints `Verification code: ` on stderr
   when the gateway asks for a code, then reads one line from stdin. Without
   the flag the prompt needs a terminal and fails with
@@ -109,13 +139,15 @@ These command lines are strong contract. The app finds the CLI at
 | Backend catalog | `backends --json` | `SoundConnectBackendCatalog` |
 | Save account | `setup --backend <b> --server <s> --username <u> --password-stdin` | Exit code; the password is written to stdin |
 | Switch backend | `configure --backend <b>` | Exit code |
+| Forget aTrust session | `account forget --session` | Exit code |
 | Connect, EasyConnect | `connect --background --verification-code-stdin` | Exit code; `verification code` on stderr triggers the code field |
 | Connect, aTrust | `connect --verification-code-stdin` | `backend: atrust` plus `authentication: accepted` or `authentication: resumed` on stdout marks the handoff; `verification code` on stderr |
 | Turn off | SIGTERM to a foreground `connect`, then `disconnect` | Exit code |
 | Speed test | `speedtest component status --json`, `speedtest component install --yes --json-events`, `speedtest probe --route auto --json`, `speedtest last --json`, `speedtest campus --route auto --json-events` | `ComponentStatus`, `CampusSpeedTestEvent`, `CampusProbeResult`, `CampusSpeedTestResult` |
 
 The app currently classifies a rejected credential by matching stderr text
-(`authentication rejected`, `password authentication`, `credential`) and a
+(`authentication rejected`, `password authentication`, `credential`,
+`no saved VPN password`) and a
 cancelled Keychain prompt by `Keychain access was cancelled` or
 `OSStatus -128`. Treat those substrings as strong contract until the app
 switches to a stable token.
@@ -155,7 +187,12 @@ directory (`0700`) and the socket (`0600`) must be owned by the current user.
 ## Tests and fixtures
 
 - `internal/app`: unit tests for each service over an isolated state
-  directory built into `app.Deps`, runnable in parallel.
+  directory built into `app.Deps`, runnable in parallel. Guided flows run
+  through `LineInteraction` with scripted answers.
+- `internal/credential`: the keyring store runs against go-keyring's
+  in-memory mock; `cmd/soundconnect` and `internal/app` tests install the
+  mock too, so no test or re-executed runtime child reaches the real keyring.
+- `internal/tui`: huh forms driven by scripted key presses.
 - `cmd/soundconnect/clitest_test.go`: the harness. It runs the real dispatcher
   against an isolated `SOUNDCONNECT_CONFIG_DIR`, with file-backed secret
   stores and a fake aTrust core. Fake EasyConnect gateways and status sockets

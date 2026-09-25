@@ -5,9 +5,34 @@ soundconnect is a native command-line client for secure campus connectivity.
 ## CLI setup and migration
 
 `soundconnect setup` stores non-secret configuration in the operating system's
-user configuration directory. On macOS the long-lived VPN password is stored
-in the login Keychain under service `com.soundadam.soundconnect`; it is not
-written to the TOML configuration.
+user configuration directory. The long-lived VPN password and the aTrust
+session are kept in the system keyring under service
+`com.soundadam.soundconnect`: the login Keychain on macOS, the Secret Service
+on Linux, or the Windows Credential Manager. They are never written to the
+TOML configuration. On a host without a keyring, such as a headless Linux box
+over SSH, add `credential_store = "file"` to `config.toml` to keep them in
+owner-only files instead.
+
+Run in a terminal, `soundconnect setup` is a guided wizard: it asks for the
+backend, the gateway, the aTrust sign-in method it discovers, the account and
+the password, with the saved values as defaults. Re-running it changes only
+what you answer or pass as flags; the listener, upstream proxy and TLS
+settings are kept. The first `connect` without a configuration offers the
+wizard too, and `soundconnect doctor` ends with the next command to run.
+
+To fix a wrong password or account without re-running setup:
+
+```sh
+soundconnect account                  # show the saved account; a menu in a terminal
+soundconnect account set-password     # replace only the password
+soundconnect account set-username NEW # change the account, forgetting its aTrust session
+soundconnect account forget --session # sign in to aTrust from scratch next time
+```
+
+Scripts can pipe the password with `setup --password-stdin` or
+`account set-password --password-stdin`; piped input always gets plain line
+prompts. `TERM=dumb` or `SOUNDCONNECT_ACCESSIBLE=1` does the same on a
+terminal.
 
 Pre-release worktree state can be imported explicitly without overwriting an
 existing destination:
@@ -45,7 +70,7 @@ soundconnect logout                          # forget saved aTrust session state
 ```
 
 Both backends share the one CLI-owned SOCKS5 listener (default
-`127.0.0.1:1081`) and the Keychain VPN password. `configure` refuses to change
+`127.0.0.1:1081`) and the saved VPN password. `configure` refuses to change
 the profile while a runtime is active. Set an absolute
 `SOUNDCONNECT_CONFIG_DIR` to run against an isolated configuration directory.
 
@@ -102,7 +127,7 @@ This is a local testing workaround, not a release installation step. Release
 artifacts should be signed and notarized.
 
 The current Homebrew Cask packages the macOS menu-bar client plus the native
-universal CLI. The menu bar saves credentials through the CLI into Keychain,
+universal CLI. The menu bar saves credentials through the CLI into the Keychain,
 starts and stops the real background userspace runtime, submits one-time codes
 through a private stdin pipe, and streams sanitized runtime state while the
 panel is open. Build it with
