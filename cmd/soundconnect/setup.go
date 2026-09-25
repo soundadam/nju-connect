@@ -15,19 +15,34 @@ import (
 func runSetup(arguments []string, stdout, stderr io.Writer) error {
 	flags := flag.NewFlagSet("soundconnect setup", flag.ContinueOnError)
 	var request app.SetupRequest
-	flags.StringVar(&request.Backend, "backend", string(backend.EasyConnect), "protocol backend (easyconnect or atrust)")
+	backendValue := flags.String("backend", string(backend.EasyConnect), "protocol backend (easyconnect or atrust)")
 	flags.StringVar(&request.Server, "server", "", "campus VPN gateway host or host:port")
 	flags.StringVar(&request.Username, "username", "", "campus account")
 	flags.StringVar(&request.AuthType, "auth-type", "", "aTrust authentication type (auth/httpsOauth2 or auth/psw)")
 	flags.StringVar(&request.LoginDomain, "login-domain", "", "aTrust login domain override")
-	flags.StringVar(&request.SOCKSListen, "socks-listen", config.DefaultSOCKSListen, "numeric loopback SOCKS5 listener")
-	flags.StringVar(&request.UpstreamProxy, "upstream-proxy", "", "optional socks5 upstream URL")
-	flags.BoolVar(&request.TLSInsecure, "tls-insecure", false, "allow an unverified development gateway certificate")
-	flags.BoolVar(&request.NativeTLSInsecure, "native-tls-insecure", false, "disable verification only for native protocol TLS")
+	socksListen := flags.String("socks-listen", config.DefaultSOCKSListen, "numeric loopback SOCKS5 listener")
+	upstreamProxy := flags.String("upstream-proxy", "", "optional socks5 upstream URL")
+	tlsInsecure := flags.Bool("tls-insecure", false, "allow an unverified development gateway certificate")
+	nativeTLSInsecure := flags.Bool("native-tls-insecure", false, "disable verification only for native protocol TLS")
 	flags.BoolVar(&request.PasswordSupplied, "password-stdin", false, "read the password from standard input without a terminal prompt")
 	if err := parseCommand(flags, arguments, stdout, stderr); err != nil {
 		return err
 	}
+	// Flags left out keep the saved settings.
+	flags.Visit(func(set *flag.Flag) {
+		switch set.Name {
+		case "backend":
+			request.Backend = *backendValue
+		case "socks-listen":
+			request.SOCKSListen = socksListen
+		case "upstream-proxy":
+			request.UpstreamProxy = upstreamProxy
+		case "tls-insecure":
+			request.TLSInsecure = tlsInsecure
+		case "native-tls-insecure":
+			request.NativeTLSInsecure = nativeTLSInsecure
+		}
+	})
 	interaction := app.NewLineInteraction(app.LineOptions{
 		Input: os.Stdin, Output: stderr, PasswordFromStdin: request.PasswordSupplied,
 	})

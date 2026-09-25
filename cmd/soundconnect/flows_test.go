@@ -107,9 +107,9 @@ func TestFlowSetupRejectsEmptyPipedPassword(t *testing.T) {
 		"--username", "student", "--password-stdin").expect(t, 1))
 }
 
-func TestFlowSetupReplacesPreviousSettings(t *testing.T) {
-	// Re-running setup rebuilds the configuration from flags. This golden
-	// records the current behaviour: a custom upstream proxy is dropped.
+func TestFlowSetupKeepsSettingsItIsNotGiven(t *testing.T) {
+	// Re-running setup changes only what its flags name; the listener and
+	// upstream proxy survive a password or account change.
 	harness := newCLIHarness(t)
 	harness.writeConfig(config.Config{
 		Server: "vpn.example.edu", Username: "old-student", SOCKSListen: "127.0.0.1:1090",
@@ -121,7 +121,7 @@ func TestFlowSetupReplacesPreviousSettings(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.UpstreamProxy != "" || got.SOCKSListen != config.DefaultSOCKSListen || got.Username != "student" {
+	if got.UpstreamProxy != "socks5://127.0.0.1:7890" || got.SOCKSListen != "127.0.0.1:1090" || got.Username != "student" {
 		t.Fatalf("configuration = %#v", got)
 	}
 }
