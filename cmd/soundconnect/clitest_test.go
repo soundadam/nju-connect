@@ -22,6 +22,7 @@ import (
 	"github.com/soundadam/soundconnect/internal/config"
 	"github.com/soundadam/soundconnect/internal/credential"
 	"github.com/soundadam/soundconnect/internal/runtime"
+	"github.com/soundadam/soundconnect/internal/runtimecontrol"
 )
 
 var updateGolden = flag.Bool("update", false, "rewrite CLI golden files and shared JSON contract fixtures")
@@ -114,9 +115,9 @@ func (harness *cliHarness) readSecret(path string) (string, error) {
 
 // serveStatus publishes a fixed runtime snapshot on the private control
 // socket the real runtime would own, and records disconnect requests.
-func (harness *cliHarness) serveStatus(snapshot runtimeStatusSnapshot) *fakeRuntimeControl {
+func (harness *cliHarness) serveStatus(snapshot runtimecontrol.Snapshot) *fakeRuntimeControl {
 	harness.t.Helper()
-	server, err := startRuntimeStatusServer(runtimeStatusPath(harness.root), func() runtimeStatusSnapshot { return snapshot })
+	server, err := runtimecontrol.Serve(runtimecontrol.Path(harness.root), func() runtimecontrol.Snapshot { return snapshot })
 	if err != nil {
 		harness.t.Fatal(err)
 	}
@@ -127,7 +128,7 @@ func (harness *cliHarness) serveStatus(snapshot runtimeStatusSnapshot) *fakeRunt
 }
 
 type fakeRuntimeControl struct {
-	server *runtimeStatusServer
+	server *runtimecontrol.Server
 	mu     sync.Mutex
 	stops  int
 }
@@ -145,17 +146,17 @@ func (control *fakeRuntimeControl) stopCount() int {
 }
 
 // fixedRunningSnapshot is a deterministic, fully populated live snapshot.
-func fixedRunningSnapshot(profile runtime.ProtocolProfileID) runtimeStatusSnapshot {
+func fixedRunningSnapshot(profile runtime.ProtocolProfileID) runtimecontrol.Snapshot {
 	startedAt := time.Date(2026, time.September, 1, 8, 0, 0, 0, time.UTC)
-	return runtimeStatusSnapshot{
-		SchemaVersion:  runtimeStatusSchema,
+	return runtimecontrol.Snapshot{
+		SchemaVersion:  runtimecontrol.SchemaVersion,
 		Running:        true,
 		State:          "connected",
 		StartedAt:      &startedAt,
 		Profile:        profile,
 		SOCKSListen:    "127.0.0.1:1080",
 		AccessEvidence: "available",
-		Traffic: &runtimeTrafficStatus{
+		Traffic: &runtimecontrol.Traffic{
 			SessionStartedAt:   &startedAt,
 			SampledAtUnixMilli: startedAt.Add(90 * time.Second).UnixMilli(),
 			UploadBytes:        12_345,
@@ -378,16 +379,16 @@ func (*harnessTunnel) Close() error { return nil }
 
 // waitForRuntime polls the private status socket until a live runtime
 // reports state, or fails the test.
-func (harness *cliHarness) waitForRuntime(state string) runtimeStatusSnapshot {
+func (harness *cliHarness) waitForRuntime(state string) runtimecontrol.Snapshot {
 	harness.t.Helper()
 	deadline := time.Now().Add(10 * time.Second)
 	for time.Now().Before(deadline) {
-		snapshot, err := queryRuntimeStatus(runtimeStatusPath(harness.root))
+		snapshot, err := runtimecontrol.Query(runtimecontrol.Path(harness.root))
 		if err == nil && snapshot.State == state {
 			return snapshot
 		}
 		time.Sleep(20 * time.Millisecond)
 	}
 	harness.t.Fatalf("runtime did not reach state %q", state)
-	return runtimeStatusSnapshot{}
+	return runtimecontrol.Snapshot{}
 }

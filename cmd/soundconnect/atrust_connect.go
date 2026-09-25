@@ -19,6 +19,7 @@ import (
 	"github.com/soundadam/soundconnect/internal/credential"
 	"github.com/soundadam/soundconnect/internal/dial"
 	"github.com/soundadam/soundconnect/internal/runtime"
+	"github.com/soundadam/soundconnect/internal/runtimecontrol"
 )
 
 const atrustGatewayDialTimeout = 15 * time.Second
@@ -115,7 +116,7 @@ func runATrustConnectContext(
 	}
 
 	statusTracker := newRuntimeStatusTracker(runtime.ProfileATrustTCP)
-	statusServer, err := startRuntimeStatusServer(runtimeStatusPath(paths.Root), func() runtimeStatusSnapshot {
+	statusServer, err := runtimecontrol.Serve(runtimecontrol.Path(paths.Root), func() runtimecontrol.Snapshot {
 		statusTracker.UpdateIngressTraffic(connection.Traffic(), time.Now())
 		return statusTracker.Snapshot()
 	})

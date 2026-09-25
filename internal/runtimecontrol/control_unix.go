@@ -1,6 +1,6 @@
 //go:build linux || darwin
 
-package main
+package runtimecontrol
 
 import (
 	"crypto/sha256"
@@ -30,24 +30,28 @@ type runtimeControlResponse struct {
 	OK bool `json:"ok"`
 }
 
-func runtimeStatusPath(root string) string {
+// Path is the control socket of the runtime that belongs to the configuration
+// directory root. It lives in a private per-user directory under TMPDIR.
+func Path(root string) string {
 	digest := sha256.Sum256([]byte(filepath.Clean(root)))
 	directory := filepath.Join(os.TempDir(), fmt.Sprintf("soundconnect-runtime-%d", os.Geteuid()))
 	return filepath.Join(directory, fmt.Sprintf("%x.sock", digest[:12]))
 }
 
-type runtimeStatusServer struct {
+// Server serves the control socket for one running runtime.
+type Server struct {
 	listener  *net.UnixListener
 	path      string
 	fileInfo  os.FileInfo
-	snapshot  func() runtimeStatusSnapshot
+	snapshot  func() Snapshot
 	done      chan struct{}
 	once      sync.Once
 	controlMu sync.RWMutex
 	stop      func()
 }
 
-func (server *runtimeStatusServer) SetStop(stop func()) {
+// SetStop installs the callback run when a client requests a disconnect.
+func (server *Server) SetStop(stop func()) {
 	if server == nil {
 		return
 	}
@@ -56,7 +60,8 @@ func (server *runtimeStatusServer) SetStop(stop func()) {
 	server.controlMu.Unlock()
 }
 
-func startRuntimeStatusServer(path string, snapshot func() runtimeStatusSnapshot) (*runtimeStatusServer, error) {
+// Serve listens on path and answers every client with snapshot().
+func Serve(path string, snapshot func() Snapshot) (*Server, error) {
 	if snapshot == nil {
 		return nil, errors.New("runtime status source is unavailable")
 	}
@@ -81,7 +86,7 @@ func startRuntimeStatusServer(path string, snapshot func() runtimeStatusSnapshot
 		_ = os.Remove(path)
 		return nil, errors.New("inspect runtime status socket")
 	}
-	server := &runtimeStatusServer{
+	server := &Server{
 		listener: listener, path: path, fileInfo: info, snapshot: snapshot, done: make(chan struct{}),
 	}
 	go server.serve()
@@ -124,7 +129,7 @@ func prepareRuntimeSocket(path string) error {
 	connection, dialErr := net.DialTimeout("unix", path, 250*time.Millisecond)
 	if dialErr == nil {
 		_ = connection.Close()
-		return errRuntimeAlreadyActive
+		return ErrAlreadyActive
 	}
 	current, err := os.Lstat(path)
 	if err != nil || !os.SameFile(current, info) {
@@ -150,7 +155,7 @@ func validateRuntimeSocket(info os.FileInfo) error {
 	return nil
 }
 
-func (server *runtimeStatusServer) serve() {
+func (server *Server) serve() {
 	defer close(server.done)
 	for {
 		connection, err := server.listener.AcceptUnix()
@@ -184,24 +189,26 @@ func (server *runtimeStatusServer) serve() {
 	}
 }
 
-func requestRuntimeDisconnect(path string) error {
+// RequestDisconnect asks the runtime on path to stop. It returns
+// ErrNotRunning when nothing answers.
+func RequestDisconnect(path string) error {
 	directoryInfo, err := os.Lstat(filepath.Dir(path))
 	if errors.Is(err, os.ErrNotExist) {
-		return errRuntimeNotRunning
+		return ErrNotRunning
 	}
 	if err != nil || validateRuntimeDirectory(directoryInfo) != nil {
 		return errors.New("inspect runtime status directory")
 	}
 	info, err := os.Lstat(path)
 	if errors.Is(err, os.ErrNotExist) {
-		return errRuntimeNotRunning
+		return ErrNotRunning
 	}
 	if err != nil || validateRuntimeSocket(info) != nil {
 		return errors.New("inspect runtime status socket")
 	}
 	connection, err := net.DialTimeout("unix", path, 2*time.Second)
 	if err != nil {
-		return errRuntimeNotRunning
+		return ErrNotRunning
 	}
 	defer connection.Close()
 	_ = connection.SetDeadline(time.Now().Add(2 * time.Second))
@@ -215,7 +222,8 @@ func requestRuntimeDisconnect(path string) error {
 	return nil
 }
 
-func (server *runtimeStatusServer) Close() error {
+// Close stops serving and removes the socket it created.
+func (server *Server) Close() error {
 	if server == nil {
 		return nil
 	}
@@ -230,49 +238,51 @@ func (server *runtimeStatusServer) Close() error {
 	return closeErr
 }
 
-func queryRuntimeStatus(path string) (runtimeStatusSnapshot, error) {
+// Query reads and validates the snapshot of the runtime on path. It returns
+// ErrNotRunning when nothing answers.
+func Query(path string) (Snapshot, error) {
 	directoryInfo, err := os.Lstat(filepath.Dir(path))
 	if errors.Is(err, os.ErrNotExist) {
-		return runtimeStatusSnapshot{}, errRuntimeNotRunning
+		return Snapshot{}, ErrNotRunning
 	}
 	if err != nil {
-		return runtimeStatusSnapshot{}, errors.New("inspect runtime status directory")
+		return Snapshot{}, errors.New("inspect runtime status directory")
 	}
 	if err := validateRuntimeDirectory(directoryInfo); err != nil {
-		return runtimeStatusSnapshot{}, err
+		return Snapshot{}, err
 	}
 	info, err := os.Lstat(path)
 	if errors.Is(err, os.ErrNotExist) {
-		return runtimeStatusSnapshot{}, errRuntimeNotRunning
+		return Snapshot{}, ErrNotRunning
 	}
 	if err != nil {
-		return runtimeStatusSnapshot{}, errors.New("inspect runtime status socket")
+		return Snapshot{}, errors.New("inspect runtime status socket")
 	}
 	if err := validateRuntimeSocket(info); err != nil {
-		return runtimeStatusSnapshot{}, err
+		return Snapshot{}, err
 	}
 	connection, err := net.DialTimeout("unix", path, 2*time.Second)
 	if err != nil {
-		return runtimeStatusSnapshot{}, errRuntimeNotRunning
+		return Snapshot{}, ErrNotRunning
 	}
 	defer connection.Close()
 	_ = connection.SetReadDeadline(time.Now().Add(2 * time.Second))
 	payload, err := io.ReadAll(io.LimitReader(connection, maximumRuntimeStatus+1))
 	if err != nil || len(payload) == 0 || len(payload) > maximumRuntimeStatus {
-		return runtimeStatusSnapshot{}, errors.New("runtime status response is invalid")
+		return Snapshot{}, errors.New("runtime status response is invalid")
 	}
-	var snapshot runtimeStatusSnapshot
+	var snapshot Snapshot
 	if err := json.Unmarshal(payload, &snapshot); err != nil {
-		return runtimeStatusSnapshot{}, errors.New("runtime status response is invalid")
+		return Snapshot{}, errors.New("runtime status response is invalid")
 	}
 	if !validRuntimeStatusSnapshot(snapshot) {
-		return runtimeStatusSnapshot{}, errors.New("runtime status response is invalid")
+		return Snapshot{}, errors.New("runtime status response is invalid")
 	}
 	return snapshot, nil
 }
 
-func validRuntimeStatusSnapshot(snapshot runtimeStatusSnapshot) bool {
-	if snapshot.SchemaVersion != runtimeStatusSchema || !snapshot.Running || !validRuntimeStatusState(snapshot.State) ||
+func validRuntimeStatusSnapshot(snapshot Snapshot) bool {
+	if snapshot.SchemaVersion != SchemaVersion || !snapshot.Running || !validRuntimeStatusState(snapshot.State) ||
 		!validRuntimeStatusProfile(snapshot.Profile) || !validAccessEvidence(snapshot.AccessEvidence) ||
 		!validStatusSOCKSListen(snapshot.SOCKSListen) || !validCommandFailure(snapshot.LastCommandFailure) ||
 		!validDataFailure(snapshot.LastDataFailure) {
@@ -321,13 +331,5 @@ func validDataFailure(stage string) bool {
 }
 
 func validRuntimeStatusState(state string) bool {
-	return state == string(nativeappStateConnecting) || state == string(nativeappStateConnected) || state == string(nativeappStateReconnecting)
+	return state == "connecting" || state == "connected" || state == "reconnecting"
 }
-
-type runtimeStatusState string
-
-const (
-	nativeappStateConnecting   runtimeStatusState = "connecting"
-	nativeappStateConnected    runtimeStatusState = "connected"
-	nativeappStateReconnecting runtimeStatusState = "reconnecting"
-)

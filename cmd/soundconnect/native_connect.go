@@ -20,6 +20,7 @@ import (
 	"github.com/soundadam/soundconnect/internal/credential"
 	"github.com/soundadam/soundconnect/internal/dial"
 	"github.com/soundadam/soundconnect/internal/runtime"
+	"github.com/soundadam/soundconnect/internal/runtimecontrol"
 	"github.com/soundadam/soundconnect/internal/sessiontoken"
 )
 
@@ -76,8 +77,8 @@ func runNativeConnectContext(
 		fmt.Fprintf(stderr, "resolve local state: %v\n", err)
 		return 1
 	}
-	if err := ensureNoActiveRuntime(runtimeStatusPath(paths.Root)); err != nil {
-		if errors.Is(err, errRuntimeAlreadyActive) {
+	if err := runtimecontrol.EnsureNoActive(runtimecontrol.Path(paths.Root)); err != nil {
+		if errors.Is(err, runtimecontrol.ErrAlreadyActive) {
 			fmt.Fprintln(stderr, `soundconnect is already running; run "soundconnect status" to inspect it or "soundconnect disconnect" to stop it`)
 			return 1
 		}
@@ -177,7 +178,7 @@ func runNativeConnectContext(
 		return 1
 	}
 	defer application.Close()
-	statusServer, err := startRuntimeStatusServer(runtimeStatusPath(paths.Root), func() runtimeStatusSnapshot {
+	statusServer, err := runtimecontrol.Serve(runtimecontrol.Path(paths.Root), func() runtimecontrol.Snapshot {
 		statusTracker.UpdateTraffic(application.Traffic(), time.Now())
 		return statusTracker.Snapshot()
 	})

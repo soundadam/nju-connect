@@ -8,6 +8,7 @@ import (
 
 	"github.com/soundadam/soundconnect/internal/backend"
 	"github.com/soundadam/soundconnect/internal/config"
+	"github.com/soundadam/soundconnect/internal/runtimecontrol"
 )
 
 func TestConfigureSwitchesToATrustWithoutTouchingSecrets(t *testing.T) {
@@ -133,7 +134,7 @@ func TestConfigureRefusesLiveRuntime(t *testing.T) {
 	}
 
 	tracker := newRuntimeStatusTracker("community-utls")
-	server, err := startRuntimeStatusServer(runtimeStatusPath(root), tracker.Snapshot)
+	server, err := runtimecontrol.Serve(runtimecontrol.Path(root), tracker.Snapshot)
 	if err != nil {
 		t.Fatal(err)
 	}

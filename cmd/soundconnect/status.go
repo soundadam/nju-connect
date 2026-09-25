@@ -11,47 +11,19 @@ import (
 
 	"github.com/soundadam/soundconnect/internal/backend/easyconnect/session"
 	"github.com/soundadam/soundconnect/internal/runtime"
+	"github.com/soundadam/soundconnect/internal/runtimecontrol"
 	"github.com/soundadam/soundconnect/internal/traffic"
 )
 
-const runtimeStatusSchema = 1
-
-var (
-	errRuntimeNotRunning    = errors.New("native runtime is not running")
-	errRuntimeAlreadyActive = errors.New("another native runtime is already active")
-)
-
-type runtimeTrafficStatus struct {
-	SessionStartedAt   *time.Time `json:"session_started_at,omitempty"`
-	SampledAtUnixMilli int64      `json:"sampled_at_unix_milli"`
-	UploadBytes        uint64     `json:"upload_bytes"`
-	DownloadBytes      uint64     `json:"download_bytes"`
-	ActiveConnections  int64      `json:"active_connections"`
-	TotalConnections   uint64     `json:"total_connections"`
-}
-
-type runtimeStatusSnapshot struct {
-	SchemaVersion      int                       `json:"schema_version"`
-	Running            bool                      `json:"running"`
-	State              string                    `json:"state"`
-	StartedAt          *time.Time                `json:"started_at,omitempty"`
-	Profile            runtime.ProtocolProfileID `json:"profile,omitempty"`
-	SOCKSListen        string                    `json:"socks_listen,omitempty"`
-	AccessEvidence     string                    `json:"access_evidence"`
-	LastCommandFailure string                    `json:"last_command_failure,omitempty"`
-	LastDataFailure    string                    `json:"last_data_failure,omitempty"`
-	Traffic            *runtimeTrafficStatus     `json:"traffic,omitempty"`
-}
-
 type runtimeStatusTracker struct {
 	mu       sync.RWMutex
-	snapshot runtimeStatusSnapshot
+	snapshot runtimecontrol.Snapshot
 }
 
 func newRuntimeStatusTracker(profile runtime.ProtocolProfileID) *runtimeStatusTracker {
 	startedAt := time.Now().UTC()
-	return &runtimeStatusTracker{snapshot: runtimeStatusSnapshot{
-		SchemaVersion:  runtimeStatusSchema,
+	return &runtimeStatusTracker{snapshot: runtimecontrol.Snapshot{
+		SchemaVersion:  runtimecontrol.SchemaVersion,
 		Running:        true,
 		State:          string(nativeapp.StateConnecting),
 		StartedAt:      &startedAt,
@@ -60,7 +32,7 @@ func newRuntimeStatusTracker(profile runtime.ProtocolProfileID) *runtimeStatusTr
 	}}
 }
 
-func (tracker *runtimeStatusTracker) Snapshot() runtimeStatusSnapshot {
+func (tracker *runtimeStatusTracker) Snapshot() runtimecontrol.Snapshot {
 	tracker.mu.RLock()
 	defer tracker.mu.RUnlock()
 	return tracker.snapshot
@@ -85,7 +57,7 @@ func (tracker *runtimeStatusTracker) UpdateIngressTraffic(snapshot traffic.Snaps
 		sessionStartedAt = &started
 	}
 	tracker.mu.Lock()
-	tracker.snapshot.Traffic = &runtimeTrafficStatus{
+	tracker.snapshot.Traffic = &runtimecontrol.Traffic{
 		SessionStartedAt: sessionStartedAt, SampledAtUnixMilli: sampledAt.UTC().UnixMilli(),
 		UploadBytes: snapshot.UploadBytes, DownloadBytes: snapshot.DownloadBytes,
 		ActiveConnections: snapshot.ActiveConnections, TotalConnections: snapshot.TotalConnections,
@@ -136,17 +108,6 @@ func runtimeStatusObserver(base nativeapp.ObserverFuncs, tracker *runtimeStatusT
 	}
 }
 
-func ensureNoActiveRuntime(path string) error {
-	_, err := queryRuntimeStatus(path)
-	if err == nil {
-		return errRuntimeAlreadyActive
-	}
-	if errors.Is(err, errRuntimeNotRunning) {
-		return nil
-	}
-	return err
-}
-
 func runStatus(arguments []string, stdout, stderr io.Writer) int {
 	flags := flag.NewFlagSet("soundconnect status", flag.ContinueOnError)
 	asJSON := flags.Bool("json", false, "print JSON")
@@ -168,7 +129,7 @@ func runStatus(arguments []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 	for {
-		snapshot, err := currentRuntimeStatus(paths.Root)
+		snapshot, err := runtimecontrol.Current(paths.Root)
 		if err != nil {
 			fmt.Fprintf(stderr, "read runtime status: %v\n", err)
 			return 1
@@ -187,17 +148,7 @@ func runStatus(arguments []string, stdout, stderr io.Writer) int {
 	}
 }
 
-func currentRuntimeStatus(root string) (runtimeStatusSnapshot, error) {
-	snapshot, err := queryRuntimeStatus(runtimeStatusPath(root))
-	if errors.Is(err, errRuntimeNotRunning) {
-		return runtimeStatusSnapshot{
-			SchemaVersion: runtimeStatusSchema, State: "stopped", AccessEvidence: "unknown",
-		}, nil
-	}
-	return snapshot, err
-}
-
-func writeRuntimeStatus(stdout io.Writer, snapshot runtimeStatusSnapshot, asJSON bool) error {
+func writeRuntimeStatus(stdout io.Writer, snapshot runtimecontrol.Snapshot, asJSON bool) error {
 	if asJSON {
 		return json.NewEncoder(stdout).Encode(snapshot)
 	}
@@ -242,8 +193,8 @@ func runDisconnect(arguments []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "resolve local state: %v\n", err)
 		return 1
 	}
-	err = requestRuntimeDisconnect(runtimeStatusPath(paths.Root))
-	if errors.Is(err, errRuntimeNotRunning) {
+	err = runtimecontrol.RequestDisconnect(runtimecontrol.Path(paths.Root))
+	if errors.Is(err, runtimecontrol.ErrNotRunning) {
 		fmt.Fprintln(stdout, "running: false")
 		return 0
 	}

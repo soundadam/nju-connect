@@ -10,6 +10,7 @@ import (
 
 	"github.com/soundadam/soundconnect/internal/backend"
 	"github.com/soundadam/soundconnect/internal/config"
+	"github.com/soundadam/soundconnect/internal/runtimecontrol"
 )
 
 // runConfigure changes only non-secret connection settings. The macOS host
@@ -38,7 +39,7 @@ func runConfigure(arguments []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "resolve local state: %v\n", err)
 		return 1
 	}
-	if err := ensureNoActiveRuntime(runtimeStatusPath(paths.Root)); err != nil {
+	if err := runtimecontrol.EnsureNoActive(runtimecontrol.Path(paths.Root)); err != nil {
 		fmt.Fprintf(stderr, "configure profile: %v\n", err)
 		return 1
 	}

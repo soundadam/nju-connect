@@ -10,6 +10,7 @@ import (
 	"github.com/soundadam/soundconnect/internal/config"
 	"github.com/soundadam/soundconnect/internal/core"
 	"github.com/soundadam/soundconnect/internal/runtime"
+	"github.com/soundadam/soundconnect/internal/runtimecontrol"
 	"github.com/soundadam/soundconnect/internal/sessiontoken"
 )
 
@@ -32,7 +33,7 @@ func TestBackgroundHandoffRoundTripAndValidation(t *testing.T) {
 		},
 		Token:         token,
 		NativeProfile: runtime.ProfileCommunityUTLSCompat,
-		StatusPath:    runtimeStatusPath(t.TempDir()),
+		StatusPath:    runtimecontrol.Path(t.TempDir()),
 	}
 	var wire bytes.Buffer
 	if err := writeBackgroundHandoff(&wire, &handoff); err != nil {
