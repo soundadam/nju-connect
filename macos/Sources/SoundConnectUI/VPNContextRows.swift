@@ -95,13 +95,13 @@ struct VPNContextRows: View {
 
     private var setupRow: some View {
         VStack(alignment: .leading, spacing: 7) {
-            TextField(uiText("School account", "学校账号"), text: $schoolAccount)
+            TextField(uiText("NJU account", "南大账号"), text: $schoolAccount)
                 .textFieldStyle(.roundedBorder)
                 .controlSize(.small)
                 .focused($setupFieldFocused, equals: .schoolAccount)
                 .onSubmit { setupFieldFocused = .vpnPassword }
 
-            SecureField(uiText("VPN password", "VPN 长期密码"), text: $vpnPassword)
+            SecureField(uiText("NJU password", "南大密码"), text: $vpnPassword)
                 .textFieldStyle(.roundedBorder)
                 .controlSize(.small)
                 .focused($setupFieldFocused, equals: .vpnPassword)
@@ -141,8 +141,8 @@ struct VPNContextRows: View {
         }
         .help(
             uiText(
-                "The account and VPN password are stored in Keychain. Verification codes are never saved.",
-                "学校账号与 VPN 长期密码存储在钥匙串中；短信或动态口令不会保存"
+                "The account and long-lived password are stored in Keychain and shared by both backends. Verification codes are never saved.",
+                "账号与长期密码存储在钥匙串中，两个后端共用；短信或动态口令不会保存"
             )
         )
     }

@@ -8,7 +8,7 @@ struct TrafficRow: View {
             HStack(spacing: 6) {
                 Text("SOCKS5")
                     .fontWeight(.medium)
-                Text(model.socksEndpoint)
+                Text(model.socksRouteSummary)
                     .fontDesign(.monospaced)
                 Spacer(minLength: 0)
             }

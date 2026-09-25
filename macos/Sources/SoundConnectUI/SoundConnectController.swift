@@ -25,29 +25,60 @@ struct SoundConnectRuntimeSnapshot: Equatable {
     let state: String
     let socksListen: String
     let traffic: SoundConnectTrafficSnapshot?
+    var profile: String? = nil
+    var accessEvidence: String? = nil
+
+    /// The backend that owns the running runtime, derived from the Go
+    /// status profile. Nil when stopped or when the profile is unknown.
+    var backend: SoundConnectBackend? {
+        switch profile {
+        case "community-utls", "easyconnect-7.6.7": return .easyConnect
+        case "atrust-tcp": return .aTrust
+        default: return nil
+        }
+    }
 }
 
 struct SoundConnectBackendError: LocalizedError, Sendable {
     let message: String
 
     var errorDescription: String? { message }
+
+    /// True when macOS reported that the user cancelled Keychain access to
+    /// the saved VPN password; retrying and choosing Allow resolves it.
+    var isKeychainAccessCancellation: Bool {
+        Self.isKeychainAccessCancellation(message)
+    }
+
+    static func isKeychainAccessCancellation(_ text: String) -> Bool {
+        text.localizedCaseInsensitiveContains("Keychain access was cancelled")
+            || text.localizedCaseInsensitiveContains("OSStatus -128")
+    }
 }
 
 typealias SoundConnectStatusCompletion = @MainActor @Sendable (Result<SoundConnectRuntimeSnapshot, SoundConnectBackendError>) -> Void
 typealias SoundConnectActionCompletion = @MainActor @Sendable (Result<Void, SoundConnectBackendError>) -> Void
+typealias SoundConnectCatalogCompletion = @MainActor @Sendable (SoundConnectBackendCatalog?) -> Void
 
 @MainActor
 protocol SoundConnectControlling: AnyObject {
     func readStatus(completion: @escaping SoundConnectStatusCompletion)
     func startStatusMonitoring(completion: @escaping SoundConnectStatusCompletion)
     func stopStatusMonitoring()
+    func loadBackendCatalog(completion: @escaping SoundConnectCatalogCompletion)
     func saveConfiguration(
+        backend: SoundConnectBackend,
         server: String,
         account: String,
         password: String,
         completion: @escaping SoundConnectActionCompletion
     )
+    /// Selects `backend` in the CLI's non-secret profile, then starts it.
+    /// Completion reports success once the runtime has taken over: when the
+    /// background handoff exits for EasyConnect, or when the foreground aTrust
+    /// process reports authentication.
     func connect(
+        backend: SoundConnectBackend,
         verificationRequested: @escaping @MainActor @Sendable () -> Void,
         completion: @escaping SoundConnectActionCompletion
     )
@@ -70,7 +101,9 @@ private struct RuntimeStatusPayload: Decodable {
 
     let running: Bool
     let state: String
+    let profile: String?
     let socksListen: String?
+    let accessEvidence: String?
     let traffic: Traffic?
 }
 
@@ -87,6 +120,7 @@ final class SoundConnectController: SoundConnectControlling {
     private var didRequestVerification = false
     private var verificationHandler: (@MainActor @Sendable () -> Void)?
     private var connectionCompletion: SoundConnectActionCompletion?
+    private var connectionOutputText = ""
     private var statusMonitorProcess: Process?
     private var statusMonitorOutput: Pipe?
     private var statusMonitorBuffer = Data()
@@ -163,7 +197,18 @@ final class SoundConnectController: SoundConnectControlling {
         }
     }
 
+    func loadBackendCatalog(completion: @escaping SoundConnectCatalogCompletion) {
+        runCapture(arguments: ["backends", "--json"]) { data, code, _ in
+            guard code == 0 else {
+                completion(nil)
+                return
+            }
+            completion(try? JSONDecoder().decode(SoundConnectBackendCatalog.self, from: data))
+        }
+    }
+
     func saveConfiguration(
+        backend: SoundConnectBackend,
         server: String,
         account: String,
         password: String,
@@ -178,7 +223,10 @@ final class SoundConnectController: SoundConnectControlling {
         let output = Pipe()
         let errors = Pipe()
         child.executableURL = executable
-        child.arguments = ["setup", "--server", server, "--username", account, "--password-stdin"]
+        child.arguments = [
+            "setup", "--backend", backend.rawValue,
+            "--server", server, "--username", account, "--password-stdin",
+        ]
         child.standardInput = input
         child.standardOutput = output
         child.standardError = errors
@@ -203,6 +251,36 @@ final class SoundConnectController: SoundConnectControlling {
     }
 
     func connect(
+        backend: SoundConnectBackend,
+        verificationRequested: @escaping @MainActor @Sendable () -> Void,
+        completion: @escaping SoundConnectActionCompletion
+    ) {
+        guard connectionProcess == nil else {
+            completion(.failure(SoundConnectBackendError(message: "A connection attempt is already running.")))
+            return
+        }
+        guard helperExecutable() != nil else {
+            completion(.failure(SoundConnectBackendError(message: missingHelperMessage)))
+            return
+        }
+        runCapture(arguments: ["configure", "--backend", backend.rawValue]) { [weak self] _, code, errorText in
+            guard let self else { return }
+            guard code == 0 else {
+                completion(.failure(SoundConnectBackendError(
+                    message: errorText.isEmpty ? "Unable to select the \(backend.title) backend." : errorText
+                )))
+                return
+            }
+            self.launchConnection(
+                backend: backend,
+                verificationRequested: verificationRequested,
+                completion: completion
+            )
+        }
+    }
+
+    private func launchConnection(
+        backend: SoundConnectBackend,
         verificationRequested: @escaping @MainActor @Sendable () -> Void,
         completion: @escaping SoundConnectActionCompletion
     ) {
@@ -219,17 +297,28 @@ final class SoundConnectController: SoundConnectControlling {
         let output = Pipe()
         let errors = Pipe()
         child.executableURL = executable
-        child.arguments = ["connect", "--background", "--verification-code-stdin"]
+        // EasyConnect hands off to a detached runtime. The aTrust runtime has
+        // no background mode yet, so its foreground process is the runtime.
+        child.arguments = backend == .aTrust
+            ? ["connect", "--verification-code-stdin"]
+            : ["connect", "--background", "--verification-code-stdin"]
         child.standardInput = input
         child.standardOutput = output
         child.standardError = errors
         connectionProcess = child
         connectionInput = input
         connectionErrorText = ""
+        connectionOutputText = ""
         didRequestVerification = false
         verificationHandler = verificationRequested
         connectionCompletion = completion
 
+        output.fileHandleForReading.readabilityHandler = { [weak self] handle in
+            let data = handle.availableData
+            guard !data.isEmpty else { return }
+            let text = String(decoding: data, as: UTF8.self)
+            Task { @MainActor in self?.consumeConnectionOutput(text) }
+        }
         errors.fileHandleForReading.readabilityHandler = { [weak self] handle in
             let data = handle.availableData
             guard !data.isEmpty else { return }
@@ -238,6 +327,7 @@ final class SoundConnectController: SoundConnectControlling {
         }
         child.terminationHandler = { [weak self] finished in
             Task { @MainActor in
+                output.fileHandleForReading.readabilityHandler = nil
                 self?.finishConnection(
                     process: finished,
                     exitCode: finished.terminationStatus,
@@ -249,6 +339,7 @@ final class SoundConnectController: SoundConnectControlling {
             try child.run()
         } catch {
             errors.fileHandleForReading.readabilityHandler = nil
+            output.fileHandleForReading.readabilityHandler = nil
             clearConnectionState()
             completion(.failure(SoundConnectBackendError(message: "Unable to start soundconnect.")))
         }
@@ -283,6 +374,24 @@ final class SoundConnectController: SoundConnectControlling {
         {
             didRequestVerification = true
             verificationHandler?()
+        }
+    }
+
+    /// A foreground runtime prints "authentication: accepted" (or "resumed")
+    /// after its status socket is live; that is the handoff point.
+    private func consumeConnectionOutput(_ text: String) {
+        guard connectionCompletion != nil else { return }
+        connectionOutputText += text
+        if connectionOutputText.count > 4_096 {
+            connectionOutputText = String(connectionOutputText.suffix(4_096))
+        }
+        if connectionOutputText.contains("authentication: accepted")
+            || connectionOutputText.contains("authentication: resumed"),
+           connectionOutputText.contains("backend: atrust")
+        {
+            let completion = connectionCompletion
+            connectionCompletion = nil
+            completion?(.success(()))
         }
     }
 
@@ -325,7 +434,9 @@ final class SoundConnectController: SoundConnectControlling {
                     activeConnections: $0.activeConnections,
                     sampledAtUnixMilli: $0.sampledAtUnixMilli ?? 0
                 )
-            }
+            },
+            profile: status.profile,
+            accessEvidence: status.accessEvidence
         )
     }
 
@@ -359,6 +470,7 @@ final class SoundConnectController: SoundConnectControlling {
         connectionProcess = nil
         connectionInput = nil
         connectionErrorText = ""
+        connectionOutputText = ""
         didRequestVerification = false
         verificationHandler = nil
         connectionCompletion = nil

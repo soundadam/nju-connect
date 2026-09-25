@@ -28,5 +28,10 @@ struct DashboardView: View {
 		.onDisappear {
 			model.setTrafficMonitoringActive(false)
 		}
+		.onChange(of: model.phase) { phase in
+			if phase == .connected {
+				speedTest.beginLatencySampling(force: true)
+			}
+		}
 	}
 }
