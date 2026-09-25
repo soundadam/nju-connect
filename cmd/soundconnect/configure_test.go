@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/soundadam/soundconnect/internal/app"
 	"github.com/soundadam/soundconnect/internal/backend"
 	"github.com/soundadam/soundconnect/internal/config"
 	"github.com/soundadam/soundconnect/internal/runtimecontrol"
@@ -42,7 +43,7 @@ func TestConfigureSwitchesToATrustWithoutTouchingSecrets(t *testing.T) {
 	}
 	if got.BackendName() != backend.ATrust || got.Server != config.DefaultATrustServer ||
 		got.Username != "123456789" || got.SOCKSListen != config.DefaultSOCKSListen ||
-		got.AuthType != atrustPasswordAuthType || got.LoginDomain != "" ||
+		got.AuthType != app.ATrustPasswordAuthType || got.LoginDomain != "" ||
 		got.UpstreamProxy != "socks5://127.0.0.1:9050" {
 		t.Fatalf("configured profile = %#v", got)
 	}
@@ -63,7 +64,7 @@ func TestConfigureSwitchesBackToEasyConnectAndClearsATrustFields(t *testing.T) {
 		Server:      config.DefaultATrustServer,
 		Username:    "123456789",
 		SOCKSListen: config.DefaultSOCKSListen,
-		AuthType:    atrustPasswordAuthType,
+		AuthType:    app.ATrustPasswordAuthType,
 		LoginDomain: "openldap13924",
 	}); err != nil {
 		t.Fatal(err)

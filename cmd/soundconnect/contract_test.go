@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"testing"
 
+	"github.com/soundadam/soundconnect/internal/app"
 	"github.com/soundadam/soundconnect/internal/backend"
 	"github.com/soundadam/soundconnect/internal/config"
 	"github.com/soundadam/soundconnect/internal/runtime"
@@ -128,7 +129,7 @@ func TestContractDoctor(t *testing.T) {
 
 	harness.writeConfig(config.Config{
 		Backend: backend.ATrust, Server: config.DefaultATrustServer, SOCKSListen: config.DefaultSOCKSListen,
-		AuthType: atrustOAuthAuthType,
+		AuthType: app.ATrustOAuthAuthType,
 	})
 	harness.golden("doctor_atrust_oauth_text", harness.run("doctor").expect(t, 0))
 }

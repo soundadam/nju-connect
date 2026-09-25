@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/soundadam/soundconnect/internal/app"
 	"github.com/soundadam/soundconnect/internal/backend"
 	"github.com/soundadam/soundconnect/internal/backend/atrust"
 	"github.com/soundadam/soundconnect/internal/backend/easyconnect/auth"
@@ -21,12 +22,9 @@ import (
 	"github.com/soundadam/soundconnect/internal/credential"
 	"github.com/soundadam/soundconnect/internal/doctor"
 	setupservice "github.com/soundadam/soundconnect/internal/setup"
-	"golang.org/x/term"
 )
 
 var version = "dev"
-
-const atrustDiscoveryTimeout = 25 * time.Second
 
 var (
 	connectCommand = runNativeConnect
@@ -103,13 +101,13 @@ func runAuthInfo(arguments []string, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stderr, "auth-info is currently available only for the aTrust backend")
 		return 2
 	}
-	endpoint, err := parseATrustEndpoint(*server)
+	endpoint, err := app.ParseATrustEndpoint(*server)
 	if err != nil {
 		fmt.Fprintf(stderr, "parse aTrust gateway: %v\n", err)
 		return 2
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), atrustDiscoveryTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), app.ATrustDiscoveryTimeout)
 	defer cancel()
 	methods, err := (atrustbackend.Discovery{Core: newATrustCore()}).Discover(ctx, endpoint)
 	if err != nil {
@@ -214,7 +212,8 @@ func runDryRun(arguments []string, stdout, stderr io.Writer) int {
 			fmt.Fprintf(stderr, "prepare verification code authentication: %v\n", err)
 			return 1
 		}
-		code, promptErr := promptVerificationCode(context.Background(), os.Stdin, stderr, false)
+		code, promptErr := app.NewLineInteraction(app.LineOptions{Input: os.Stdin, Output: stderr}).
+			VerificationCode(context.Background(), "")
 		if promptErr != nil {
 			if errors.Is(promptErr, context.Canceled) {
 				return 0
@@ -272,100 +271,6 @@ func runDryRun(arguments []string, stdout, stderr io.Writer) int {
 	return 1
 }
 
-func promptVerificationCode(ctx context.Context, input *os.File, output io.Writer, allowNonTerminal bool) ([]byte, error) {
-	if ctx == nil {
-		return nil, errors.New("verification code context is required")
-	}
-	if input == nil {
-		return nil, credential.ErrNoTerminal
-	}
-	isTerminal := term.IsTerminal(int(input.Fd()))
-	if !isTerminal && !allowNonTerminal {
-		return nil, credential.ErrNoTerminal
-	}
-	if _, err := io.WriteString(output, "Verification code: "); err != nil {
-		return nil, err
-	}
-	if isTerminal {
-		original, err := term.MakeRaw(int(input.Fd()))
-		if err != nil {
-			return nil, err
-		}
-		defer term.Restore(int(input.Fd()), original) //nolint:errcheck // best-effort terminal restoration on every exit path
-	}
-	defer fmt.Fprintln(output)
-
-	type readResult struct {
-		code []byte
-		err  error
-	}
-	var err error
-	result := make(chan readResult, 1)
-	go func() {
-		code, readErr := readRawVerificationCode(input)
-		select {
-		case result <- readResult{code: code, err: readErr}:
-		case <-ctx.Done():
-			credential.Clear(code)
-		}
-	}()
-
-	var rawCode []byte
-	select {
-	case <-ctx.Done():
-		return nil, ctx.Err()
-	case read := <-result:
-		rawCode, err = read.code, read.err
-	}
-	if err != nil {
-		credential.Clear(rawCode)
-		return nil, err
-	}
-	defer clear(rawCode)
-	trimmed := bytes.TrimSpace(rawCode)
-	if len(trimmed) == 0 {
-		return nil, errors.New("verification code is required")
-	}
-	return append([]byte(nil), trimmed...), nil
-}
-
-func readRawVerificationCode(input io.Reader) ([]byte, error) {
-	const maximumVerificationCodeBytes = 64
-	code := make([]byte, 0, 8)
-	defer func() {
-		if code != nil {
-			clear(code)
-		}
-	}()
-	var one [1]byte
-	for {
-		count, err := input.Read(one[:])
-		if count > 0 {
-			switch one[0] {
-			case 0x03:
-				return nil, context.Canceled
-			case '\r', '\n':
-				result := append([]byte(nil), code...)
-				return result, nil
-			case 0x04:
-				return nil, io.EOF
-			case 0x08, 0x7f:
-				if len(code) > 0 {
-					code = code[:len(code)-1]
-				}
-			default:
-				if len(code) >= maximumVerificationCodeBytes {
-					return nil, errors.New("verification code is too long")
-				}
-				code = append(code, one[0])
-			}
-		}
-		if err != nil {
-			return nil, err
-		}
-	}
-}
-
 func runSetup(arguments []string, stdout, stderr io.Writer) int {
 	flags := flag.NewFlagSet("soundconnect setup", flag.ContinueOnError)
 	backendValue := flags.String("backend", string(backend.EasyConnect), "protocol backend (easyconnect or atrust)")
@@ -398,7 +303,7 @@ func runSetup(arguments []string, stdout, stderr io.Writer) int {
 		// A password supplied through the private GUI pipe is an explicit
 		// request for shared-password authentication. Discovery still
 		// determines the tenant-specific login domain.
-		*authType = atrustPasswordAuthType
+		*authType = app.ATrustPasswordAuthType
 	}
 	lineReader := bufio.NewReader(os.Stdin)
 	if strings.TrimSpace(*server) == "" {
@@ -439,7 +344,7 @@ func runSetup(arguments []string, stdout, stderr io.Writer) int {
 		if code := chooseATrustSetupMethod(&configured, *authType, *loginDomain, stderr); code != 0 {
 			return code
 		}
-		if configured.AuthType == atrustPasswordAuthType && strings.TrimSpace(configured.Username) == "" {
+		if configured.AuthType == app.ATrustPasswordAuthType && strings.TrimSpace(configured.Username) == "" {
 			value, promptErr := promptLine(lineReader, stderr, "Account: ")
 			if promptErr != nil {
 				fmt.Fprintf(stderr, "read account: %v\n", promptErr)
@@ -457,7 +362,7 @@ func runSetup(arguments []string, stdout, stderr io.Writer) int {
 		}).Get()
 	}
 	var passwordStore credential.Store
-	if backendName == backend.EasyConnect || configured.AuthType == atrustPasswordAuthType {
+	if backendName == backend.EasyConnect || configured.AuthType == app.ATrustPasswordAuthType {
 		passwordStore, err = newSystemCredentialStore(paths.Credential)
 		if err != nil {
 			fmt.Fprintf(stderr, "prepare credential store: %v\n", err)
@@ -471,7 +376,7 @@ func runSetup(arguments []string, stdout, stderr io.Writer) int {
 	credentialStatus := "system_store"
 	if backendName == backend.ATrust {
 		credentialStatus = "browser_oauth"
-		if configured.AuthType == atrustPasswordAuthType {
+		if configured.AuthType == app.ATrustPasswordAuthType {
 			credentialStatus = "system_store_password"
 		}
 	}
@@ -482,24 +387,24 @@ func runSetup(arguments []string, stdout, stderr io.Writer) int {
 // chooseATrustSetupMethod selects the aTrust authentication method from the
 // gateway's advertised methods.
 func chooseATrustSetupMethod(configured *config.Config, authType, loginDomain string, stderr io.Writer) int {
-	endpoint, err := parseATrustEndpoint(configured.Server)
+	endpoint, err := app.ParseATrustEndpoint(configured.Server)
 	if err != nil {
 		fmt.Fprintf(stderr, "parse aTrust gateway: %v\n", err)
 		return 2
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), atrustDiscoveryTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), app.ATrustDiscoveryTimeout)
 	methods, err := (atrustbackend.Discovery{Core: newATrustCore()}).Discover(ctx, endpoint)
 	cancel()
 	if err != nil {
 		fmt.Fprintf(stderr, "discover aTrust authentication: %v\n", err)
 		return 1
 	}
-	selected, err := selectATrustAuthenticationMethod(methods, authType, loginDomain)
+	selected, err := app.SelectATrustAuthenticationMethod(methods, authType, loginDomain)
 	if err != nil {
 		fmt.Fprintf(stderr, "setup failed: %v\n", err)
 		return 1
 	}
-	if err := validateATrustAuthenticationType(selected.Type); err != nil {
+	if err := app.ValidateATrustAuthenticationType(selected.Type); err != nil {
 		fmt.Fprintf(stderr, "setup failed: %v\n", err)
 		return 1
 	}

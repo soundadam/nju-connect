@@ -8,6 +8,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/soundadam/soundconnect/internal/app"
 	"github.com/soundadam/soundconnect/internal/backend"
 	"github.com/soundadam/soundconnect/internal/config"
 	"github.com/soundadam/soundconnect/internal/runtimecontrol"
@@ -92,14 +93,14 @@ func runConfigure(arguments []string, stdout, stderr io.Writer) int {
 			// A backend switch reuses the shared Keychain password. The concrete
 			// tenant login domain is discovered by connect instead of being
 			// encoded in the application or presentation layer.
-			configured.AuthType = atrustPasswordAuthType
+			configured.AuthType = app.ATrustPasswordAuthType
 		}
 		if value := strings.TrimSpace(*loginDomainValue); value != "" {
 			configured.LoginDomain = value
 		} else if previousBackend != backendName {
 			configured.LoginDomain = ""
 		}
-		if err := validateATrustAuthenticationType(configured.AuthType); err != nil {
+		if err := app.ValidateATrustAuthenticationType(configured.AuthType); err != nil {
 			fmt.Fprintf(stderr, "configure aTrust profile: %v\n", err)
 			return 2
 		}

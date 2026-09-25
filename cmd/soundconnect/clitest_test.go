@@ -17,6 +17,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/soundadam/soundconnect/internal/app"
 	"github.com/soundadam/soundconnect/internal/backend"
 	"github.com/soundadam/soundconnect/internal/backend/atrust"
 	"github.com/soundadam/soundconnect/internal/config"
@@ -271,8 +272,8 @@ type harnessATrustCore struct {
 func newHarnessATrustCore() *harnessATrustCore {
 	return &harnessATrustCore{
 		methods: []backend.AuthenticationMethod{
-			{Name: "Unified identity", Type: atrustOAuthAuthType, Domain: "oauth-domain", LoginURL: "https://vpn.nju.edu.cn/portal/oauth-login"},
-			{Name: "Account password", Type: atrustPasswordAuthType, Domain: "ldap-domain"},
+			{Name: "Unified identity", Type: app.ATrustOAuthAuthType, Domain: "oauth-domain", LoginURL: "https://vpn.nju.edu.cn/portal/oauth-login"},
+			{Name: "Account password", Type: app.ATrustPasswordAuthType, Domain: "ldap-domain"},
 		},
 		clientData: "fresh-client-data",
 		tunnel:     &harnessTunnel{},

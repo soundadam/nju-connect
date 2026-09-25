@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/soundadam/soundconnect/internal/app"
 	"github.com/soundadam/soundconnect/internal/backend"
 	"github.com/soundadam/soundconnect/internal/backend/atrust"
 	"github.com/soundadam/soundconnect/internal/backend/easyconnect/session"
@@ -42,11 +43,11 @@ func runATrustConnectContext(
 	stdout io.Writer,
 	stderr io.Writer,
 ) int {
-	if err := validateATrustAuthenticationType(configured.AuthType); err != nil {
+	if err := app.ValidateATrustAuthenticationType(configured.AuthType); err != nil {
 		fmt.Fprintf(stderr, "connect aTrust backend: %v\n", err)
 		return 2
 	}
-	endpoint, err := parseATrustEndpoint(configured.Server)
+	endpoint, err := app.ParseATrustEndpoint(configured.Server)
 	if err != nil {
 		fmt.Fprintf(stderr, "parse aTrust gateway: %v\n", err)
 		return 2
@@ -59,14 +60,14 @@ func runATrustConnectContext(
 	core := newATrustCore()
 
 	method := backend.AuthenticationMethod{Type: configured.AuthType, Domain: configured.LoginDomain}
-	if method.Domain == "" || method.Type == atrustOAuthAuthType {
+	if method.Domain == "" || method.Type == app.ATrustOAuthAuthType {
 		// The tenant login domain and OAuth login URL are gateway-issued, so
 		// they are discovered rather than stored or hard-coded.
 		methods, discoverErr := (atrustbackend.Discovery{Core: core}).Discover(ctx, endpoint)
 		if discoverErr != nil {
 			return reportATrustError(stderr, "discover aTrust authentication", discoverErr)
 		}
-		method, err = selectATrustAuthenticationMethod(methods, configured.AuthType, configured.LoginDomain)
+		method, err = app.SelectATrustAuthenticationMethod(methods, configured.AuthType, configured.LoginDomain)
 		if err != nil {
 			fmt.Fprintf(stderr, "select aTrust authentication: %v\n", err)
 			return 1
@@ -96,8 +97,10 @@ func runATrustConnectContext(
 			Dial:     gatewayDial,
 		},
 		SavedClientData: savedClientData,
-		Prompter:        newATrustCLIPrompter(paths, verificationCodeStdin, os.Stdin, stderr),
-		SOCKSListen:     configured.SOCKSListen,
+		Prompter: newATrustCLIPrompter(paths, app.NewLineInteraction(app.LineOptions{
+			Input: os.Stdin, Output: stderr, CodeFromStdin: verificationCodeStdin,
+		}), stderr),
+		SOCKSListen: configured.SOCKSListen,
 	})
 	credential.Clear(savedClientData)
 	if err != nil {
@@ -151,7 +154,7 @@ func runATrustConnectContext(
 // newATrustCLIPrompter supplies interactive factors from the terminal, the
 // Keychain, and the bundled OAuth helper. The protocol core never reads
 // standard input itself.
-func newATrustCLIPrompter(paths config.Paths, verificationCodeStdin bool, input *os.File, output io.Writer) atrustbackend.Prompter {
+func newATrustCLIPrompter(paths config.Paths, interaction app.Interaction, output io.Writer) atrustbackend.Prompter {
 	return atrustbackend.PrompterFuncs{
 		OnPassword: func(context.Context, atrustbackend.PasswordRequest) ([]byte, error) {
 			store, _, err := commandCredentialStore(paths)
@@ -165,49 +168,34 @@ func newATrustCLIPrompter(paths config.Paths, verificationCodeStdin bool, input 
 			return password, err
 		},
 		OnVerificationCode: func(ctx context.Context, request atrustbackend.VerificationRequest) ([]byte, error) {
-			if request.Destination != "" {
-				fmt.Fprintf(output, "A verification code was sent to %s.\n", request.Destination)
-			}
-			return promptVerificationCode(ctx, input, output, verificationCodeStdin)
+			return interaction.VerificationCode(ctx, request.Destination)
 		},
 		OnCaptcha: func(context.Context, atrustbackend.CaptchaChallenge) (string, error) {
 			return "", fmt.Errorf("graphical captcha is not supported by the CLI yet: %w", atrustbackend.ErrFactorUnavailable)
 		},
 		OnOAuthCode: func(ctx context.Context, request atrustbackend.OAuthRequest) (string, error) {
-			return promptATrustOAuthCode(ctx, request, input, output)
+			return promptATrustOAuthCode(ctx, request, interaction, output)
 		},
 	}
 }
 
-func promptATrustOAuthCode(ctx context.Context, request atrustbackend.OAuthRequest, input io.Reader, output io.Writer) (string, error) {
+func promptATrustOAuthCode(
+	ctx context.Context,
+	request atrustbackend.OAuthRequest,
+	interaction app.Interaction,
+	output io.Writer,
+) (string, error) {
 	if request.LoginURL == "" {
 		return "", errors.New("aTrust OAuth login URL is unavailable")
 	}
 	if helperPath, available := atrustOAuthHelperPath(); available {
 		return runATrustOAuthHelper(ctx, helperPath, request.LoginURL, request.Endpoint, output)
 	}
-	fmt.Fprintf(output, "Visit %s to sign in.\n", request.LoginURL)
-	fmt.Fprintln(output, "Paste the resulting /passport/v1/auth/httpsOauth2 callback URL here; it stays local.")
-	fmt.Fprint(output, "Callback URL: ")
-
-	type readResult struct {
-		line string
-		err  error
+	callback, err := interaction.OAuthCallback(ctx, request.LoginURL)
+	if err != nil {
+		return "", err
 	}
-	completed := make(chan readResult, 1)
-	go func() {
-		line, readErr := readBoundedLine(input, 8192)
-		completed <- readResult{line: line, err: readErr}
-	}()
-	select {
-	case <-ctx.Done():
-		return "", ctx.Err()
-	case result := <-completed:
-		if result.err != nil {
-			return "", result.err
-		}
-		return atrustbackend.ParseOAuthCallbackCode(result.line, request.Endpoint)
-	}
+	return atrustbackend.ParseOAuthCallbackCode(callback, request.Endpoint)
 }
 
 // atrustOAuthHelperPath locates the bundled WebKit OAuth helper next to the
@@ -264,32 +252,4 @@ func runATrustOAuthHelper(
 		return "", errors.New("aTrust OAuth helper returned an invalid authorization code")
 	}
 	return string(trimmed), nil
-}
-
-func readBoundedLine(input io.Reader, maximum int) (string, error) {
-	if input == nil {
-		return "", errors.New("callback input is unavailable")
-	}
-	line := make([]byte, 0, 256)
-	defer clear(line)
-	var one [1]byte
-	for {
-		count, err := input.Read(one[:])
-		if count > 0 {
-			switch one[0] {
-			case '\n':
-				return string(line), nil
-			case '\r':
-				continue
-			default:
-				if len(line) >= maximum {
-					return "", errors.New("callback URL is too long")
-				}
-				line = append(line, one[0])
-			}
-		}
-		if err != nil {
-			return "", err
-		}
-	}
 }

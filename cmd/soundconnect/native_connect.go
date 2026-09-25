@@ -12,6 +12,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/soundadam/soundconnect/internal/app"
 	"github.com/soundadam/soundconnect/internal/backend"
 	"github.com/soundadam/soundconnect/internal/backend/easyconnect/auth"
 	"github.com/soundadam/soundconnect/internal/backend/easyconnect/session"
@@ -119,7 +120,9 @@ func runNativeConnectContext(
 	session, err := func() (*gatewayauth.Session, error) {
 		defer credential.Clear(password)
 		return authenticateAttendedGateway(ctx, configured, password, func() ([]byte, error) {
-			return promptVerificationCode(ctx, os.Stdin, stderr, *verificationCodeStdin)
+			return app.NewLineInteraction(app.LineOptions{
+				Input: os.Stdin, Output: stderr, CodeFromStdin: *verificationCodeStdin,
+			}).VerificationCode(ctx, "")
 		})
 	}()
 	password = nil
