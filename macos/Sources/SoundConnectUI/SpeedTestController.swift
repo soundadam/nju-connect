@@ -100,7 +100,8 @@ struct CampusProbeResult: Decodable, Equatable {
     let latencyMs: Double
 }
 
-private struct ComponentStatus: Decodable {
+// Internal for the shared CLI contract fixture tests.
+struct ComponentStatus: Decodable {
     let installed: Bool
     let helperVersion: String
     let downloadSize: Int64
@@ -108,7 +109,7 @@ private struct ComponentStatus: Decodable {
     let installSource: String?
 }
 
-private struct RuntimeStatus: Decodable {
+struct RuntimeStatus: Decodable {
     let running: Bool
     let state: String
 }

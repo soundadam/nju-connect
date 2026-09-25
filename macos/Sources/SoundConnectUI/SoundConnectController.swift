@@ -91,7 +91,9 @@ let missingHelperMessage = uiText(
     "找不到内置 soundconnect CLI，请重新安装应用以修复"
 )
 
-private struct RuntimeStatusPayload: Decodable {
+// CLI payloads are internal so tests can decode the shared fixtures in
+// testdata/contract, which the Go tests regenerate from real CLI output.
+struct RuntimeStatusPayload: Decodable {
 	struct Traffic: Decodable {
 		let uploadBytes: UInt64
 		let downloadBytes: UInt64
@@ -107,7 +109,7 @@ private struct RuntimeStatusPayload: Decodable {
     let traffic: Traffic?
 }
 
-private struct DoctorPayload: Decodable {
+struct DoctorPayload: Decodable {
     let ready: Bool
 }
 
