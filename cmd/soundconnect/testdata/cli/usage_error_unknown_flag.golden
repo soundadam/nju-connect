@@ -1,0 +1,10 @@
+$ soundconnect status --bogus
+exit: 2
+--- stdout
+--- stderr
+flag provided but not defined: -bogus
+Usage of soundconnect status:
+  -json
+    	print JSON
+  -watch
+    	stream JSON status once per second

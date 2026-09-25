@@ -1,0 +1,5 @@
+$ soundconnect auth-info --backend easyconnect
+exit: 2
+--- stdout
+--- stderr
+auth-info is currently available only for the aTrust backend

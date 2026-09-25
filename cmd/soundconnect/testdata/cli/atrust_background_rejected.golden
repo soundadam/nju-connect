@@ -1,0 +1,5 @@
+$ soundconnect connect --background
+exit: 2
+--- stdout
+--- stderr
+aTrust background runtime is not implemented yet

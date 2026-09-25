@@ -1,0 +1,11 @@
+$ soundconnect auth-info -h
+exit: 0
+--- stdout
+Usage of soundconnect auth-info:
+  -backend string
+    	protocol backend (default "atrust")
+  -json
+    	write machine-readable authentication methods
+  -server string
+    	aTrust gateway host or host:port (default "vpn.nju.edu.cn")
+--- stderr

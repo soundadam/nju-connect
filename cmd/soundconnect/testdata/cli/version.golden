@@ -1,0 +1,5 @@
+$ soundconnect version
+exit: 0
+--- stdout
+soundconnect dev
+--- stderr

@@ -1,0 +1,5 @@
+$ soundconnect dry-run
+exit: 1
+--- stdout
+--- stderr
+read verification code: hidden prompt requires a terminal

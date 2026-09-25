@@ -1,0 +1,5 @@
+$ soundconnect connect
+exit: 1
+--- stdout
+--- stderr
+connect aTrust backend: hidden prompt requires a terminal

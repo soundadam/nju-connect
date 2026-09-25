@@ -1,0 +1,7 @@
+$ soundconnect doctor -h
+exit: 0
+--- stdout
+Usage of soundconnect doctor:
+  -json
+    	print JSON
+--- stderr

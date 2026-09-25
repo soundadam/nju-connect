@@ -1,0 +1,7 @@
+$ soundconnect connect --background --verification-code-stdin
+exit: 0
+--- stdout
+authentication: accepted
+background: pid=4242 log=$CONFIG_DIR/runtime.log
+--- stderr
+Verification code: 

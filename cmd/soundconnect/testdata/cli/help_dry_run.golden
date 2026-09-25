@@ -1,0 +1,5 @@
+$ soundconnect dry-run -h
+exit: 0
+--- stdout
+Usage of soundconnect dry-run:
+--- stderr

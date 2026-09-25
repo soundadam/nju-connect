@@ -1,0 +1,9 @@
+$ soundconnect speedtest probe -h
+exit: 0
+--- stdout
+Usage of soundconnect speedtest probe:
+  -json
+    	print JSON
+  -route string
+    	auto, direct, or soundconnect (default "auto")
+--- stderr
