@@ -122,6 +122,28 @@ static OSStatus soundconnect_keychain_set(
   CFRelease(service);
   return status;
 }
+
+static OSStatus soundconnect_keychain_delete(
+    const void *service_bytes, CFIndex service_len,
+    const void *account_bytes, CFIndex account_len) {
+  CFStringRef service = soundconnect_string(service_bytes, service_len);
+  CFStringRef account = soundconnect_string(account_bytes, account_len);
+  if (service == NULL || account == NULL) {
+    if (service != NULL) CFRelease(service);
+    if (account != NULL) CFRelease(account);
+    return errSecAllocate;
+  }
+  const void *query_keys[] = {kSecClass, kSecAttrService, kSecAttrAccount};
+  const void *query_values[] = {kSecClassGenericPassword, service, account};
+  CFDictionaryRef query = CFDictionaryCreate(
+      kCFAllocatorDefault, query_keys, query_values, 3,
+      &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
+  OSStatus status = SecItemDelete(query);
+  CFRelease(query);
+  CFRelease(account);
+  CFRelease(service);
+  return status;
+}
 */
 import "C"
 
@@ -134,6 +156,7 @@ import (
 
 const (
 	errSecSuccess      = 0
+	errSecUserCanceled = -128
 	errSecItemNotFound = -25300
 )
 
@@ -141,6 +164,7 @@ type keychainBackend interface {
 	inspect(service, account string) error
 	get(service, account string) ([]byte, error)
 	set(service, account string, secret []byte) error
+	delete(service, account string) error
 }
 
 type KeychainStore struct {
@@ -192,6 +216,19 @@ func (s *KeychainStore) Set(secret []byte) error {
 	return s.backend.set(s.service, s.account, secret)
 }
 
+// Clear removes this Keychain item. Missing items are treated as success so
+// logout is idempotent.
+func (s *KeychainStore) Clear() error {
+	if err := s.validate(); err != nil {
+		return err
+	}
+	if err := s.backend.delete(s.service, s.account); errors.Is(err, os.ErrNotExist) {
+		return nil
+	} else {
+		return err
+	}
+}
+
 type systemKeychainBackend struct{}
 
 func (systemKeychainBackend) inspect(service, account string) error {
@@ -235,12 +272,24 @@ func (systemKeychainBackend) set(service, account string, secret []byte) error {
 	return keychainStatus("store", int32(status))
 }
 
+func (systemKeychainBackend) delete(service, account string) error {
+	serviceBytes := []byte(service)
+	accountBytes := []byte(account)
+	status := C.soundconnect_keychain_delete(
+		unsafe.Pointer(&serviceBytes[0]), C.CFIndex(len(serviceBytes)),
+		unsafe.Pointer(&accountBytes[0]), C.CFIndex(len(accountBytes)),
+	)
+	return keychainStatus("delete", int32(status))
+}
+
 func keychainStatus(operation string, status int32) error {
 	switch status {
 	case errSecSuccess:
 		return nil
 	case errSecItemNotFound:
 		return fmt.Errorf("%s Keychain credential: %w", operation, os.ErrNotExist)
+	case errSecUserCanceled:
+		return fmt.Errorf("%s Keychain credential: %w", operation, ErrKeychainAccessCanceled)
 	default:
 		return fmt.Errorf("%s Keychain credential: OSStatus %d", operation, status)
 	}

@@ -22,6 +22,9 @@ func TestLegacyPathsStayInsideWorktree(t *testing.T) {
 	if paths.Credential != filepath.Join(wantRoot, "credential") {
 		t.Fatalf("Credential = %q", paths.Credential)
 	}
+	if paths.ATrustClientData != filepath.Join(wantRoot, "atrust-client-data") {
+		t.Fatalf("ATrustClientData = %q", paths.ATrustClientData)
+	}
 }
 
 func TestApplicationPathsUseStableFiles(t *testing.T) {
@@ -37,6 +40,9 @@ func TestApplicationPathsUseStableFiles(t *testing.T) {
 	if paths.Credential != filepath.Join(root, "credential") {
 		t.Fatalf("Credential = %q", paths.Credential)
 	}
+	if paths.ATrustClientData != filepath.Join(root, "atrust-client-data") {
+		t.Fatalf("ATrustClientData = %q", paths.ATrustClientData)
+	}
 }
 
 func TestDefaultPathsUseUserConfigDirectory(t *testing.T) {
@@ -46,5 +52,27 @@ func TestDefaultPathsUseUserConfigDirectory(t *testing.T) {
 	}
 	if filepath.Base(paths.Root) != applicationDirectory {
 		t.Fatalf("Root = %q, want suffix %q", paths.Root, applicationDirectory)
+	}
+}
+
+func TestDefaultPathsUseExplicitConfigDirectory(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "atrust-test")
+	t.Setenv(configDirectoryEnv, root)
+
+	paths, err := DefaultPaths()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if paths.Root != root {
+		t.Fatalf("Root = %q, want %q", paths.Root, root)
+	}
+}
+
+func TestDefaultPathsRejectRelativeConfigDirectory(t *testing.T) {
+	t.Setenv(configDirectoryEnv, filepath.Join("relative", "atrust-test"))
+
+	_, err := DefaultPaths()
+	if err == nil {
+		t.Fatal("DefaultPaths() unexpectedly accepted a relative override")
 	}
 }
