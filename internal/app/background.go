@@ -122,8 +122,12 @@ func StartBackground(sessionConfig nativeapp.SessionConfig, logPath string) (int
 }
 
 // BackgroundFiles opens the handoff and readiness descriptors a detached
-// runtime inherits.
+// runtime inherits. Run by hand, fds 3 and 4 may belong to the Go runtime
+// itself, so they are adopted only when both are inherited pipes.
 func BackgroundFiles() (handoff, ready *os.File, err error) {
+	if !inheritedPipe(backgroundHandoffFD) || !inheritedPipe(backgroundReadyFD) {
+		return nil, nil, errors.New("background runtime: private handoff is unavailable")
+	}
 	handoff = os.NewFile(backgroundHandoffFD, "soundconnect-background-handoff")
 	ready = os.NewFile(backgroundReadyFD, "soundconnect-background-ready")
 	if handoff == nil || ready == nil {

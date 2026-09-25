@@ -2,6 +2,7 @@ package app
 
 import (
 	"bytes"
+	"net"
 	"os"
 	"path/filepath"
 	"strings"
@@ -76,4 +77,17 @@ func TestOpenPrivateBackgroundLogRejectsUnsafeTargets(t *testing.T) {
 	if _, err := openPrivateBackgroundLog(path); err == nil {
 		t.Fatal("permissive background log was accepted")
 	}
+}
+
+func TestBackgroundFilesLeaveTheRuntimesOwnDescriptorsAlone(t *testing.T) {
+	// In a process not started by StartBackground, fds 3 and 4 are not
+	// handoff pipes; they may be the Go runtime's own poller.
+	if _, _, err := BackgroundFiles(); err == nil || err.Error() != "background runtime: private handoff is unavailable" {
+		t.Fatalf("BackgroundFiles() error = %v", err)
+	}
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("network poller broke: %v", err)
+	}
+	_ = listener.Close()
 }
