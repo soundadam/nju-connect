@@ -11,7 +11,7 @@ import (
 	"github.com/soundadam/soundconnect/internal/backend"
 )
 
-func runAuthInfo(arguments []string, stdout, stderr io.Writer) error {
+func runAuthInfo(deps app.Deps, arguments []string, stdout, stderr io.Writer) error {
 	flags := flag.NewFlagSet("soundconnect auth-info", flag.ContinueOnError)
 	backendValue := flags.String("backend", string(backend.ATrust), "protocol backend")
 	server := flags.String("server", backend.DefaultATrustGateway, "aTrust gateway host or host:port")
@@ -19,7 +19,7 @@ func runAuthInfo(arguments []string, stdout, stderr io.Writer) error {
 	if err := parseCommand(flags, arguments, stdout, stderr); err != nil {
 		return err
 	}
-	methods, err := app.DiscoverATrust(context.Background(), commandDeps(nil, stderr), *backendValue, *server)
+	methods, err := app.DiscoverATrust(context.Background(), withInteraction(deps, app.LineOptions{}, stderr), *backendValue, *server)
 	if err != nil {
 		return err
 	}
@@ -36,13 +36,13 @@ func runAuthInfo(arguments []string, stdout, stderr io.Writer) error {
 	return nil
 }
 
-func runDoctor(arguments []string, stdout, stderr io.Writer) error {
+func runDoctor(deps app.Deps, arguments []string, stdout, stderr io.Writer) error {
 	flags := flag.NewFlagSet("soundconnect doctor", flag.ContinueOnError)
 	asJSON := flags.Bool("json", false, "print JSON")
 	if err := parseCommand(flags, arguments, stdout, stderr); err != nil {
 		return err
 	}
-	report, err := app.Doctor(commandDeps(nil, stderr))
+	report, err := app.Doctor(withInteraction(deps, app.LineOptions{}, stderr))
 	if err != nil {
 		return err
 	}

@@ -195,10 +195,7 @@ func (harness *cliHarness) connectATrust(ctx context.Context, arguments ...strin
 	var stdout, stderr lockedBuffer
 	done := make(chan int, 1)
 	go func() {
-		done <- runNativeConnectContext(ctx, arguments, &stdout, &stderr,
-			func(nativeapp.SessionConfig) (nativeApplicationSession, error) {
-				return nil, errors.New("aTrust must not use the EasyConnect session factory")
-			}, nil)
+		done <- runConnectContext(ctx, harness.deps, arguments, &stdout, &stderr)
 	}()
 	return func() cliResult {
 		harness.t.Helper()
@@ -353,7 +350,7 @@ func TestFlowBackgroundChildStartupFailureIsReported(t *testing.T) {
 	logPath := filepath.Join(harness.root, "runtime.log")
 	// The child accepts only the EasyConnect runtime profile, so this valid
 	// handoff with another profile makes it exit before signalling readiness.
-	_, err := startProductionNativeBackground(nativeapp.SessionConfig{
+	_, err := app.StartBackground(nativeapp.SessionConfig{
 		Settings:           config.Config{Server: "vpn.example.edu", Username: "student", SOCKSListen: config.DefaultSOCKSListen},
 		NativeGatewayToken: make(sessiontoken.NativeGatewayToken, sessiontoken.NativeGatewayTokenSize),
 		NativeProfile:      runtime.ProfileATrustTCP,
@@ -380,7 +377,7 @@ func TestFlowBackgroundRejectsInvalidHandoffBeforeStartingChildWork(t *testing.T
 	if err := os.MkdirAll(harness.root, 0o700); err != nil {
 		t.Fatal(err)
 	}
-	_, err := startProductionNativeBackground(nativeapp.SessionConfig{
+	_, err := app.StartBackground(nativeapp.SessionConfig{
 		NativeGatewayToken: sessiontoken.NativeGatewayToken("short"),
 		NativeProfile:      runtime.ProfileCommunityUTLSCompat,
 	}, filepath.Join(harness.root, "runtime.log"))
@@ -409,33 +406,19 @@ func (harness *cliHarness) useSpeedtestFixtures() {
 	server := httptest.NewTLSServer(http.HandlerFunc(func(response http.ResponseWriter, _ *http.Request) {
 		_, _ = response.Write(helper)
 	}))
-	previousAsset := speedtestAsset
-	previousExternal := speedtestExternalPath
-	previousHTTP := speedtestHTTPClient
-	previousTerminal := speedtestIsTerminal
-	previousStdin := speedtestStdin
-	previousProbe := speedtestProbe
-	speedtestAsset = func() speedtest.ComponentAsset {
-		return speedtest.ComponentAsset{
-			Version: "test", HelperVersion: speedtest.HelperVersion,
-			OS: goruntime.GOOS, Architecture: goruntime.GOARCH,
-			URL: server.URL, Size: int64(len(helper)), SHA256: hex.EncodeToString(digest[:]),
-		}
+	harness.t.Cleanup(server.Close)
+	harness.deps.Speedtest = app.SpeedtestDeps{
+		Asset: func() speedtest.ComponentAsset {
+			return speedtest.ComponentAsset{
+				Version: "test", HelperVersion: speedtest.HelperVersion,
+				OS: goruntime.GOOS, Architecture: goruntime.GOARCH,
+				URL: server.URL, Size: int64(len(helper)), SHA256: hex.EncodeToString(digest[:]),
+			}
+		},
+		ExternalPath: func() string { return "" },
+		HTTPClient:   func() *http.Client { return server.Client() },
+		Probe:        func(context.Context, speedtest.Route, string) error { return nil },
 	}
-	speedtestExternalPath = func() string { return "" }
-	speedtestHTTPClient = func() *http.Client { return server.Client() }
-	speedtestIsTerminal = func() bool { return false }
-	speedtestStdin = strings.NewReader("")
-	speedtestProbe = func(context.Context, speedtest.Route, string) error { return nil }
-	harness.t.Cleanup(func() {
-		server.Close()
-		speedtestAsset = previousAsset
-		speedtestExternalPath = previousExternal
-		speedtestHTTPClient = previousHTTP
-		speedtestIsTerminal = previousTerminal
-		speedtestStdin = previousStdin
-		speedtestProbe = previousProbe
-	})
 }
 
 // TestFlowSpeedtestAppInvocations runs every speed-test command line the
@@ -533,6 +516,10 @@ type easyConnectGatewayFixture struct {
 	requireSMS     bool
 	rejectPassword bool
 	acceptedCode   string
+	// rejectPasswords rejects this many password logins, then accepts.
+	rejectPasswords int
+	// usernames records the account of every password login.
+	usernames *[]string
 }
 
 // newEasyConnectGateway serves the EasyConnect login endpoints with an
@@ -544,13 +531,23 @@ func newEasyConnectGateway(t *testing.T, fixture easyConnectGatewayFixture) *url
 	if err != nil {
 		t.Fatal(err)
 	}
+	var mu sync.Mutex
 	server := httptest.NewTLSServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		switch request.URL.Path {
 		case "/por/login_auth.csp":
 			fmt.Fprintf(writer, "<Auth><ErrorCode>1</ErrorCode><TwfID>fedcba9876543210</TwfID><RSA_ENCRYPT_KEY>%s</RSA_ENCRYPT_KEY><RSA_ENCRYPT_EXP>65537</RSA_ENCRYPT_EXP><CSRF_RAND_CODE>fixture-nonce</CSRF_RAND_CODE></Auth>", privateKey.N.Text(16))
 		case "/por/login_psw.csp":
+			mu.Lock()
+			if fixture.usernames != nil {
+				*fixture.usernames = append(*fixture.usernames, request.FormValue("svpn_name"))
+			}
+			rejected := fixture.rejectPasswords > 0
+			if rejected {
+				fixture.rejectPasswords--
+			}
+			mu.Unlock()
 			switch {
-			case fixture.rejectPassword:
+			case fixture.rejectPassword || rejected:
 				fmt.Fprint(writer, "<Auth><ErrorCode>0</ErrorCode></Auth>")
 			case fixture.requireSMS:
 				fmt.Fprint(writer, "<Auth><ErrorCode>1</ErrorCode><NextService>auth/sms</NextService></Auth>")
@@ -595,18 +592,19 @@ func (harness *cliHarness) writeEasyConnectState(gateway *url.URL, password stri
 func (harness *cliHarness) connectEasyConnectBackground() cliResult {
 	harness.t.Helper()
 	arguments := []string{"--background", "--verification-code-stdin"}
+	deps := harness.deps
+	deps.EasyConnectSession = func(nativeapp.SessionConfig) (app.NativeSession, error) {
+		harness.t.Fatal("background connect reached the foreground session factory")
+		return nil, nil
+	}
+	deps.StartBackground = func(sessionConfig nativeapp.SessionConfig, logPath string) (int, error) {
+		if sessionConfig.Observer != nil || !sessionConfig.Plan.BoundaryReady {
+			harness.t.Fatal("background session config is invalid")
+		}
+		return 4242, nil
+	}
 	var stdout, stderr bytes.Buffer
-	code := runNativeConnectContext(context.Background(), arguments, &stdout, &stderr,
-		func(nativeapp.SessionConfig) (nativeApplicationSession, error) {
-			harness.t.Fatal("background connect reached the foreground session factory")
-			return nil, nil
-		},
-		func(sessionConfig nativeapp.SessionConfig, logPath string) (int, error) {
-			if sessionConfig.Observer != nil || !sessionConfig.Plan.BoundaryReady {
-				harness.t.Fatal("background session config is invalid")
-			}
-			return 4242, nil
-		})
+	code := runConnectContext(context.Background(), deps, arguments, &stdout, &stderr)
 	return cliResult{args: append([]string{"connect"}, arguments...), code: code, stdout: stdout.String(), stderr: stderr.String()}
 }
 
@@ -630,7 +628,9 @@ func TestFlowEasyConnectRejectedPassword(t *testing.T) {
 	harness := newCLIHarness(t)
 	gateway := newEasyConnectGateway(t, easyConnectGatewayFixture{rejectPassword: true})
 	harness.writeEasyConnectState(gateway, "wrong-password")
-	harness.golden("easyconnect_rejected_password", harness.connectEasyConnectBackground().expect(t, 1))
+	rejected := harness.connectEasyConnectBackground().expect(t, 1)
+	harness.golden("easyconnect_rejected_password", rejected)
+	contractFixture(t, "connect_credential_rejected.stderr", rejected.stderr)
 	harness.golden("dry_run_rejected_password", harness.run("dry-run").expect(t, 1))
 }
 

@@ -2,12 +2,12 @@ package main
 
 import (
 	"bytes"
-	"io"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/soundadam/soundconnect/internal/app"
 	"github.com/soundadam/soundconnect/internal/config"
 	"github.com/soundadam/soundconnect/internal/credential"
 )
@@ -16,7 +16,7 @@ func TestVersion(t *testing.T) {
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 
-	if code := run([]string{"version"}, &stdout, &stderr); code != 0 {
+	if code := run(isolatedDeps(t), []string{"version"}, &stdout, &stderr); code != 0 {
 		t.Fatalf("run(version) = %d", code)
 	}
 	if got := stdout.String(); got != "soundconnect dev\n" {
@@ -31,7 +31,7 @@ func TestHelpPrintsUsageOnStdoutAndSucceeds(t *testing.T) {
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 
-	if code := run([]string{"--help"}, &stdout, &stderr); code != 0 {
+	if code := run(isolatedDeps(t), []string{"--help"}, &stdout, &stderr); code != 0 {
 		t.Fatalf("run(--help) = %d", code)
 	}
 	if !strings.Contains(stdout.String(), "usage: soundconnect") {
@@ -49,7 +49,7 @@ func TestSubcommandHelpRequestPrintsFlagsOnStdoutAndSucceeds(t *testing.T) {
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 
-	if code := run([]string{"status", "-h"}, &stdout, &stderr); code != 0 {
+	if code := run(isolatedDeps(t), []string{"status", "-h"}, &stdout, &stderr); code != 0 {
 		t.Fatalf("run(status -h) = %d, stderr = %q", code, stderr.String())
 	}
 	if !strings.Contains(stdout.String(), "Usage of soundconnect status:") || !strings.Contains(stdout.String(), "-json") {
@@ -64,7 +64,7 @@ func TestUnimplementedObserveCommandIsNotDispatched(t *testing.T) {
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 
-	if code := run([]string{"observe"}, &stdout, &stderr); code != 2 {
+	if code := run(isolatedDeps(t), []string{"observe"}, &stdout, &stderr); code != 2 {
 		t.Fatalf("run(observe) = %d", code)
 	}
 	if !strings.Contains(stderr.String(), `unknown command "observe"`) {
@@ -76,7 +76,7 @@ func TestUnknownCommand(t *testing.T) {
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 
-	if code := run([]string{"unknown"}, &stdout, &stderr); code != 2 {
+	if code := run(isolatedDeps(t), []string{"unknown"}, &stdout, &stderr); code != 2 {
 		t.Fatalf("run(unknown) = %d", code)
 	}
 	if stdout.Len() != 0 {
@@ -88,49 +88,29 @@ func TestUnknownCommand(t *testing.T) {
 }
 
 func TestDefaultAndConnectDispatchToRuntimeWhileDryRunStaysExplicit(t *testing.T) {
-	previousConnect := connectCommand
-	previousDryRun := dryRunCommand
-	t.Cleanup(func() {
-		connectCommand = previousConnect
-		dryRunCommand = previousDryRun
-	})
+	paths, deps := useATrustTestState(t)
+	core := useATrustTestCore(t, &deps)
+	core.methods = nil
+	writeATrustTestConfig(t, paths, app.ATrustPasswordAuthType, "")
 
-	connectCalls := 0
-	dryRunCalls := 0
-	connectCommand = func(arguments []string, _, _ io.Writer) int {
-		connectCalls++
-		if len(arguments) != 0 {
-			t.Fatalf("connect arguments = %v", arguments)
+	for _, arguments := range [][]string{nil, {"connect"}} {
+		var stdout, stderr bytes.Buffer
+		if code := run(deps, arguments, &stdout, &stderr); code != 1 ||
+			!strings.Contains(stderr.String(), "select aTrust authentication") {
+			t.Fatalf("run(%v) = %d, stderr = %q", arguments, code, stderr.String())
 		}
-		return 17
 	}
-	dryRunCommand = func(arguments []string, _, _ io.Writer) int {
-		dryRunCalls++
-		if len(arguments) != 0 {
-			t.Fatalf("dry-run arguments = %v", arguments)
-		}
-		return 23
-	}
-
-	var output bytes.Buffer
-	if code := run(nil, &output, &output); code != 17 {
-		t.Fatalf("run(default) = %d", code)
-	}
-	if code := run([]string{"connect"}, &output, &output); code != 17 {
-		t.Fatalf("run(connect) = %d", code)
-	}
-	if code := run([]string{"dry-run"}, &output, &output); code != 23 {
-		t.Fatalf("run(dry-run) = %d", code)
-	}
-	if connectCalls != 2 || dryRunCalls != 1 {
-		t.Fatalf("connect calls = %d, dry-run calls = %d", connectCalls, dryRunCalls)
+	var stdout, stderr bytes.Buffer
+	if code := run(deps, []string{"dry-run", "-h"}, &stdout, &stderr); code != 0 ||
+		!strings.Contains(stdout.String(), "soundconnect dry-run") {
+		t.Fatalf("run(dry-run -h) = %d, stdout = %q", code, stdout.String())
 	}
 }
 
 func TestNativeConnectCommandWasReplaced(t *testing.T) {
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
-	if code := run([]string{"native-connect"}, &stdout, &stderr); code != 2 {
+	if code := run(isolatedDeps(t), []string{"native-connect"}, &stdout, &stderr); code != 2 {
 		t.Fatalf("run(native-connect) = %d", code)
 	}
 	if !strings.Contains(stderr.String(), `unknown command "native-connect"`) {
@@ -141,7 +121,7 @@ func TestNativeConnectCommandWasReplaced(t *testing.T) {
 func TestReleaseCommandsRejectWorktreeDevelopmentOverride(t *testing.T) {
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
-	if code := run([]string{"doctor", "--worktree", t.TempDir()}, &stdout, &stderr); code != 2 {
+	if code := run(isolatedDeps(t), []string{"doctor", "--worktree", t.TempDir()}, &stdout, &stderr); code != 2 {
 		t.Fatalf("run(doctor --worktree) = %d", code)
 	}
 	if !strings.Contains(stderr.String(), "flag provided but not defined: -worktree") {
@@ -197,18 +177,12 @@ func TestMigrateCommandCopiesConfigAndImportsCredential(t *testing.T) {
 		Credential: filepath.Join(root, "credential"),
 	}
 	store := &commandMemoryStore{}
-	previousPaths := resolveDefaultPaths
-	previousStore := newSystemCredentialStore
-	resolveDefaultPaths = func() (config.Paths, error) { return destination, nil }
-	newSystemCredentialStore = func(credential.Location) (credential.Store, error) { return store, nil }
-	t.Cleanup(func() {
-		resolveDefaultPaths = previousPaths
-		newSystemCredentialStore = previousStore
-	})
+	deps := testDeps(t, destination)
+	deps.PasswordStore = func(credential.Location) (credential.Store, error) { return store, nil }
 
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
-	if code := run([]string{"migrate", "--from", legacyRoot}, &stdout, &stderr); code != 0 {
+	if code := run(deps, []string{"migrate", "--from", legacyRoot}, &stdout, &stderr); code != 0 {
 		t.Fatalf("run(migrate) = %d, stderr = %q", code, stderr.String())
 	}
 	if stdout.String() != "configuration_migrated: true\ncredential_migrated: true\nsource_preserved: true\n" {

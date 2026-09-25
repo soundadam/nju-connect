@@ -11,7 +11,7 @@ import (
 
 // runConfigure changes only non-secret connection settings. The macOS host
 // adapter uses this command when a user switches between backends.
-func runConfigure(arguments []string, stdout, stderr io.Writer) error {
+func runConfigure(deps app.Deps, arguments []string, stdout, stderr io.Writer) error {
 	flags := flag.NewFlagSet("soundconnect configure", flag.ContinueOnError)
 	var request app.ConfigureRequest
 	flags.StringVar(&request.Backend, "backend", "", "protocol backend (easyconnect or atrust)")
@@ -24,7 +24,7 @@ func runConfigure(arguments []string, stdout, stderr io.Writer) error {
 	if err := parseCommand(flags, arguments, stdout, stderr); err != nil {
 		return err
 	}
-	result, err := app.Configure(commandDeps(nil, stderr), request)
+	result, err := app.Configure(withInteraction(deps, app.LineOptions{}, stderr), request)
 	if err != nil {
 		return err
 	}

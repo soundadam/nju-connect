@@ -5,15 +5,13 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"os"
 
 	"github.com/soundadam/soundconnect/internal/app"
 	"github.com/soundadam/soundconnect/internal/backend"
 	"github.com/soundadam/soundconnect/internal/config"
-	"github.com/soundadam/soundconnect/internal/tui"
 )
 
-func runSetup(arguments []string, stdout, stderr io.Writer) error {
+func runSetup(deps app.Deps, arguments []string, stdout, stderr io.Writer) error {
 	flags := flag.NewFlagSet("soundconnect setup", flag.ContinueOnError)
 	var request app.SetupRequest
 	backendValue := flags.String("backend", string(backend.EasyConnect), "protocol backend (easyconnect or atrust)")
@@ -46,38 +44,33 @@ func runSetup(arguments []string, stdout, stderr io.Writer) error {
 	})
 	// A terminal user gets the guided wizard; piped input keeps the
 	// line-prompt contract the macOS app drives.
-	interaction, interactive := tui.ForCommand(app.LineOptions{
-		Input: os.Stdin, PasswordFromStdin: request.PasswordSupplied,
-	}, stderr)
-	request.Guided = interactive
+	deps = withInteraction(deps, app.LineOptions{PasswordFromStdin: request.PasswordSupplied}, stderr)
+	request.Guided = deps.Interactive
 	ctx := context.Background()
-	result, err := app.Setup(ctx, commandDeps(interaction, stderr), request)
+	result, err := app.Setup(ctx, deps, request)
 	if err != nil {
 		return err
 	}
 	fmt.Fprintf(stdout, "configuration: %s\nbackend: %s\ncredential: %s\n", result.Path, result.Backend, result.Credential)
-	if !interactive || result.Backend != backend.EasyConnect {
+	if !deps.Interactive || result.Backend != backend.EasyConnect {
 		return nil
 	}
 	// aTrust sign-in needs the full connect flow, so only EasyConnect
 	// offers a quick check.
-	test, err := interaction.Confirm(ctx, "Test the login now?", true)
+	test, err := deps.Interaction.Confirm(ctx, "Test the login now?", true)
 	if err != nil || !test {
 		return err
 	}
-	if code := runDryRun(nil, stdout, stderr); code != 0 {
-		return exitCode(code)
-	}
-	return nil
+	return dryRun(ctx, deps, stdout)
 }
 
-func runMigrate(arguments []string, stdout, stderr io.Writer) error {
+func runMigrate(deps app.Deps, arguments []string, stdout, stderr io.Writer) error {
 	flags := flag.NewFlagSet("soundconnect migrate", flag.ContinueOnError)
 	legacyRoot := flags.String("from", ".", "directory containing the legacy .config state")
 	if err := parseCommand(flags, arguments, stdout, stderr); err != nil {
 		return err
 	}
-	result, err := app.Migrate(commandDeps(nil, stderr), *legacyRoot)
+	result, err := app.Migrate(withInteraction(deps, app.LineOptions{}, stderr), *legacyRoot)
 	if err != nil {
 		return err
 	}

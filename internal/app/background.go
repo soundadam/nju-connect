@@ -1,4 +1,4 @@
-package main
+package app
 
 import (
 	"bytes"
@@ -9,10 +9,8 @@ import (
 	"io"
 	"os"
 	"os/exec"
-	"os/signal"
 	"path/filepath"
 	"sync"
-	"syscall"
 	"time"
 
 	"github.com/soundadam/soundconnect/internal/backend/easyconnect/session"
@@ -39,7 +37,15 @@ type backgroundHandoff struct {
 	StatusPath    string                          `json:"status_path"`
 }
 
-func startProductionNativeBackground(sessionConfig nativeapp.SessionConfig, logPath string) (int, error) {
+// BackgroundRuntimeCommand is the hidden command that runs a detached
+// EasyConnect runtime. The parent passes the handoff on fd 3 and waits for
+// one readiness byte on fd 4.
+const BackgroundRuntimeCommand = "_native-runtime"
+
+// StartBackground re-executes this binary as a detached runtime, hands it the
+// authenticated session over a private pipe, and waits until it reports that
+// it is connected. It is the production Deps.StartBackground.
+func StartBackground(sessionConfig nativeapp.SessionConfig, logPath string) (int, error) {
 	executable, err := os.Executable()
 	if err != nil {
 		return 0, errors.New("resolve soundconnect executable")
@@ -67,7 +73,7 @@ func startProductionNativeBackground(sessionConfig nativeapp.SessionConfig, logP
 	defer readyReader.Close()
 	defer readyWriter.Close()
 
-	command := exec.Command(executable, "_native-runtime")
+	command := exec.Command(executable, BackgroundRuntimeCommand)
 	command.Stdin = devNull
 	command.Stdout = logFile
 	command.Stderr = logFile
@@ -115,57 +121,61 @@ func startProductionNativeBackground(sessionConfig nativeapp.SessionConfig, logP
 	return pid, nil
 }
 
-func runNativeRuntimeChild(arguments []string, stdout, stderr io.Writer) int {
-	if len(arguments) != 0 {
-		fmt.Fprintln(stderr, "background runtime accepts no arguments")
-		return 2
-	}
-	handoffFile := os.NewFile(backgroundHandoffFD, "soundconnect-background-handoff")
-	readyFile := os.NewFile(backgroundReadyFD, "soundconnect-background-ready")
-	if handoffFile == nil || readyFile == nil {
-		if handoffFile != nil {
-			_ = handoffFile.Close()
+// BackgroundFiles opens the handoff and readiness descriptors a detached
+// runtime inherits.
+func BackgroundFiles() (handoff, ready *os.File, err error) {
+	handoff = os.NewFile(backgroundHandoffFD, "soundconnect-background-handoff")
+	ready = os.NewFile(backgroundReadyFD, "soundconnect-background-ready")
+	if handoff == nil || ready == nil {
+		if handoff != nil {
+			_ = handoff.Close()
 		}
-		if readyFile != nil {
-			_ = readyFile.Close()
+		if ready != nil {
+			_ = ready.Close()
 		}
-		fmt.Fprintln(stderr, "background runtime: private handoff is unavailable")
-		return 1
+		return nil, nil, errors.New("background runtime: private handoff is unavailable")
 	}
-	defer readyFile.Close()
-	handoff, err := readBackgroundHandoff(handoffFile)
-	_ = handoffFile.Close()
+	return handoff, ready, nil
+}
+
+// RunBackground is the detached runtime. It reads the session from handoff,
+// writes one byte to ready once connected, publishes status on the control
+// socket, and runs until ctx ends or `disconnect` asks it to stop.
+//
+// The parent stops waiting as soon as ready closes, so on failure the caller
+// closes ready only after it has logged the returned error.
+func RunBackground(ctx context.Context, deps Deps, handoffReader io.ReadCloser, ready io.WriteCloser, events ConnectEvents) error {
+	handoff, err := readBackgroundHandoff(handoffReader)
+	_ = handoffReader.Close()
 	if err != nil {
-		fmt.Fprintln(stderr, "background runtime: private handoff is invalid")
-		return 1
+		return errors.New("background runtime: private handoff is invalid")
 	}
 	defer credential.Clear(handoff.Token)
 
-	statusTracker := newRuntimeStatusTracker(handoff.NativeProfile)
-	observer := runtimeStatusObserver(nativeCLIObserver(stdout), statusTracker)
+	statusTracker := NewRuntimeStatusTracker(handoff.NativeProfile)
+	observer := RuntimeStatusObserver(events.Runtime, statusTracker)
 	stateObserver := observer.OnState
 	var readyOnce sync.Once
 	observer.OnState = func(state nativeapp.State) {
 		stateObserver(state)
 		if state == nativeapp.StateConnected {
 			readyOnce.Do(func() {
-				if _, err := readyFile.Write([]byte{1}); err != nil {
-					fmt.Fprintln(stderr, "background runtime: readiness handoff failed")
+				if _, err := ready.Write([]byte{1}); err != nil {
+					fmt.Fprintln(deps.diagnostics(), "background runtime: readiness handoff failed")
 				}
-				_ = readyFile.Close()
+				_ = ready.Close()
 			})
 		}
 	}
-	application, err := nativeapp.NewSession(nativeapp.SessionConfig{
+	application, err := deps.EasyConnectSession(nativeapp.SessionConfig{
 		Settings:           handoff.Settings,
 		Plan:               handoff.Plan,
 		NativeGatewayToken: handoff.Token,
 		NativeProfile:      handoff.NativeProfile,
 		Observer:           observer,
 	})
-	if err != nil {
-		fmt.Fprintln(stderr, "background runtime: initialize_failed")
-		return 1
+	if err != nil || application == nil {
+		return errors.New("background runtime: initialize_failed")
 	}
 	defer application.Close()
 	statusServer, err := runtimecontrol.Serve(handoff.StatusPath, func() runtimecontrol.Snapshot {
@@ -173,19 +183,14 @@ func runNativeRuntimeChild(arguments []string, stdout, stderr io.Writer) int {
 		return statusTracker.Snapshot()
 	})
 	if err != nil {
-		fmt.Fprintln(stderr, "background runtime: status_control_failed")
-		return 1
+		return errors.New("background runtime: status_control_failed")
 	}
 	defer statusServer.Close()
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	runtimeContext, stop := context.WithCancel(ctx)
 	defer stop()
 	statusServer.SetStop(stop)
-	profile := application.Profile()
-	fmt.Fprintf(stdout, "native-profile: %s\n", profile.ID)
-	fmt.Fprintf(stdout, "native-evidence: %s\n", profile.Evidence)
-	fmt.Fprintf(stdout, "native-security: encrypted=%t peer_verified=%t\n", profile.Security.Encrypted, profile.Security.PeerVerified)
-
-	return reportNativeRunResult(ctx, application.Run(ctx), stderr)
+	events.started(application.Profile())
+	return runResult(runtimeContext, application.Run(runtimeContext))
 }
 
 func writeBackgroundHandoff(writer io.Writer, handoff *backgroundHandoff) error {

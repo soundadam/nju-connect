@@ -9,12 +9,12 @@ import (
 	"github.com/soundadam/soundconnect/internal/app"
 )
 
-func runLogout(arguments []string, stdout, stderr io.Writer) error {
+func runLogout(deps app.Deps, arguments []string, stdout, stderr io.Writer) error {
 	flags := flag.NewFlagSet("soundconnect logout", flag.ContinueOnError)
 	if err := parseCommand(flags, arguments, stdout, stderr); err != nil {
 		return err
 	}
-	result, err := app.Logout(context.Background(), commandDeps(nil, stderr))
+	result, err := app.Logout(context.Background(), withInteraction(deps, app.LineOptions{}, stderr))
 	if err != nil {
 		return err
 	}

@@ -15,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/soundadam/soundconnect/internal/app"
 	"github.com/soundadam/soundconnect/internal/backend/easyconnect/session"
 	"github.com/soundadam/soundconnect/internal/config"
 	"github.com/soundadam/soundconnect/internal/credential"
@@ -34,7 +35,7 @@ func TestNativeConnectWiresAuthenticatedSessionWithoutLeakingMaterial(t *testing
 	if err != nil {
 		t.Fatal(err)
 	}
-	paths := nativeCommandTestPaths(t)
+	paths, deps := nativeCommandTestPaths(t)
 	writeNativeCommandState(t, paths, config.Config{
 		Server:            parsed.Host,
 		Username:          "fixture-account",
@@ -46,7 +47,7 @@ func TestNativeConnectWiresAuthenticatedSessionWithoutLeakingMaterial(t *testing
 	ctx, cancel := context.WithCancel(context.Background())
 	application := &fakeNativeApplication{cancel: cancel}
 	var borrowed sessiontoken.NativeGatewayToken
-	factory := func(sessionConfig nativeapp.SessionConfig) (nativeApplicationSession, error) {
+	deps.EasyConnectSession = func(sessionConfig nativeapp.SessionConfig) (app.NativeSession, error) {
 		borrowed = sessionConfig.NativeGatewayToken
 		want := append(make([]byte, 32), []byte{0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27,
 			0x28, 0x29, 0x2a, 0x2b, 0x2c, 0x2d, 0x2e, 0x2f}...)
@@ -79,7 +80,7 @@ func TestNativeConnectWiresAuthenticatedSessionWithoutLeakingMaterial(t *testing
 
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
-	code := runNativeConnectContext(ctx, nil, &stdout, &stderr, factory, nil)
+	code := runConnectContext(ctx, deps, nil, &stdout, &stderr)
 	if code != 0 {
 		t.Fatalf("connect exit = %d, stderr = %q", code, stderr.String())
 	}
@@ -126,7 +127,7 @@ func TestNativeConnectPreflightsUpstreamBeforeReadingCredential(t *testing.T) {
 	if err := listener.Close(); err != nil {
 		t.Fatal(err)
 	}
-	paths := nativeCommandTestPaths(t)
+	paths, deps := nativeCommandTestPaths(t)
 	if err := config.Replace(paths.Config, config.Config{
 		Server:        "vpn.example.edu",
 		Username:      "fixture-account",
@@ -138,11 +139,11 @@ func TestNativeConnectPreflightsUpstreamBeforeReadingCredential(t *testing.T) {
 
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
-	code := runNativeConnectContext(context.Background(), nil, &stdout, &stderr,
-		func(nativeapp.SessionConfig) (nativeApplicationSession, error) {
-			t.Fatal("native session factory was reached")
-			return nil, nil
-		}, nil)
+	deps.EasyConnectSession = func(nativeapp.SessionConfig) (app.NativeSession, error) {
+		t.Fatal("native session factory was reached")
+		return nil, nil
+	}
+	code := runConnectContext(context.Background(), deps, nil, &stdout, &stderr)
 	if code != 1 || !strings.Contains(stderr.String(), "upstream preflight:") {
 		t.Fatalf("exit=%d stderr=%q", code, stderr.String())
 	}
@@ -158,7 +159,7 @@ func TestNativeConnectBackgroundTransfersOnlyRuntimeHandoff(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	paths := nativeCommandTestPaths(t)
+	paths, deps := nativeCommandTestPaths(t)
 	writeNativeCommandState(t, paths, config.Config{
 		Server:            parsed.Host,
 		Username:          "fixture-account",
@@ -169,7 +170,7 @@ func TestNativeConnectBackgroundTransfersOnlyRuntimeHandoff(t *testing.T) {
 
 	var borrowed sessiontoken.NativeGatewayToken
 	var gotLog string
-	starter := func(sessionConfig nativeapp.SessionConfig, logPath string) (int, error) {
+	deps.StartBackground = func(sessionConfig nativeapp.SessionConfig, logPath string) (int, error) {
 		borrowed = sessionConfig.NativeGatewayToken
 		gotLog = logPath
 		if sessionConfig.Observer != nil || sessionConfig.NativeProfile != runtime.ProfileCommunityUTLSCompat || !sessionConfig.Plan.BoundaryReady {
@@ -179,11 +180,11 @@ func TestNativeConnectBackgroundTransfersOnlyRuntimeHandoff(t *testing.T) {
 	}
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
-	code := runNativeConnectContext(context.Background(), []string{"--background"}, &stdout, &stderr,
-		func(nativeapp.SessionConfig) (nativeApplicationSession, error) {
-			t.Fatal("foreground session factory was reached")
-			return nil, nil
-		}, starter)
+	deps.EasyConnectSession = func(nativeapp.SessionConfig) (app.NativeSession, error) {
+		t.Fatal("foreground session factory was reached")
+		return nil, nil
+	}
+	code := runConnectContext(context.Background(), deps, []string{"--background"}, &stdout, &stderr)
 	if code != 0 || stderr.Len() != 0 {
 		t.Fatalf("exit=%d stdout=%q stderr=%q", code, stdout.String(), stderr.String())
 	}
@@ -199,32 +200,14 @@ func TestNativeConnectRejectsDevelopmentOnlyProfileFlag(t *testing.T) {
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 	called := false
-	code := runNativeConnectContext(context.Background(), []string{"--native-profile", "community-utls"}, &stdout, &stderr,
-		func(nativeapp.SessionConfig) (nativeApplicationSession, error) {
-			called = true
-			return nil, nil
-		}, nil)
+	deps := isolatedDeps(t)
+	deps.EasyConnectSession = func(nativeapp.SessionConfig) (app.NativeSession, error) {
+		called = true
+		return nil, nil
+	}
+	code := runConnectContext(context.Background(), deps, []string{"--native-profile", "community-utls"}, &stdout, &stderr)
 	if code != 2 || called || !strings.Contains(stderr.String(), "flag provided but not defined: -native-profile") {
 		t.Fatalf("exit=%d called=%t stderr=%q", code, called, stderr.String())
-	}
-}
-
-func TestNativeConnectReturnsActionableRenewalWithoutReauthentication(t *testing.T) {
-	var stderr bytes.Buffer
-	code := reportNativeRunResult(context.Background(),
-		&runtime.RenewalRequired{Reason: runtime.RenewalGatewayRejected}, &stderr)
-	if code != 1 || stderr.String() != "renewal_required: run \"soundconnect connect\" to sign in again\n" {
-		t.Fatalf("exit=%d stderr=%q", code, stderr.String())
-	}
-}
-
-func TestNativeConnectSanitizesUnknownTransportFailure(t *testing.T) {
-	const sensitive = "gateway-reply-secret"
-	var stderr bytes.Buffer
-	code := reportNativeRunResult(context.Background(),
-		&runtime.TransportFailure{Code: runtime.FailureCode(sensitive)}, &stderr)
-	if code != 1 || stderr.String() != "native transport: runtime_stopped\n" || strings.Contains(stderr.String(), sensitive) {
-		t.Fatalf("exit=%d stderr=%q", code, stderr.String())
 	}
 }
 
@@ -278,7 +261,7 @@ func newNativeGatewayTestServer(t *testing.T) *httptest.Server {
 	}))
 }
 
-func nativeCommandTestPaths(t *testing.T) config.Paths {
+func nativeCommandTestPaths(t *testing.T) (config.Paths, app.Deps) {
 	t.Helper()
 	root := filepath.Join(t.TempDir(), "soundconnect")
 	paths := config.Paths{
@@ -286,17 +269,7 @@ func nativeCommandTestPaths(t *testing.T) config.Paths {
 		Config:     filepath.Join(root, "config.toml"),
 		Credential: filepath.Join(root, "credential"),
 	}
-	previous := resolveDefaultPaths
-	previousCredentialStore := newSystemCredentialStore
-	resolveDefaultPaths = func() (config.Paths, error) { return paths, nil }
-	newSystemCredentialStore = func(location credential.Location) (credential.Store, error) {
-		return credential.NewFileStore(location.File, true)
-	}
-	t.Cleanup(func() {
-		resolveDefaultPaths = previous
-		newSystemCredentialStore = previousCredentialStore
-	})
-	return paths
+	return paths, testDeps(t, paths)
 }
 
 func writeNativeCommandState(t *testing.T, paths config.Paths, configured config.Config, password []byte) {

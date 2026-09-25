@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/soundadam/soundconnect/internal/app"
 	"github.com/soundadam/soundconnect/internal/backend/easyconnect/session"
 	"github.com/soundadam/soundconnect/internal/config"
 	"github.com/soundadam/soundconnect/internal/runtime"
@@ -21,7 +22,7 @@ import (
 )
 
 func TestRuntimeStatusTrackerRecordsExactTrafficSampleTime(t *testing.T) {
-	tracker := newRuntimeStatusTracker(runtime.ProfileCommunityUTLSCompat)
+	tracker := app.NewRuntimeStatusTracker(runtime.ProfileCommunityUTLSCompat)
 	sampledAt := time.Date(2026, time.August, 4, 8, 0, 0, 123_000_000, time.UTC)
 	tracker.UpdateTraffic(nativeapp.TrafficSnapshot{
 		UploadBytes: 12, DownloadBytes: 34, ActiveConnections: 2, TotalConnections: 3,
@@ -37,8 +38,8 @@ func TestRuntimeStatusTrackerRecordsExactTrafficSampleTime(t *testing.T) {
 
 func TestRuntimeStatusServerReportsSanitizedLiveStateAndCleansUp(t *testing.T) {
 	path := runtimecontrol.Path(t.TempDir())
-	tracker := newRuntimeStatusTracker(runtime.ProfileCommunityUTLSCompat)
-	observer := runtimeStatusObserver(nativeapp.ObserverFuncs{}, tracker)
+	tracker := app.NewRuntimeStatusTracker(runtime.ProfileCommunityUTLSCompat)
+	observer := app.RuntimeStatusObserver(nativeapp.ObserverFuncs{}, tracker)
 	observer.StateChanged(nativeapp.StateConnected)
 	observer.SOCKSListening("127.0.0.1:1081")
 	observer.AccessEvidence(true)
@@ -74,11 +75,9 @@ func TestRuntimeStatusServerReportsSanitizedLiveStateAndCleansUp(t *testing.T) {
 func TestDisconnectCommandStopsRuntimeThroughPrivateControlSocket(t *testing.T) {
 	root := t.TempDir()
 	paths := config.Paths{Root: root, Config: filepath.Join(root, "config.toml"), Credential: filepath.Join(root, "credential")}
-	previous := resolveDefaultPaths
-	resolveDefaultPaths = func() (config.Paths, error) { return paths, nil }
-	t.Cleanup(func() { resolveDefaultPaths = previous })
+	deps := testDeps(t, paths)
 
-	tracker := newRuntimeStatusTracker(runtime.ProfileCommunityUTLSCompat)
+	tracker := app.NewRuntimeStatusTracker(runtime.ProfileCommunityUTLSCompat)
 	server, err := runtimecontrol.Serve(runtimecontrol.Path(root), tracker.Snapshot)
 	if err != nil {
 		t.Fatal(err)
@@ -89,7 +88,7 @@ func TestDisconnectCommandStopsRuntimeThroughPrivateControlSocket(t *testing.T) 
 
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
-	if code := run([]string{"disconnect"}, &stdout, &stderr); code != 0 || stdout.String() != "stopping: true\n" || stderr.Len() != 0 {
+	if code := run(deps, []string{"disconnect"}, &stdout, &stderr); code != 0 || stdout.String() != "stopping: true\n" || stderr.Len() != 0 {
 		t.Fatalf("disconnect exit=%d stdout=%q stderr=%q", code, stdout.String(), stderr.String())
 	}
 	if !stopped.Load() {
@@ -100,18 +99,16 @@ func TestDisconnectCommandStopsRuntimeThroughPrivateControlSocket(t *testing.T) 
 func TestStatusCommandSupportsTextJSONAndStoppedState(t *testing.T) {
 	root := t.TempDir()
 	paths := config.Paths{Root: root, Config: filepath.Join(root, "config.toml"), Credential: filepath.Join(root, "credential")}
-	previous := resolveDefaultPaths
-	resolveDefaultPaths = func() (config.Paths, error) { return paths, nil }
-	t.Cleanup(func() { resolveDefaultPaths = previous })
+	deps := testDeps(t, paths)
 
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
-	if code := run([]string{"status"}, &stdout, &stderr); code != 1 || stderr.Len() != 0 || stdout.String() != "running: false\nstate: stopped\n" {
+	if code := run(deps, []string{"status"}, &stdout, &stderr); code != 1 || stderr.Len() != 0 || stdout.String() != "running: false\nstate: stopped\n" {
 		t.Fatalf("stopped exit=%d stdout=%q stderr=%q", code, stdout.String(), stderr.String())
 	}
 
-	tracker := newRuntimeStatusTracker(runtime.ProfileCommunityUTLSCompat)
-	observer := runtimeStatusObserver(nativeapp.ObserverFuncs{}, tracker)
+	tracker := app.NewRuntimeStatusTracker(runtime.ProfileCommunityUTLSCompat)
+	observer := app.RuntimeStatusObserver(nativeapp.ObserverFuncs{}, tracker)
 	observer.StateChanged(nativeapp.StateReconnecting)
 	server, err := runtimecontrol.Serve(runtimecontrol.Path(root), tracker.Snapshot)
 	if err != nil {
@@ -120,11 +117,11 @@ func TestStatusCommandSupportsTextJSONAndStoppedState(t *testing.T) {
 	defer server.Close()
 
 	stdout.Reset()
-	if code := run([]string{"status"}, &stdout, &stderr); code != 0 || !strings.Contains(stdout.String(), "running: true\nstate: reconnecting\n") {
+	if code := run(deps, []string{"status"}, &stdout, &stderr); code != 0 || !strings.Contains(stdout.String(), "running: true\nstate: reconnecting\n") {
 		t.Fatalf("live text exit=%d stdout=%q stderr=%q", code, stdout.String(), stderr.String())
 	}
 	stdout.Reset()
-	if code := run([]string{"status", "--json"}, &stdout, &stderr); code != 0 {
+	if code := run(deps, []string{"status", "--json"}, &stdout, &stderr); code != 0 {
 		t.Fatalf("live JSON exit=%d stderr=%q", code, stderr.String())
 	}
 	var snapshot runtimecontrol.Snapshot
@@ -136,7 +133,7 @@ func TestStatusCommandSupportsTextJSONAndStoppedState(t *testing.T) {
 func TestStatusWatchRequiresJSON(t *testing.T) {
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
-	if code := run([]string{"status", "--watch"}, &stdout, &stderr); code != 2 ||
+	if code := run(isolatedDeps(t), []string{"status", "--watch"}, &stdout, &stderr); code != 2 ||
 		stdout.Len() != 0 || stderr.String() != "status --watch requires --json\n" {
 		t.Fatalf("exit=%d stdout=%q stderr=%q", code, stdout.String(), stderr.String())
 	}
@@ -160,11 +157,9 @@ func TestTextStatusFormatsTrafficTotalsInKB(t *testing.T) {
 func TestConnectGuidesUserWhenRuntimeIsAlreadyActive(t *testing.T) {
 	root := t.TempDir()
 	paths := config.Paths{Root: root, Config: filepath.Join(root, "config.toml"), Credential: filepath.Join(root, "credential")}
-	previous := resolveDefaultPaths
-	resolveDefaultPaths = func() (config.Paths, error) { return paths, nil }
-	t.Cleanup(func() { resolveDefaultPaths = previous })
+	deps := testDeps(t, paths)
 
-	tracker := newRuntimeStatusTracker(runtime.ProfileCommunityUTLSCompat)
+	tracker := app.NewRuntimeStatusTracker(runtime.ProfileCommunityUTLSCompat)
 	server, err := runtimecontrol.Serve(runtimecontrol.Path(root), tracker.Snapshot)
 	if err != nil {
 		t.Fatal(err)
@@ -173,11 +168,11 @@ func TestConnectGuidesUserWhenRuntimeIsAlreadyActive(t *testing.T) {
 
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
-	code := runNativeConnectContext(context.Background(), nil, &stdout, &stderr,
-		func(nativeapp.SessionConfig) (nativeApplicationSession, error) {
-			t.Fatal("session factory was reached while a runtime is active")
-			return nil, nil
-		}, nil)
+	deps.EasyConnectSession = func(nativeapp.SessionConfig) (app.NativeSession, error) {
+		t.Fatal("session factory was reached while a runtime is active")
+		return nil, nil
+	}
+	code := runConnectContext(context.Background(), deps, nil, &stdout, &stderr)
 	if code != 1 {
 		t.Fatalf("exit = %d, stderr = %q", code, stderr.String())
 	}
@@ -190,8 +185,8 @@ func TestConnectGuidesUserWhenRuntimeIsAlreadyActive(t *testing.T) {
 
 func TestRuntimeStatusAcceptsATrustTCPProfile(t *testing.T) {
 	path := runtimecontrol.Path(t.TempDir())
-	tracker := newRuntimeStatusTracker(runtime.ProfileATrustTCP)
-	observer := runtimeStatusObserver(nativeapp.ObserverFuncs{}, tracker)
+	tracker := app.NewRuntimeStatusTracker(runtime.ProfileATrustTCP)
+	observer := app.RuntimeStatusObserver(nativeapp.ObserverFuncs{}, tracker)
 	observer.StateChanged(nativeapp.StateConnected)
 	observer.SOCKSListening(config.DefaultSOCKSListen)
 	observer.AccessEvidence(true)

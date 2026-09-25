@@ -2,268 +2,85 @@ package main
 
 import (
 	"context"
-	"errors"
 	"flag"
 	"fmt"
 	"io"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"syscall"
 	"time"
 
 	"github.com/soundadam/soundconnect/internal/app"
 	"github.com/soundadam/soundconnect/internal/backend"
-	"github.com/soundadam/soundconnect/internal/backend/easyconnect/auth"
 	"github.com/soundadam/soundconnect/internal/backend/easyconnect/session"
-	"github.com/soundadam/soundconnect/internal/config"
-	"github.com/soundadam/soundconnect/internal/core"
-	"github.com/soundadam/soundconnect/internal/credential"
-	"github.com/soundadam/soundconnect/internal/dial"
 	"github.com/soundadam/soundconnect/internal/runtime"
-	"github.com/soundadam/soundconnect/internal/runtimecontrol"
-	"github.com/soundadam/soundconnect/internal/sessiontoken"
 )
 
-const nativeUpstreamPreflightTimeout = 3 * time.Second
-
-type nativeApplicationSession interface {
-	Run(context.Context) error
-	Close() error
-	Traffic() nativeapp.TrafficSnapshot
-	Profile() runtime.ProtocolProfileMetadata
-}
-
-type nativeSessionFactory func(nativeapp.SessionConfig) (nativeApplicationSession, error)
-type nativeBackgroundStarter func(nativeapp.SessionConfig, string) (int, error)
-
-func newProductionNativeSession(sessionConfig nativeapp.SessionConfig) (nativeApplicationSession, error) {
-	return nativeapp.NewSession(sessionConfig)
-}
-
-func runNativeConnect(arguments []string, stdout, stderr io.Writer) int {
+func runConnect(deps app.Deps, arguments []string, stdout, stderr io.Writer) int {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	return runNativeConnectContext(ctx, arguments, stdout, stderr, newProductionNativeSession, startProductionNativeBackground)
+	return exitStatus(connect(ctx, deps, arguments, stdout, stderr), stderr)
 }
 
-func runNativeConnectContext(
-	ctx context.Context,
-	arguments []string,
-	stdout io.Writer,
-	stderr io.Writer,
-	newSession nativeSessionFactory,
-	startBackground nativeBackgroundStarter,
-) int {
+func connect(ctx context.Context, deps app.Deps, arguments []string, stdout, stderr io.Writer) error {
 	flags := flag.NewFlagSet("soundconnect connect", flag.ContinueOnError)
 	background := flags.Bool("background", false, "continue the native runtime as a detached process after authentication")
 	verificationCodeStdin := flags.Bool("verification-code-stdin", false, "read the verification code from standard input without requiring a terminal")
-	if code, ok := parseFlags(flags, arguments, stdout, stderr); !ok {
-		return code
+	if err := parseCommand(flags, arguments, stdout, stderr); err != nil {
+		return err
 	}
-	if flags.NArg() != 0 {
-		fmt.Fprintln(stderr, "connect accepts no positional arguments")
-		return 2
-	}
-	if !*background && newSession == nil {
-		fmt.Fprintln(stderr, "prepare native runtime: session factory is unavailable")
-		return 1
-	}
-	if *background && startBackground == nil {
-		fmt.Fprintln(stderr, "prepare native runtime: background starter is unavailable")
-		return 1
-	}
-	paths, err := commandPaths()
+	deps = withInteraction(deps, app.LineOptions{CodeFromStdin: *verificationCodeStdin}, stderr)
+	result, err := app.Connect(ctx, deps, app.ConnectRequest{
+		Background: *background,
+		OfferSetup: !*verificationCodeStdin,
+	}, connectEvents(stdout))
 	if err != nil {
-		fmt.Fprintf(stderr, "resolve local state: %v\n", err)
-		return 1
+		return err
 	}
-	if err := runtimecontrol.EnsureNoActive(runtimecontrol.Path(paths.Root)); err != nil {
-		if errors.Is(err, runtimecontrol.ErrAlreadyActive) {
-			fmt.Fprintln(stderr, `soundconnect is already running; run "soundconnect status" to inspect it or "soundconnect disconnect" to stop it`)
-			return 1
-		}
-		fmt.Fprintf(stderr, "prepare runtime status: %v\n", err)
-		return 1
+	if *background {
+		fmt.Fprintf(stdout, "background: pid=%d log=%s\n", result.BackgroundPID, result.LogPath)
 	}
-	configured, err := loadProfile(ctx, paths, !*verificationCodeStdin, stderr)
+	return nil
+}
+
+// runBackgroundRuntime is the hidden command a background connect starts.
+func runBackgroundRuntime(deps app.Deps, arguments []string, stdout, stderr io.Writer) int {
+	if len(arguments) != 0 {
+		return exitStatus(app.Usagef("background runtime accepts no arguments"), stderr)
+	}
+	handoff, ready, err := app.BackgroundFiles()
 	if err != nil {
 		return exitStatus(err, stderr)
 	}
-
-	preflightContext, cancelPreflight := context.WithTimeout(ctx, nativeUpstreamPreflightTimeout)
-	err = dial.ProbeUpstream(preflightContext, configured.UpstreamProxy)
-	cancelPreflight()
-	if err != nil {
-		fmt.Fprintf(stderr, "upstream preflight: %v\n", err)
-		return 1
-	}
-	if configured.BackendName() == backend.ATrust {
-		if *background {
-			fmt.Fprintln(stderr, "aTrust background runtime is not implemented yet")
-			return 2
-		}
-		return runATrustConnectContext(ctx, paths, configured, *verificationCodeStdin, stdout, stderr)
-	}
-
-	password, err := readSavedPassword(paths, configured)
-	if err != nil {
-		fmt.Fprintln(stderr, err)
-		return 1
-	}
-	session, err := func() (*gatewayauth.Session, error) {
-		defer credential.Clear(password)
-		return authenticateAttendedGateway(ctx, configured, password, func() ([]byte, error) {
-			return app.NewLineInteraction(app.LineOptions{
-				Input: os.Stdin, Output: stderr, CodeFromStdin: *verificationCodeStdin,
-			}).VerificationCode(ctx, "")
-		})
-	}()
-	password = nil
-	if err != nil {
-		if errors.Is(err, context.Canceled) {
-			return 0
-		}
-		fmt.Fprintf(stderr, "authenticate gateway: %v\n", err)
-		return 1
-	}
-	defer session.Close()
-	fmt.Fprintln(stdout, "authentication: accepted")
-
-	bootstrap, err := session.ProbeBootstrap(ctx)
-	if err != nil {
-		fmt.Fprintf(stderr, "initialize gateway session: %v\n", err)
-		return 1
-	}
-	plan, err := core.BuildDataplanePlan(session.State(), bootstrap)
-	if err != nil {
-		fmt.Fprintf(stderr, "model native dataplane: %v\n", err)
-		return 1
-	}
-
-	var application nativeApplicationSession
-	var backgroundPID int
-	statusTracker := newRuntimeStatusTracker(runtime.ProfileCommunityUTLSCompat)
-	err = session.WithNativeGatewayToken(func(token sessiontoken.NativeGatewayToken) error {
-		sessionConfig := nativeapp.SessionConfig{
-			Settings:               configured,
-			Plan:                   plan,
-			NativeGatewayToken:     token,
-			NativeProfile:          runtime.ProfileCommunityUTLSCompat,
-			TrafficPublishInterval: time.Second,
-		}
-		if *background {
-			var startErr error
-			backgroundPID, startErr = startBackground(sessionConfig, filepath.Join(paths.Root, "runtime.log"))
-			return startErr
-		}
-		var buildErr error
-		sessionConfig.Observer = runtimeStatusObserver(nativeCLIObserver(stdout), statusTracker)
-		application, buildErr = newSession(sessionConfig)
-		return buildErr
-	})
-	if err != nil {
-		fmt.Fprintf(stderr, "prepare native runtime: %v\n", err)
-		return 1
-	}
-	if *background {
-		fmt.Fprintf(stdout, "background: pid=%d log=%s\n", backgroundPID, filepath.Join(paths.Root, "runtime.log"))
-		return 0
-	}
-	if application == nil {
-		fmt.Fprintln(stderr, "prepare native runtime: session factory returned no session")
-		return 1
-	}
-	defer application.Close()
-	statusServer, err := runtimecontrol.Serve(runtimecontrol.Path(paths.Root), func() runtimecontrol.Snapshot {
-		statusTracker.UpdateTraffic(application.Traffic(), time.Now())
-		return statusTracker.Snapshot()
-	})
-	if err != nil {
-		fmt.Fprintf(stderr, "prepare runtime status: %v\n", err)
-		return 1
-	}
-	defer statusServer.Close()
-	profile := application.Profile()
-	fmt.Fprintf(stdout, "native-profile: %s\n", profile.ID)
-	fmt.Fprintf(stdout, "native-evidence: %s\n", profile.Evidence)
-	fmt.Fprintf(stdout, "native-security: encrypted=%t peer_verified=%t\n", profile.Security.Encrypted, profile.Security.PeerVerified)
-
-	runtimeContext, cancelRuntime := context.WithCancel(ctx)
-	defer cancelRuntime()
-	statusServer.SetStop(cancelRuntime)
-	err = application.Run(runtimeContext)
-	return reportNativeRunResult(runtimeContext, err, stderr)
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	deps.Diagnostics = stderr
+	code := exitStatus(app.RunBackground(ctx, deps, handoff, ready, connectEvents(stdout)), stderr)
+	_ = ready.Close()
+	return code
 }
 
-func reportNativeRunResult(ctx context.Context, err error, stderr io.Writer) int {
-	if err == nil || (ctx.Err() != nil && errors.Is(err, context.Canceled)) {
-		return 0
+// connectEvents renders connection progress as the line protocol the macOS
+// app and the background log read.
+func connectEvents(output io.Writer) app.ConnectEvents {
+	return app.ConnectEvents{
+		Authenticated: func(name backend.Name, resumed bool) {
+			if name == backend.ATrust {
+				fmt.Fprintln(output, "backend: atrust")
+			}
+			if resumed {
+				fmt.Fprintln(output, "authentication: resumed")
+			} else {
+				fmt.Fprintln(output, "authentication: accepted")
+			}
+		},
+		Started: func(profile runtime.ProtocolProfileMetadata) {
+			fmt.Fprintf(output, "native-profile: %s\n", profile.ID)
+			fmt.Fprintf(output, "native-evidence: %s\n", profile.Evidence)
+			fmt.Fprintf(output, "native-security: encrypted=%t peer_verified=%t\n", profile.Security.Encrypted, profile.Security.PeerVerified)
+		},
+		Runtime: nativeCLIObserver(output),
 	}
-	if errors.Is(err, runtime.ErrRenewalRequired) {
-		fmt.Fprintln(stderr, `renewal_required: run "soundconnect connect" to sign in again`)
-		return 1
-	}
-	var failure *runtime.TransportFailure
-	if errors.As(err, &failure) {
-		fmt.Fprintf(stderr, "native transport: %s\n", failure.Error())
-		return 1
-	}
-	fmt.Fprintln(stderr, "native transport: runtime_stopped")
-	return 1
-}
-
-func authenticateAttendedGateway(
-	ctx context.Context,
-	configured config.Config,
-	password []byte,
-	readVerificationCode func() ([]byte, error),
-) (*gatewayauth.Session, error) {
-	client, err := gatewayauth.New(gatewayauth.Options{
-		Server:        configured.Server,
-		TLSInsecure:   configured.TLSInsecure,
-		UpstreamProxy: configured.UpstreamProxy,
-		Timeout:       30 * time.Second,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("prepare authentication: %w", err)
-	}
-	defer client.Close()
-
-	result, err := client.AuthenticatePassword(ctx, configured.Username, password)
-	if err != nil {
-		return nil, fmt.Errorf("password authentication: %w", err)
-	}
-	if result.NeedsSMS() {
-		if err := client.PrepareSMS(ctx); err != nil {
-			return nil, err
-		}
-		if readVerificationCode == nil {
-			return nil, errors.New("verification code input is required")
-		}
-		code, err := readVerificationCode()
-		if err != nil {
-			return nil, err
-		}
-		result, err = func() (gatewayauth.Result, error) {
-			defer credential.Clear(code)
-			return client.AuthenticateSMS(ctx, code)
-		}()
-		if err != nil {
-			return nil, fmt.Errorf("verification code authentication: %w", err)
-		}
-	}
-	if !result.Accepted() {
-		if result.NextService != "" {
-			return nil, errors.New("gateway requires an unsupported authentication step")
-		}
-		return nil, fmt.Errorf("gateway rejected authentication with code %d", result.Code)
-	}
-	session, err := client.TakeSession()
-	if err != nil {
-		return nil, err
-	}
-	return session, nil
 }
 
 func nativeCLIObserver(output io.Writer) nativeapp.ObserverFuncs {

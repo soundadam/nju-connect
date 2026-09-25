@@ -12,7 +12,7 @@ import (
 
 func TestBackendsJSONExposesSharedListenerAndCatalog(t *testing.T) {
 	var stdout, stderr bytes.Buffer
-	if code := run([]string{"backends", "--json"}, &stdout, &stderr); code != 0 {
+	if code := run(isolatedDeps(t), []string{"backends", "--json"}, &stdout, &stderr); code != 0 {
 		t.Fatalf("run(backends) = %d, stderr = %q", code, stderr.String())
 	}
 	var response app.BackendCatalog
