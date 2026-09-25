@@ -119,6 +119,14 @@ stderr kept empty. The error codes are `invalid_arguments`, `local_state`,
   setup" first`; on a terminal they offer the guided setup instead. A missing
   password fails with `no saved VPN password; run "soundconnect account
   set-password"`.
+- When the gateway rejects the saved username or password (EasyConnect's
+  password step, or aTrust `auth/psw`), a non-terminal `connect` exits 1 with
+  one stderr line starting with the stable token `credential_rejected:` and
+  ending with `run "soundconnect account set-password"`. On a terminal,
+  `connect` instead offers to re-enter the password, change the username and
+  password (which also forgets the aTrust session), or stop (exit 0). The new
+  values are saved before the next attempt, and at most three sign-ins are
+  made before it gives up with the same token.
 - `connect --verification-code-stdin` prints `Verification code: ` on stderr
   when the gateway asks for a code, then reads one line from stdin. Without
   the flag the prompt needs a terminal and fails with
@@ -145,12 +153,11 @@ These command lines are strong contract. The app finds the CLI at
 | Turn off | SIGTERM to a foreground `connect`, then `disconnect` | Exit code |
 | Speed test | `speedtest component status --json`, `speedtest component install --yes --json-events`, `speedtest probe --route auto --json`, `speedtest last --json`, `speedtest campus --route auto --json-events` | `ComponentStatus`, `CampusSpeedTestEvent`, `CampusProbeResult`, `CampusSpeedTestResult` |
 
-The app currently classifies a rejected credential by matching stderr text
-(`authentication rejected`, `password authentication`, `credential`,
-`no saved VPN password`) and a
-cancelled Keychain prompt by `Keychain access was cancelled` or
-`OSStatus -128`. Treat those substrings as strong contract until the app
-switches to a stable token.
+The app classifies a failed connect as a credential problem when stderr
+contains `credential_rejected:` or `no saved VPN password`, and a cancelled
+Keychain prompt by `Keychain access was cancelled` or `OSStatus -128`. These
+substrings are strong contract; the shared fixtures
+`testdata/contract/connect_credential_rejected*.stderr` pin the first one.
 
 ## Background runtime handoff
 
@@ -194,12 +201,15 @@ directory (`0700`) and the socket (`0600`) must be owned by the current user.
   mock too, so no test or re-executed runtime child reaches the real keyring.
 - `internal/tui`: huh forms driven by scripted key presses.
 - `cmd/soundconnect/clitest_test.go`: the harness. It runs the real dispatcher
-  against an isolated `SOUNDCONNECT_CONFIG_DIR`, with file-backed secret
-  stores and a fake aTrust core. Fake EasyConnect gateways and status sockets
-  live next to the tests that use them.
+  with its own `app.Deps` (built by `testDeps` in `deps_test.go`) against an
+  isolated `SOUNDCONNECT_CONFIG_DIR`, with file-backed secret stores, a fake
+  aTrust core, and no EasyConnect runtime or network. `cmd/soundconnect` has
+  no package-level dependency variables; `run` takes the `app.Deps` that
+  `main` builds with `productionDeps`. Fake EasyConnect gateways and status
+  sockets live next to the tests that use them.
 - `cmd/soundconnect/testdata/cli/*.golden`: the arguments, exit code, stdout
   and stderr of each case. The config directory appears as `$CONFIG_DIR`.
-- `testdata/contract/*`: JSON and NDJSON produced by real CLI runs and decoded
+- `testdata/contract/*`: JSON, NDJSON and stderr produced by real CLI runs and read
   by `macos/Tests/SoundConnectUITests/CLIContractFixtureTests.swift`.
   Wall-clock times, latency and the CPU architecture are normalized to fixed
   values of the same shape; timestamps keep Go's nanosecond digits.
