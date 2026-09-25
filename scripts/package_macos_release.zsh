@@ -8,7 +8,7 @@ usage() {
 
 [[ $# -ge 1 && $# -le 2 ]] || usage
 
-readonly version="$1"
+readonly version="${1#v}"
 readonly repo_root="${0:A:h:h}"
 readonly output_root="${2:-${repo_root}/dist}"
 readonly app_name="soundconnect.app"
@@ -18,11 +18,10 @@ readonly app_root="${stage_root}/${app_name}"
 readonly contents_root="${app_root}/Contents"
 readonly release_dir="${output_root}/${version}"
 readonly allow_dirty="${SOUNDCONNECT_ALLOW_DIRTY:-0}"
+source "${repo_root}/scripts/versioning.zsh"
 
-[[ "$version" == <->.<->.<-> ]] || {
-  print -u2 -- "version must use MAJOR.MINOR.PATCH"
-  exit 64
-}
+soundconnect_parse_version "$version"
+readonly bundle_version="$(soundconnect_bundle_version "$version")"
 
 for tool in go swift ditto lipo codesign plutil shasum git; do
   command -v "$tool" >/dev/null || {
@@ -96,7 +95,7 @@ install -m 0644 "${repo_root}/packaging/macos/Info.plist" "${contents_root}/Info
 install -m 0644 "${repo_root}/packaging/macos/AppIcon.icns" \
   "${contents_root}/Resources/AppIcon.icns"
 plutil -replace CFBundleShortVersionString -string "$version" "${contents_root}/Info.plist"
-plutil -replace CFBundleVersion -string "${version//./}" "${contents_root}/Info.plist"
+plutil -replace CFBundleVersion -string "$bundle_version" "${contents_root}/Info.plist"
 
 install -m 0644 "${repo_root}/LICENSE" "${contents_root}/Resources/LICENSE"
 install -m 0644 "${repo_root}/THIRD_PARTY_NOTICES" "${contents_root}/Resources/THIRD_PARTY_NOTICES"
@@ -150,6 +149,7 @@ readonly release_notes_path="${release_dir}/soundconnect-${version}-release-note
 {
   print -- "product=soundconnect"
   print -- "version=${version}"
+  print -- "bundle_version=${bundle_version}"
   print -- "source_repository=https://github.com/soundadam/soundconnect"
   print -- "source_commit=${source_commit}"
   print -- "source_dirty=${source_dirty}"

@@ -8,7 +8,7 @@ usage() {
 
 [[ $# -ge 1 && $# -le 2 ]] || usage
 
-readonly version="$1"
+readonly version="${1#v}"
 readonly repo_root="${0:A:h:h}"
 typeset default_tap_root="${HOME}/workspaces/soundadam/homebrew-local"
 if command -v brew >/dev/null 2>&1; then

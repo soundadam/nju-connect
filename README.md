@@ -116,3 +116,40 @@ For an explicitly local, dirty-tree preview, use
 a `file://` Cask into the installed `soundadam/local` tap checkout (falling back
 to `~/workspaces/soundadam/homebrew-local` when the tap is not installed), and
 never publishes an artifact.
+
+## Versioning and local iteration
+
+soundconnect follows the sing-box prerelease sequence. Git tags add a leading
+`v`, while the version embedded in the app and CLI does not:
+
+```text
+v1.1.0-alpha.1 -> v1.1.0-beta.1 -> v1.1.0-rc.1 -> v1.1.0
+```
+
+Repeated builds in one channel increment its sequence number. By default, a
+local update from installed stable version `1.0.0` starts the next feature train
+as `1.1.0-alpha.1`, and the next local update becomes `1.1.0-alpha.2`. Stable
+maintenance releases remain on the patch line, so the stable successor to
+`1.0.0` is `1.0.1`:
+
+```sh
+make local-update
+make local-update CHANNEL=beta
+make local-update CHANNEL=rc
+make local-update CHANNEL=stable
+```
+
+`local-update` resolves the active tap with `brew --repo soundadam/local`. It
+runs the release checks, builds the universal app, updates and commits the local
+Cask, reinstalls it, removes quarantine only from the installed development
+preview, and verifies the installed app, embedded CLI, code signature, and
+helper hash. Set `PUSH_TAP=1` to push the resulting private-tap commit. Use
+`INSTALL_UPDATE=0` when only packaging and committing the Cask is desired.
+
+`make macos-dev` builds the CLI, menu-bar app, and aTrust OAuth helper, signs
+them with a local Apple Development identity, and runs the app against the
+freshly built CLI.
+
+Local Casks use `file://` artifacts and are not public releases. A public
+release must start from a clean tagged commit, use immutable uploaded assets,
+verify the downloaded SHA-256, and satisfy signing and notarization gates.
