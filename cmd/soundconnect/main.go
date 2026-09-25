@@ -42,6 +42,8 @@ func run(arguments []string, stdout, stderr io.Writer) int {
 		return 0
 	case "setup":
 		return exitStatus(runSetup(arguments[1:], stdout, stderr), stderr)
+	case "account":
+		return exitStatus(runAccount(arguments[1:], stdout, stderr), stderr)
 	case "configure":
 		return exitStatus(runConfigure(arguments[1:], stdout, stderr), stderr)
 	case "backends":
@@ -189,6 +191,7 @@ With no command, soundconnect runs connect.
 
 commands:
   setup      configure backend, account, and long-lived password
+  account    show or change the saved account, password and aTrust session
   configure  switch non-secret backend and listener settings
   backends   print non-secret backend metadata and capabilities
   auth-info  discover public aTrust authentication methods without logging in

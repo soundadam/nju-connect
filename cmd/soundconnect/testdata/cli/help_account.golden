@@ -1,0 +1,16 @@
+$ soundconnect account -h
+exit: 0
+--- stdout
+usage: soundconnect account [command] [flags]
+
+With no command, account shows the saved account; on a terminal it opens a
+menu to change it.
+
+commands:
+  show          print the saved account and which secrets are saved
+  set-password  replace the saved VPN password
+  set-username  change the saved account name and forget its aTrust session
+  forget        forget the saved password and/or aTrust session
+
+Every change refuses while a runtime is active.
+--- stderr

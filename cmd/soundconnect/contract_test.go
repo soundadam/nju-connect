@@ -43,6 +43,11 @@ func TestContractCommandHelp(t *testing.T) {
 		args []string
 	}{
 		{"setup", []string{"setup", "-h"}},
+		{"account", []string{"account", "-h"}},
+		{"account_show", []string{"account", "show", "-h"}},
+		{"account_set_password", []string{"account", "set-password", "-h"}},
+		{"account_set_username", []string{"account", "set-username", "-h"}},
+		{"account_forget", []string{"account", "forget", "-h"}},
 		{"configure", []string{"configure", "-h"}},
 		{"backends", []string{"backends", "-h"}},
 		{"auth_info", []string{"auth-info", "-h"}},

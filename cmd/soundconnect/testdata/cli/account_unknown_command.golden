@@ -1,0 +1,5 @@
+$ soundconnect account rename
+exit: 2
+--- stdout
+--- stderr
+unknown account command "rename"; run "soundconnect account -h"
