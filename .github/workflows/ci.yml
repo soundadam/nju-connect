@@ -1,0 +1,48 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  macos:
+    name: macOS (Go + Swift)
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: gofmt
+        run: make fmt-check
+      - name: go vet
+        run: go vet ./...
+      - name: go test -race
+        run: go test -race ./...
+      - name: swift test
+        run: swift test --package-path macos
+      - name: versioning
+        run: make versioning-test
+
+  linux:
+    name: Linux (Go tests + cross builds)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: go test -race
+        run: go test -race ./...
+      - name: go vet (windows)
+        run: GOOS=windows go vet ./...
+      - name: cross build
+        run: make build-platforms
