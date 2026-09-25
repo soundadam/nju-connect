@@ -38,7 +38,7 @@ func TestDoctorWrapsDependencyFailures(t *testing.T) {
 	t.Parallel()
 	env := newTestEnv(t)
 	failure := errors.New("boom")
-	env.deps.PasswordStore = func(string) (credential.Store, error) { return nil, failure }
+	env.deps.PasswordStore = func(credential.Location) (credential.Store, error) { return nil, failure }
 	if _, err := Doctor(env.deps); !errors.Is(err, failure) || err.Error() != "prepare credential store: boom" {
 		t.Fatalf("err = %v", err)
 	}

@@ -99,7 +99,7 @@ func TestSetupATrustOAuthStoresNoPassword(t *testing.T) {
 	t.Parallel()
 	env := newTestEnv(t)
 	env.withDiscovery(njuMethods, nil)
-	env.deps.PasswordStore = func(string) (credential.Store, error) {
+	env.deps.PasswordStore = func(credential.Location) (credential.Store, error) {
 		t.Fatal("OAuth setup opened the password store")
 		return nil, nil
 	}

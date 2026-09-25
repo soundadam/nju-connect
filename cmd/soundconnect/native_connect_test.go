@@ -289,8 +289,8 @@ func nativeCommandTestPaths(t *testing.T) config.Paths {
 	previous := resolveDefaultPaths
 	previousCredentialStore := newSystemCredentialStore
 	resolveDefaultPaths = func() (config.Paths, error) { return paths, nil }
-	newSystemCredentialStore = func(path string) (credential.Store, error) {
-		return credential.NewFileStore(path, true)
+	newSystemCredentialStore = func(location credential.Location) (credential.Store, error) {
+		return credential.NewFileStore(location.File, true)
 	}
 	t.Cleanup(func() {
 		resolveDefaultPaths = previous

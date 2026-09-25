@@ -107,7 +107,7 @@ func runNativeConnectContext(
 		return runATrustConnectContext(ctx, paths, configured, *verificationCodeStdin, stdout, stderr)
 	}
 
-	passwordStore, _, err := commandCredentialStore(paths)
+	passwordStore, err := commandPasswordStore(paths, configured)
 	if err != nil {
 		fmt.Fprintf(stderr, "open credential: %v\n", err)
 		return 1

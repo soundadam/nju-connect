@@ -29,7 +29,7 @@ func Logout(ctx context.Context, deps Deps) (LogoutResult, error) {
 	if err != nil {
 		return LogoutResult{}, fmt.Errorf("resolve local state: %w", err)
 	}
-	store, err := deps.ATrustSessionStore(paths.ATrustClientData)
+	store, err := deps.ATrustSessionStore(ATrustSessionLocation(paths, savedCredentialBackend(paths)))
 	if err != nil {
 		return LogoutResult{}, fmt.Errorf("prepare aTrust session store: %w", err)
 	}

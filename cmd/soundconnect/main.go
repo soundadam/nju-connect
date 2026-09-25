@@ -92,7 +92,7 @@ func runDryRun(arguments []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "load configuration: %v\n", err)
 		return 1
 	}
-	passwordStore, _, err := commandCredentialStore(paths)
+	passwordStore, err := commandPasswordStore(paths, configured)
 	if err != nil {
 		fmt.Fprintf(stderr, "open credential: %v\n", err)
 		return 1

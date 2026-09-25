@@ -101,31 +101,17 @@ func TestKeychainStoreClearIsIdempotent(t *testing.T) {
 	}
 }
 
-func TestSystemStoreUsesStableKeychainIdentifiers(t *testing.T) {
-	store, err := NewSystemStore("/legacy/path")
-	if err != nil {
-		t.Fatal(err)
-	}
-	keychain, ok := store.(*KeychainStore)
-	if !ok {
-		t.Fatalf("system store type = %T", store)
-	}
-	if keychain.service != "com.soundadam.soundconnect" || keychain.account != "vpn-password" {
-		t.Fatalf("Keychain identifiers = %q / %q", keychain.service, keychain.account)
-	}
-}
-
-func TestATrustClientDataStoreUsesSeparateKeychainIdentifier(t *testing.T) {
-	store, err := NewATrustClientDataStore("/ignored/path")
-	if err != nil {
-		t.Fatal(err)
-	}
-	keychain, ok := store.(*KeychainStore)
-	if !ok {
-		t.Fatalf("aTrust store type = %T", store)
-	}
-	if keychain.service != "com.soundadam.soundconnect" || keychain.account != "atrust-client-data" {
-		t.Fatalf("aTrust Keychain identifiers = %q / %q", keychain.service, keychain.account)
+func TestLegacyKeychainItemsExistOnlyForTheDefaultService(t *testing.T) {
+	for account, legacyAccount := range map[string]string{
+		PasswordAccount: "vpn-password", ATrustSessionAccount: "atrust-client-data",
+	} {
+		store, ok := legacyKeychainStore(Location{Service: DefaultKeyringService, Account: account}).(*KeychainStore)
+		if !ok || store.service != "com.soundadam.soundconnect" || store.account != legacyAccount {
+			t.Fatalf("legacy store for %s = %+v", account, store)
+		}
+		if legacy := legacyKeychainStore(Location{Service: KeyringService("/isolated", true), Account: account}); legacy != nil {
+			t.Fatalf("isolated service reaches the real legacy item: %+v", legacy)
+		}
 	}
 }
 

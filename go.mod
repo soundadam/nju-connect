@@ -7,6 +7,7 @@ require (
 	github.com/pelletier/go-toml/v2 v2.4.3
 	github.com/refraction-networking/utls v1.8.2
 	github.com/sagernet/gvisor v0.0.0-20250811-sing-box-mod.1
+	github.com/zalando/go-keyring v0.2.8
 	golang.org/x/net v0.57.0
 	golang.org/x/sys v0.47.0
 	golang.org/x/term v0.45.0
@@ -14,8 +15,10 @@ require (
 
 require (
 	github.com/andybalholm/brotli v1.2.1 // indirect
+	github.com/danieljoos/wincred v1.2.3 // indirect
 	github.com/fsnotify/fsnotify v1.10.1 // indirect
 	github.com/go-ole/go-ole v1.3.0 // indirect
+	github.com/godbus/dbus/v5 v5.2.2 // indirect
 	github.com/google/btree v1.1.3 // indirect
 	github.com/google/go-cmp v0.7.0 // indirect
 	github.com/klauspost/compress v1.18.6 // indirect
@@ -27,7 +30,6 @@ require (
 	github.com/sagernet/netlink v0.0.0-20240916134442-83396419aa8b // indirect
 	github.com/sagernet/sing v0.7.18 // indirect
 	github.com/scjalliance/comshim v0.0.0-20251021001035-b69f3cdad6f3 // indirect
-	github.com/stretchr/testify v1.11.1 // indirect
 	github.com/vishvananda/netns v0.0.5 // indirect
 	go4.org/intern v0.0.0-20230525184215-6c62f75575cb // indirect
 	go4.org/unsafe/assume-no-moving-gc v0.0.0-20231121144256-b99613f794b6 // indirect

@@ -74,7 +74,7 @@ func runATrustConnectContext(
 		}
 	}
 
-	clientDataStore, err := newATrustClientDataStore(paths.ATrustClientData)
+	clientDataStore, err := newATrustClientDataStore(app.ATrustSessionLocation(paths, configured.CredentialStore))
 	if err != nil {
 		fmt.Fprintf(stderr, "prepare aTrust session store: %v\n", err)
 		return 1
@@ -97,7 +97,7 @@ func runATrustConnectContext(
 			Dial:     gatewayDial,
 		},
 		SavedClientData: savedClientData,
-		Prompter: newATrustCLIPrompter(paths, app.NewLineInteraction(app.LineOptions{
+		Prompter: newATrustCLIPrompter(paths, configured, app.NewLineInteraction(app.LineOptions{
 			Input: os.Stdin, Output: stderr, CodeFromStdin: verificationCodeStdin,
 		}), stderr),
 		SOCKSListen: configured.SOCKSListen,
@@ -152,12 +152,12 @@ func runATrustConnectContext(
 }
 
 // newATrustCLIPrompter supplies interactive factors from the terminal, the
-// Keychain, and the bundled OAuth helper. The protocol core never reads
+// system keyring, and the bundled OAuth helper. The protocol core never reads
 // standard input itself.
-func newATrustCLIPrompter(paths config.Paths, interaction app.Interaction, output io.Writer) atrustbackend.Prompter {
+func newATrustCLIPrompter(paths config.Paths, configured config.Config, interaction app.Interaction, output io.Writer) atrustbackend.Prompter {
 	return atrustbackend.PrompterFuncs{
 		OnPassword: func(context.Context, atrustbackend.PasswordRequest) ([]byte, error) {
-			store, _, err := commandCredentialStore(paths)
+			store, err := commandPasswordStore(paths, configured)
 			if err != nil {
 				return nil, fmt.Errorf("open VPN password: %w", err)
 			}

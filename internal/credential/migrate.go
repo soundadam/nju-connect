@@ -6,23 +6,16 @@ import (
 	"os"
 )
 
-// MigrateFile imports an existing owner-only credential file into destination
-// only when destination is empty. The source is preserved so migration is
-// recoverable; callers may remove it after separately confirming the new
-// platform store.
-func MigrateFile(destination Store, sourcePath string) (bool, error) {
-	if destination == nil {
-		return false, errors.New("destination credential store is required")
+// Migrate copies source into destination only when destination is empty.
+// The source is preserved; callers decide whether to clear it.
+func Migrate(destination, source Store) (bool, error) {
+	if destination == nil || source == nil {
+		return false, errors.New("destination and source credential stores are required")
 	}
 	if err := destination.Inspect(); err == nil {
 		return false, nil
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return false, fmt.Errorf("inspect destination credential: %w", err)
-	}
-
-	source, err := NewFileStore(sourcePath, true)
-	if err != nil {
-		return false, err
 	}
 	secret, err := source.Get()
 	if err != nil {
@@ -39,4 +32,14 @@ func MigrateFile(destination Store, sourcePath string) (bool, error) {
 		return false, fmt.Errorf("verify migrated credential: %w", err)
 	}
 	return true, nil
+}
+
+// MigrateFile imports an existing owner-only credential file into destination
+// only when destination is empty. The source file is preserved.
+func MigrateFile(destination Store, sourcePath string) (bool, error) {
+	source, err := NewFileStore(sourcePath, true)
+	if err != nil {
+		return false, err
+	}
+	return Migrate(destination, source)
 }

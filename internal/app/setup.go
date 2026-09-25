@@ -98,7 +98,7 @@ func Setup(ctx context.Context, deps Deps, request SetupRequest) (SetupResult, e
 
 	var passwordStore credential.Store
 	if usesPassword(configured) {
-		passwordStore, err = deps.PasswordStore(paths.Credential)
+		passwordStore, err = deps.PasswordStore(PasswordLocation(paths, configured.CredentialStore))
 		if err != nil {
 			return SetupResult{}, fmt.Errorf("prepare credential store: %w", err)
 		}
@@ -203,7 +203,7 @@ func Migrate(deps Deps, legacyRoot string) (MigrateResult, error) {
 	if err != nil {
 		return MigrateResult{}, fmt.Errorf("migrate configuration: %w", err)
 	}
-	store, err := deps.PasswordStore(paths.Credential)
+	store, err := deps.PasswordStore(PasswordLocation(paths, savedCredentialBackend(paths)))
 	if err != nil {
 		return MigrateResult{}, fmt.Errorf("prepare credential store: %w", err)
 	}

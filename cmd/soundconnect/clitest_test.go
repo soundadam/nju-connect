@@ -57,8 +57,12 @@ func newCLIHarness(t *testing.T) *cliHarness {
 	previousClientData := newATrustClientDataStore
 	previousCore := newATrustCore
 	previousStdin := os.Stdin
-	newSystemCredentialStore = func(path string) (credential.Store, error) { return credential.NewFileStore(path, true) }
-	newATrustClientDataStore = func(path string) (credential.Store, error) { return credential.NewFileStore(path, true) }
+	newSystemCredentialStore = func(location credential.Location) (credential.Store, error) {
+		return credential.NewFileStore(location.File, true)
+	}
+	newATrustClientDataStore = func(location credential.Location) (credential.Store, error) {
+		return credential.NewFileStore(location.File, true)
+	}
 	newATrustCore = func() atrustbackend.Core { return core }
 	t.Cleanup(func() {
 		newSystemCredentialStore = previousPassword

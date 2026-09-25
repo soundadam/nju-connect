@@ -28,7 +28,9 @@ func newTestEnv(t *testing.T) *testEnv {
 		Credential:       filepath.Join(root, "credential"),
 		ATrustClientData: filepath.Join(root, "atrust-client-data"),
 	}
-	fileStore := func(path string) (credential.Store, error) { return credential.NewFileStore(path, true) }
+	fileStore := func(location credential.Location) (credential.Store, error) {
+		return credential.NewFileStore(location.File, true)
+	}
 	return &testEnv{t: t, paths: paths, deps: Deps{
 		Paths:              func() (config.Paths, error) { return paths, nil },
 		PasswordStore:      fileStore,
