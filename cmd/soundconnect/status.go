@@ -11,6 +11,7 @@ import (
 
 	"github.com/soundadam/soundconnect/internal/backend/easyconnect/session"
 	"github.com/soundadam/soundconnect/internal/runtime"
+	"github.com/soundadam/soundconnect/internal/traffic"
 )
 
 const runtimeStatusSchema = 1
@@ -66,6 +67,18 @@ func (tracker *runtimeStatusTracker) Snapshot() runtimeStatusSnapshot {
 }
 
 func (tracker *runtimeStatusTracker) UpdateTraffic(snapshot nativeapp.TrafficSnapshot, sampledAt time.Time) {
+	tracker.UpdateIngressTraffic(traffic.Snapshot{
+		SessionStartedAt:  snapshot.SessionStartedAt,
+		UploadBytes:       snapshot.UploadBytes,
+		DownloadBytes:     snapshot.DownloadBytes,
+		ActiveConnections: snapshot.ActiveConnections,
+		TotalConnections:  snapshot.TotalConnections,
+	}, sampledAt)
+}
+
+// UpdateIngressTraffic records counters measured at a backend's SOCKS
+// ingress, such as the aTrust connection's.
+func (tracker *runtimeStatusTracker) UpdateIngressTraffic(snapshot traffic.Snapshot, sampledAt time.Time) {
 	var sessionStartedAt *time.Time
 	if !snapshot.SessionStartedAt.IsZero() {
 		started := snapshot.SessionStartedAt.UTC()

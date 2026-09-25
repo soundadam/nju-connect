@@ -208,3 +208,25 @@ func TestRuntimeStatusRejectsUnsafePathAndDuplicateServer(t *testing.T) {
 		t.Fatalf("duplicate runtime check = %v", err)
 	}
 }
+
+func TestRuntimeStatusAcceptsATrustTCPProfile(t *testing.T) {
+	path := runtimeStatusPath(t.TempDir())
+	tracker := newRuntimeStatusTracker(runtime.ProfileATrustTCP)
+	observer := runtimeStatusObserver(nativeapp.ObserverFuncs{}, tracker)
+	observer.StateChanged(nativeapp.StateConnected)
+	observer.SOCKSListening(config.DefaultSOCKSListen)
+	observer.AccessEvidence(true)
+
+	server, err := startRuntimeStatusServer(path, tracker.Snapshot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer server.Close()
+	snapshot, err := queryRuntimeStatus(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if snapshot.Profile != runtime.ProfileATrustTCP || snapshot.SOCKSListen != config.DefaultSOCKSListen || snapshot.AccessEvidence != "available" {
+		t.Fatalf("aTrust runtime status = %+v", snapshot)
+	}
+}

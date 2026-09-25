@@ -12,6 +12,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/soundadam/soundconnect/internal/backend"
 	"github.com/soundadam/soundconnect/internal/backend/easyconnect/auth"
 	"github.com/soundadam/soundconnect/internal/backend/easyconnect/session"
 	"github.com/soundadam/soundconnect/internal/config"
@@ -95,6 +96,13 @@ func runNativeConnectContext(
 	if err != nil {
 		fmt.Fprintf(stderr, "upstream preflight: %v\n", err)
 		return 1
+	}
+	if configured.BackendName() == backend.ATrust {
+		if *background {
+			fmt.Fprintln(stderr, "aTrust background runtime is not implemented yet")
+			return 2
+		}
+		return runATrustConnectContext(ctx, paths, configured, *verificationCodeStdin, stdout, stderr)
 	}
 
 	passwordStore, _, err := commandCredentialStore(paths)

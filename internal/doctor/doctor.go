@@ -7,6 +7,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/soundadam/soundconnect/internal/backend"
 	"github.com/soundadam/soundconnect/internal/config"
 	"github.com/soundadam/soundconnect/internal/credential"
 	"github.com/soundadam/soundconnect/internal/dial"
@@ -34,17 +35,21 @@ func Build(paths config.Paths, store credential.Store) Report {
 	}
 	report.Configuration = "ready"
 
-	if store == nil {
+	if configured.BackendName() == backend.ATrust && configured.AuthType != "auth/psw" {
+		// aTrust OAuth keeps no long-lived password.
+		report.CredentialStore = "not_required"
+	} else if store == nil {
 		report.CredentialStore = "invalid"
 		return report
-	}
-	switch err := store.Inspect(); {
-	case err == nil:
-		report.CredentialStore = "ready"
-	case errors.Is(err, os.ErrNotExist):
-		report.CredentialStore = "missing"
-	default:
-		report.CredentialStore = "invalid"
+	} else {
+		switch err := store.Inspect(); {
+		case err == nil:
+			report.CredentialStore = "ready"
+		case errors.Is(err, os.ErrNotExist):
+			report.CredentialStore = "missing"
+		default:
+			report.CredentialStore = "invalid"
+		}
 	}
 
 	if configured.UpstreamProxy == "" {
@@ -60,7 +65,7 @@ func Build(paths config.Paths, store credential.Store) Report {
 		}
 	}
 	report.Ready = report.Configuration == "ready" &&
-		report.CredentialStore == "ready" &&
+		(report.CredentialStore == "ready" || report.CredentialStore == "not_required") &&
 		(report.UpstreamProxy == "ready" || report.UpstreamProxy == "not_configured")
 	return report
 }
