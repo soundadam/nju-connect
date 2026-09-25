@@ -437,6 +437,30 @@ final class DesignModel: ObservableObject {
         actionMessage = nil
     }
 
+    /// Credential recovery on aTrust can also drop the saved session, so the
+    /// next connection signs in from scratch.
+    var canForgetSession: Bool {
+        isReconfiguringCredentials && backend == .aTrust && controller != nil
+    }
+
+    func forgetSavedSession() {
+        guard canForgetSession, !isPerformingAction, let controller else { return }
+        isPerformingAction = true
+        controller.forgetSession { [weak self] result in
+            guard let self else { return }
+            self.isPerformingAction = false
+            switch result {
+            case .success:
+                self.actionMessage = uiText(
+                    "Saved aTrust session forgotten. The next connection signs in again.",
+                    "已清除保存的 aTrust 会话，下次连接将重新登录"
+                )
+            case .failure(let error):
+                self.actionMessage = error.localizedDescription
+            }
+        }
+    }
+
     func cancelCredentialRecovery() {
         guard isReconfiguringCredentials else { return }
         isReconfiguringCredentials = false
@@ -633,5 +657,6 @@ final class DesignModel: ObservableObject {
         message.localizedCaseInsensitiveContains("authentication rejected")
             || message.localizedCaseInsensitiveContains("password authentication")
             || message.localizedCaseInsensitiveContains("credential")
+            || message.localizedCaseInsensitiveContains("no saved VPN password")
     }
 }

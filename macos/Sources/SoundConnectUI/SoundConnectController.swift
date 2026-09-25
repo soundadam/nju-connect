@@ -84,6 +84,9 @@ protocol SoundConnectControlling: AnyObject {
     )
     func submitVerificationCode(_ code: String) -> Bool
     func disconnect(completion: @escaping SoundConnectActionCompletion)
+    /// Forgets the saved aTrust session and OAuth browser profile while
+    /// keeping the shared password (`account forget --session`).
+    func forgetSession(completion: @escaping SoundConnectActionCompletion)
 }
 
 let missingHelperMessage = uiText(
@@ -365,6 +368,18 @@ final class SoundConnectController: SoundConnectControlling {
                 completion(.success(()))
             } else {
                 completion(.failure(SoundConnectBackendError(message: errorText.isEmpty ? "Unable to stop soundconnect." : errorText)))
+            }
+        }
+    }
+
+    func forgetSession(completion: @escaping SoundConnectActionCompletion) {
+        runCapture(arguments: ["account", "forget", "--session"]) { _, code, errorText in
+            if code == 0 {
+                completion(.success(()))
+            } else {
+                completion(.failure(SoundConnectBackendError(
+                    message: errorText.isEmpty ? "Unable to forget the saved aTrust session." : errorText
+                )))
             }
         }
     }

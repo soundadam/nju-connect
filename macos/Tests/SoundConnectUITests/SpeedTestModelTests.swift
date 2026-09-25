@@ -18,6 +18,7 @@ final class SpeedTestModelTests: XCTestCase {
         var connectError: SoundConnectBackendError?
         var catalog: SoundConnectBackendCatalog? = testBackendCatalog
         var disconnectCalls = 0
+        var forgetSessionCalls = 0
 		var statusMonitorCompletion: SoundConnectStatusCompletion?
 
         func readStatus(completion: @escaping SoundConnectStatusCompletion) {
@@ -71,6 +72,11 @@ final class SpeedTestModelTests: XCTestCase {
         }
 
         func submitVerificationCode(_ code: String) -> Bool { !code.isEmpty }
+
+        func forgetSession(completion: @escaping SoundConnectActionCompletion) {
+            forgetSessionCalls += 1
+            completion(.success(()))
+        }
 
         func disconnect(completion: @escaping SoundConnectActionCompletion) {
             disconnectCalls += 1
@@ -221,6 +227,30 @@ final class SpeedTestModelTests: XCTestCase {
         XCTAssertEqual(formatRate(99_999), "100.0 kB/s")
         XCTAssertEqual(formatRate(100_000), "0.1 MB/s")
         XCTAssertEqual(formatRate(1_250_000), "1.2 MB/s")
+    }
+
+    @MainActor
+    func testMissingPasswordOffersCredentialResetAndATrustSessionForgetting() {
+        let controller = FakeSoundConnectController()
+        controller.snapshot = SoundConnectRuntimeSnapshot(
+            configured: true, running: false, state: "stopped", socksListen: "", traffic: nil
+        )
+        controller.connectError = SoundConnectBackendError(
+            message: #"connect aTrust backend: no saved VPN password; run "soundconnect account set-password""#
+        )
+        let model = DesignModel(backend: .aTrust, controller: controller)
+
+        model.setServiceEnabled(true)
+        XCTAssertEqual(model.scenario, .credentialRejected)
+        XCTAssertFalse(model.canForgetSession)
+
+        model.beginCredentialRecovery()
+        XCTAssertTrue(model.canForgetSession)
+        model.forgetSavedSession()
+
+        XCTAssertEqual(controller.forgetSessionCalls, 1)
+        XCTAssertEqual(model.actionMessage, "Saved aTrust session forgotten. The next connection signs in again.")
+        XCTAssertFalse(model.isPerformingAction)
     }
 
     @MainActor
