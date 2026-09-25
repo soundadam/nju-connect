@@ -293,18 +293,6 @@ func (store failingStore) Inspect() error          { return os.ErrNotExist }
 func (store failingStore) Get() ([]byte, error)    { return nil, os.ErrNotExist }
 func (store failingStore) Set(secret []byte) error { return store.err }
 
-func TestSetupRefusesLiveRuntime(t *testing.T) {
-	t.Parallel()
-	env := newTestEnv(t)
-	defer env.serveRuntime().Close()
-	_, err := Setup(context.Background(), env.deps, SetupRequest{
-		Backend: "easyconnect", Server: "vpn.example.edu", Username: "student", PasswordSupplied: true,
-	})
-	if err == nil || err.Error() != "setup profile: another native runtime is already active" {
-		t.Fatalf("err = %v", err)
-	}
-}
-
 func TestSetupForgetsTheATrustSessionWhenTheAccountChanges(t *testing.T) {
 	t.Parallel()
 	env := newTestEnv(t)

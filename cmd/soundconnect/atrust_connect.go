@@ -157,15 +157,7 @@ func runATrustConnectContext(
 func newATrustCLIPrompter(paths config.Paths, configured config.Config, interaction app.Interaction, output io.Writer) atrustbackend.Prompter {
 	return atrustbackend.PrompterFuncs{
 		OnPassword: func(context.Context, atrustbackend.PasswordRequest) ([]byte, error) {
-			store, err := commandPasswordStore(paths, configured)
-			if err != nil {
-				return nil, fmt.Errorf("open VPN password: %w", err)
-			}
-			password, err := store.Get()
-			if errors.Is(err, os.ErrNotExist) || errors.Is(err, credential.ErrEmptyCredential) {
-				return nil, errors.New(`no saved VPN password; run "soundconnect setup --backend atrust --auth-type auth/psw" first`)
-			}
-			return password, err
+			return readSavedPassword(paths, configured)
 		},
 		OnVerificationCode: func(ctx context.Context, request atrustbackend.VerificationRequest) ([]byte, error) {
 			return interaction.VerificationCode(ctx, request.Destination)

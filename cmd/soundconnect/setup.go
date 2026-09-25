@@ -10,6 +10,7 @@ import (
 	"github.com/soundadam/soundconnect/internal/app"
 	"github.com/soundadam/soundconnect/internal/backend"
 	"github.com/soundadam/soundconnect/internal/config"
+	"github.com/soundadam/soundconnect/internal/tui"
 )
 
 func runSetup(arguments []string, stdout, stderr io.Writer) error {
@@ -43,14 +44,30 @@ func runSetup(arguments []string, stdout, stderr io.Writer) error {
 			request.NativeTLSInsecure = nativeTLSInsecure
 		}
 	})
-	interaction := app.NewLineInteraction(app.LineOptions{
-		Input: os.Stdin, Output: stderr, PasswordFromStdin: request.PasswordSupplied,
-	})
-	result, err := app.Setup(context.Background(), commandDeps(interaction, stderr), request)
+	// A terminal user gets the guided wizard; piped input keeps the
+	// line-prompt contract the macOS app drives.
+	interaction, interactive := tui.ForCommand(app.LineOptions{
+		Input: os.Stdin, PasswordFromStdin: request.PasswordSupplied,
+	}, stderr)
+	request.Guided = interactive
+	ctx := context.Background()
+	result, err := app.Setup(ctx, commandDeps(interaction, stderr), request)
 	if err != nil {
 		return err
 	}
 	fmt.Fprintf(stdout, "configuration: %s\nbackend: %s\ncredential: %s\n", result.Path, result.Backend, result.Credential)
+	if !interactive || result.Backend != backend.EasyConnect {
+		return nil
+	}
+	// aTrust sign-in needs the full connect flow, so only EasyConnect
+	// offers a quick check.
+	test, err := interaction.Confirm(ctx, "Test the login now?", true)
+	if err != nil || !test {
+		return err
+	}
+	if code := runDryRun(nil, stdout, stderr); code != 0 {
+		return exitCode(code)
+	}
 	return nil
 }
 

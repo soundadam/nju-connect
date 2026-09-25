@@ -12,7 +12,6 @@ import (
 
 	"github.com/soundadam/soundconnect/internal/app"
 	"github.com/soundadam/soundconnect/internal/backend/easyconnect/auth"
-	"github.com/soundadam/soundconnect/internal/config"
 	"github.com/soundadam/soundconnect/internal/core"
 	"github.com/soundadam/soundconnect/internal/credential"
 )
@@ -89,19 +88,13 @@ func runDryRun(arguments []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "resolve local state: %v\n", err)
 		return 1
 	}
-	configured, err := config.Load(paths.Config)
+	configured, err := loadProfile(context.Background(), paths, true, stderr)
 	if err != nil {
-		fmt.Fprintf(stderr, "load configuration: %v\n", err)
-		return 1
+		return exitStatus(err, stderr)
 	}
-	passwordStore, err := commandPasswordStore(paths, configured)
+	password, err := readSavedPassword(paths, configured)
 	if err != nil {
-		fmt.Fprintf(stderr, "open credential: %v\n", err)
-		return 1
-	}
-	password, err := passwordStore.Get()
-	if err != nil {
-		fmt.Fprintf(stderr, "read credential: %v\n", err)
+		fmt.Fprintln(stderr, err)
 		return 1
 	}
 	defer credential.Clear(password)

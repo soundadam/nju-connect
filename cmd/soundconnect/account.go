@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/soundadam/soundconnect/internal/app"
+	"github.com/soundadam/soundconnect/internal/tui"
 )
 
 const accountUsage = `usage: soundconnect account [command] [flags]
@@ -49,9 +50,16 @@ func runAccount(arguments []string, stdout, stderr io.Writer) error {
 	}
 }
 
-// runAccountOverview shows the saved account. The interactive menu replaces
-// it on a terminal.
+// runAccountOverview opens the account menu on a terminal and shows the
+// saved account otherwise.
 func runAccountOverview(stdout, stderr io.Writer) error {
+	interaction, interactive := tui.ForCommand(app.LineOptions{Input: os.Stdin}, stderr)
+	if interactive {
+		return app.AccountMenu(context.Background(), commandDeps(interaction, stderr), func(info app.AccountInfo) {
+			fmt.Fprintln(stderr)
+			writeAccountInfo(stderr, info)
+		})
+	}
 	info, err := app.AccountShow(commandDeps(nil, stderr))
 	if err != nil {
 		return err
@@ -98,9 +106,7 @@ func runAccountSetPassword(arguments []string, stdout, stderr io.Writer) error {
 	if err := parseCommand(flags, arguments, stdout, stderr); err != nil {
 		return err
 	}
-	interaction := app.NewLineInteraction(app.LineOptions{
-		Input: os.Stdin, Output: stderr, PasswordFromStdin: *passwordStdin,
-	})
+	interaction, _ := tui.ForCommand(app.LineOptions{Input: os.Stdin, PasswordFromStdin: *passwordStdin}, stderr)
 	if err := app.SetPassword(context.Background(), commandDeps(interaction, stderr)); err != nil {
 		return err
 	}

@@ -86,10 +86,9 @@ func runNativeConnectContext(
 		fmt.Fprintf(stderr, "prepare runtime status: %v\n", err)
 		return 1
 	}
-	configured, err := config.Load(paths.Config)
+	configured, err := loadProfile(ctx, paths, !*verificationCodeStdin, stderr)
 	if err != nil {
-		fmt.Fprintf(stderr, "load configuration: %v\n", err)
-		return 1
+		return exitStatus(err, stderr)
 	}
 
 	preflightContext, cancelPreflight := context.WithTimeout(ctx, nativeUpstreamPreflightTimeout)
@@ -107,14 +106,9 @@ func runNativeConnectContext(
 		return runATrustConnectContext(ctx, paths, configured, *verificationCodeStdin, stdout, stderr)
 	}
 
-	passwordStore, err := commandPasswordStore(paths, configured)
+	password, err := readSavedPassword(paths, configured)
 	if err != nil {
-		fmt.Fprintf(stderr, "open credential: %v\n", err)
-		return 1
-	}
-	password, err := passwordStore.Get()
-	if err != nil {
-		fmt.Fprintf(stderr, "read credential: %v\n", err)
+		fmt.Fprintln(stderr, err)
 		return 1
 	}
 	session, err := func() (*gatewayauth.Session, error) {
