@@ -30,9 +30,7 @@ cask "soundconnect" do
     testing use the bundled native soundconnect CLI. Speed measurements also
     require the separately installed librespeed-cli-soundconnect Homebrew Formula.
 
-    The source repository is private and the bundled software is proprietary.
-    Public availability of the archive does not grant a license: install or use
-    it only with explicit authorization from the copyright holder. Review the
+    soundconnect is licensed under AGPL-3.0. Review the corresponding source,
     immutable Release, SHA-256, build manifest, notices, and security state
     before making a local macOS security decision.
   EOS

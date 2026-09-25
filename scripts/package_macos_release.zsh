@@ -162,7 +162,7 @@ readonly release_notes_path="${release_dir}/soundconnect-${version}-release-note
   print -- "ui_backend=native-cli-control"
   print -- "campus_speed_helper=external-homebrew-formula"
   print -- "campus_speed_helper_formula=librespeed-cli-soundconnect"
-  print -- "license=proprietary; authorized users only"
+  print -- "license=AGPL-3.0"
 } > "$manifest_path"
 
 {
@@ -175,7 +175,7 @@ readonly release_notes_path="${release_dir}/soundconnect-${version}-release-note
   print -- "- VPN setup, background runtime control, status, traffic, and campus speed testing use the bundled CLI."
   print -- "- Campus speed testing requires the separate librespeed-cli-soundconnect Homebrew Formula."
   print -- "- The app and CLI are ad-hoc signed and are not Apple-notarized."
-  print -- "- The source repository is private and the software is proprietary; public download does not grant a license."
+  print -- "- soundconnect is available under AGPL-3.0; corresponding source is published with each release."
   print -- "- The Cask does not remove quarantine or bypass Gatekeeper."
   print
   print -- "Provenance:"
