@@ -51,6 +51,10 @@ Cobra) are checked against the same surface.
 | 2 | Usage error: unknown command or flag, a positional argument, an invalid combination, an unknown backend, or `connect --background` on aTrust. |
 | 130 | `speedtest campus` cancelled by SIGINT. |
 
+Services in `internal/app` return an `app.UsageError` for exit 2 and
+`context.Canceled` for a cancellation; `exitStatus` in `cmd/soundconnect`
+is the one place that turns errors into exit codes and stderr lines.
+
 ## Commands
 
 | Command | Flags | stdout | Notes |
@@ -138,7 +142,7 @@ arguments (exit 2 otherwise) and is omitted from the usage text.
 
 ## Runtime control socket
 
-A running runtime serves a Unix socket at
+A running runtime serves a Unix socket (`internal/runtimecontrol`) at
 `$TMPDIR/soundconnect-runtime-<euid>/<sha256(config dir)[:12]>.sock`. Both the
 directory (`0700`) and the socket (`0600`) must be owned by the current user.
 
@@ -150,6 +154,8 @@ directory (`0700`) and the socket (`0600`) must be owned by the current user.
 
 ## Tests and fixtures
 
+- `internal/app`: unit tests for each service over an isolated state
+  directory built into `app.Deps`, runnable in parallel.
 - `cmd/soundconnect/clitest_test.go`: the harness. It runs the real dispatcher
   against an isolated `SOUNDCONNECT_CONFIG_DIR`, with file-backed secret
   stores and a fake aTrust core. Fake EasyConnect gateways and status sockets
