@@ -4,6 +4,10 @@
 build:
 	mkdir -p $(dir $(BINARY))
 	$(GO) build -o $(BINARY) ./cmd/soundconnect
+	@if [ "$$(uname -s)" = "Darwin" ]; then \
+		swift build --package-path macos -c release --product soundconnect-atrust-oauth-helper; \
+		cp "$$(swift build --package-path macos -c release --show-bin-path)/soundconnect-atrust-oauth-helper" "$(dir $(BINARY))"; \
+	fi
 
 .PHONY: build-platforms
 build-platforms:

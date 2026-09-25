@@ -64,9 +64,20 @@ swift build \
   --arch x86_64 \
   --product soundconnect-menu
 
+swift build \
+  --package-path "${repo_root}/macos" \
+  -c release \
+  --arch arm64 \
+  --arch x86_64 \
+  --product soundconnect-atrust-oauth-helper
+
 install -m 0755 \
   "${repo_root}/macos/.build/apple/Products/Release/soundconnect-menu" \
   "${contents_root}/MacOS/soundconnect-menu"
+
+install -m 0755 \
+  "${repo_root}/macos/.build/apple/Products/Release/soundconnect-atrust-oauth-helper" \
+  "${contents_root}/Helpers/soundconnect-atrust-oauth-helper"
 
 for arch in arm64 amd64; do
   GOOS=darwin GOARCH="$arch" CGO_ENABLED=1 go build \
@@ -117,6 +128,7 @@ done < <(
 }
 
 codesign --force --sign - --timestamp=none "${contents_root}/Helpers/soundconnect"
+codesign --force --sign - --timestamp=none "${contents_root}/Helpers/soundconnect-atrust-oauth-helper"
 codesign --force --sign - --timestamp=none "${contents_root}/MacOS/soundconnect-menu"
 codesign --force --sign - --timestamp=none "$app_root"
 
@@ -125,6 +137,7 @@ plutil -lint "${contents_root}/Info.plist"
 [[ "$("${contents_root}/Helpers/soundconnect" version)" == "soundconnect ${version}" ]]
 file "${contents_root}/MacOS/soundconnect-menu" | grep -q 'universal binary'
 file "${contents_root}/Helpers/soundconnect" | grep -q 'universal binary'
+file "${contents_root}/Helpers/soundconnect-atrust-oauth-helper" | grep -q 'universal binary'
 
 rm -f -- "${release_dir}/${archive_name}"
 COPYFILE_DISABLE=1 ditto -c -k --keepParent "$app_root" "${release_dir}/${archive_name}"
