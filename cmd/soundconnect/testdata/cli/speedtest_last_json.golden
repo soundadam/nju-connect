@@ -1,0 +1,5 @@
+$ soundconnect speedtest last --json
+exit: 0
+--- stdout
+{"schema_version":1,"status":"success","started_at":"2026-09-01T08:00:00.123456789Z","ended_at":"2026-09-01T08:00:00.123456789Z","target":"speed.nju.edu.cn","family":"ipv4","route":"direct","server":"speed.nju.edu.cn","ping_ms":6,"jitter_ms":1,"download_mbps":50,"upload_mbps":10,"helper_version":"v1.0.13-campus.1"}
+--- stderr

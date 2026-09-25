@@ -1,0 +1,1 @@
+{"schema_version":1,"running":true,"state":"connected","started_at":"2026-09-01T08:00:00Z","profile":"community-utls","socks_listen":"127.0.0.1:1080","access_evidence":"available","traffic":{"session_started_at":"2026-09-01T08:00:00Z","sampled_at_unix_milli":1788249690000,"upload_bytes":12345,"download_bytes":678901,"active_connections":2,"total_connections":17}}

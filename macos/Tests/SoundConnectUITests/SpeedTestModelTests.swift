@@ -328,14 +328,20 @@ final class SpeedTestModelTests: XCTestCase {
 
     func testCampusSpeedTestResultDecodesStableSchema() throws {
         let payload = #"{"schema_version":1,"status":"success","started_at":"2026-08-04T00:00:00.123456789Z","ended_at":"2026-08-04T00:00:20.123456789Z","target":"speed.nju.edu.cn","family":"ipv4","route":"direct","server":"speed.nju.edu.cn","download_mbps":50,"upload_mbps":10,"helper_version":"v1.0.13-soundconnect.1"}"#.data(using: .utf8)!
-        let decoder = JSONDecoder()
-        decoder.keyDecodingStrategy = .convertFromSnakeCase
-        decoder.dateDecodingStrategy = .iso8601
-        let result = try decoder.decode(CampusSpeedTestResult.self, from: payload)
+        let result = try campusSpeedTestDecoder().decode(CampusSpeedTestResult.self, from: payload)
         XCTAssertEqual(result.schemaVersion, 1)
         XCTAssertEqual(result.route, "direct")
         XCTAssertEqual(result.downloadMbps, 50)
         XCTAssertNil(result.failure)
+        XCTAssertEqual(result.startedAt.timeIntervalSince1970, 1_785_801_600.123456789, accuracy: 0.000_001)
+    }
+
+    func testRFC3339TimestampsParseWithAndWithoutFractionsAndOffsets() throws {
+        let whole = try XCTUnwrap(parseRFC3339Timestamp("2026-08-04T00:00:00Z"))
+        XCTAssertEqual(whole.timeIntervalSince1970, 1_785_801_600)
+        XCTAssertEqual(try XCTUnwrap(parseRFC3339Timestamp("2026-08-04T08:00:00.5+08:00")).timeIntervalSince1970, 1_785_801_600.5)
+        XCTAssertNil(parseRFC3339Timestamp("2026-08-04T00:00:00.Z"))
+        XCTAssertNil(parseRFC3339Timestamp("yesterday"))
     }
 
     @MainActor

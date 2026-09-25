@@ -1,0 +1,5 @@
+$ soundconnect speedtest component bogus
+exit: 2
+--- stdout
+--- stderr
+unknown speedtest component command "bogus"

@@ -1,0 +1,5 @@
+$ soundconnect speedtest --json --json-events
+exit: 2
+--- stdout
+--- stderr
+--json and --json-events are mutually exclusive

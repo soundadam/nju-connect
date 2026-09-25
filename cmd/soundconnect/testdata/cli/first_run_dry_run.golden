@@ -1,0 +1,5 @@
+$ soundconnect dry-run
+exit: 1
+--- stdout
+--- stderr
+load configuration: inspect config: lstat $CONFIG_DIR/config.toml: no such file or directory

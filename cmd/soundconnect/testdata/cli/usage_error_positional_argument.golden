@@ -1,0 +1,5 @@
+$ soundconnect backends extra
+exit: 2
+--- stdout
+--- stderr
+backends accepts no positional arguments

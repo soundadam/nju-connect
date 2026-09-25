@@ -1,0 +1,5 @@
+$ soundconnect connect extra
+exit: 2
+--- stdout
+--- stderr
+connect accepts no positional arguments

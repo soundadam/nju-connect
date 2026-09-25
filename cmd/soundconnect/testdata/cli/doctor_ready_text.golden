@@ -1,0 +1,8 @@
+$ soundconnect doctor
+exit: 0
+--- stdout
+ready: true
+configuration: ready
+credential_store: ready
+upstream_proxy: not_configured
+--- stderr

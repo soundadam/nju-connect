@@ -1,0 +1,5 @@
+$ soundconnect doctor --json
+exit: 1
+--- stdout
+{"ready":false,"configuration":"missing","credential_store":"not_checked","upstream_proxy":"not_checked"}
+--- stderr
