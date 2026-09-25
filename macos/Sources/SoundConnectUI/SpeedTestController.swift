@@ -100,6 +100,45 @@ struct CampusProbeResult: Decodable, Equatable {
     let latencyMs: Double
 }
 
+/// The decoder for speed-test JSON from the CLI and for the saved history.
+func campusSpeedTestDecoder() -> JSONDecoder {
+    let decoder = JSONDecoder()
+    decoder.keyDecodingStrategy = .convertFromSnakeCase
+    decoder.dateDecodingStrategy = .custom { decoder in
+        let container = try decoder.singleValueContainer()
+        let text = try container.decode(String.self)
+        guard let date = parseRFC3339Timestamp(text) else {
+            throw DecodingError.dataCorruptedError(
+                in: container, debugDescription: "Expected an RFC 3339 timestamp, got \(text)."
+            )
+        }
+        return date
+    }
+    return decoder
+}
+
+/// Parses the RFC 3339 timestamps Go writes for time.Time, which carry up to
+/// nine fractional-second digits. The built-in .iso8601 strategy rejects any
+/// fraction on macOS 15 and earlier, so the fraction is split off, the rest
+/// is parsed as a plain internet date-time, and the fraction is added back.
+func parseRFC3339Timestamp(_ text: String) -> Date? {
+    var whole = Substring(text)
+    var fraction: TimeInterval = 0
+    if let dot = text.firstIndex(of: "."),
+       let zone = text[dot...].firstIndex(where: { $0 == "Z" || $0 == "z" || $0 == "+" || $0 == "-" })
+    {
+        let digits = text[text.index(after: dot)..<zone]
+        guard !digits.isEmpty, digits.allSatisfy(\.isASCII), digits.allSatisfy(\.isNumber),
+              let value = TimeInterval("0." + digits)
+        else { return nil }
+        fraction = value
+        whole = text[..<dot] + text[zone...]
+    }
+    let formatter = ISO8601DateFormatter()
+    formatter.formatOptions = [.withInternetDateTime]
+    return formatter.date(from: String(whole))?.addingTimeInterval(fraction)
+}
+
 // Internal for the shared CLI contract fixture tests.
 struct ComponentStatus: Decodable {
     let installed: Bool
@@ -174,9 +213,7 @@ final class SpeedTestController: ObservableObject, @unchecked Sendable {
     ) {
         isPreviewMode = previewState != nil
         historyDefaults = userDefaults
-        decoder = JSONDecoder()
-        decoder.keyDecodingStrategy = .convertFromSnakeCase
-        decoder.dateDecodingStrategy = .iso8601
+        decoder = campusSpeedTestDecoder()
         historyEncoder = JSONEncoder()
         historyEncoder.dateEncodingStrategy = .iso8601
         if let previewState {

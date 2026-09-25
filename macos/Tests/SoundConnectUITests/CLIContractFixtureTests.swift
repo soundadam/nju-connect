@@ -20,12 +20,9 @@ final class CLIContractFixtureTests: XCTestCase {
         return decoder
     }
 
-    /// Mirrors SpeedTestController's decoder for speed-test payloads.
+    /// SpeedTestController's own decoder for speed-test payloads.
     private func speedTestDecoder() -> JSONDecoder {
-        let decoder = JSONDecoder()
-        decoder.keyDecodingStrategy = .convertFromSnakeCase
-        decoder.dateDecodingStrategy = .iso8601
-        return decoder
+        campusSpeedTestDecoder()
     }
 
     private func fixture(_ name: String) throws -> Data {

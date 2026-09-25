@@ -186,10 +186,11 @@ func TestContractConfigure(t *testing.T) {
 
 var rfc3339Timestamp = regexp.MustCompile(`\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})`)
 
-// stableTimes replaces wall-clock timestamps with a fixed valid RFC 3339
-// value so fixtures stay decodable by the macOS app.
+// stableTimes replaces wall-clock timestamps with a fixed RFC 3339 value.
+// The replacement keeps nanosecond digits because Go writes them whenever the
+// clock has them, and the macOS app must decode that shape.
 func stableTimes(value string) string {
-	return rfc3339Timestamp.ReplaceAllString(value, "2026-09-01T08:00:00Z")
+	return rfc3339Timestamp.ReplaceAllString(value, "2026-09-01T08:00:00.123456789Z")
 }
 
 func stableJSONNumber(field string) func(string) string {
