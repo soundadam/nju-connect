@@ -20,6 +20,7 @@ import (
 	"github.com/soundadam/soundconnect/internal/core"
 	"github.com/soundadam/soundconnect/internal/credential"
 	"github.com/soundadam/soundconnect/internal/runtime"
+	"github.com/soundadam/soundconnect/internal/runtimecontrol"
 	"github.com/soundadam/soundconnect/internal/sessiontoken"
 )
 
@@ -85,7 +86,7 @@ func startProductionNativeBackground(sessionConfig nativeapp.SessionConfig, logP
 		Plan:          sessionConfig.Plan,
 		Token:         append(sessiontoken.NativeGatewayToken(nil), sessionConfig.NativeGatewayToken...),
 		NativeProfile: sessionConfig.NativeProfile,
-		StatusPath:    runtimeStatusPath(filepath.Dir(logPath)),
+		StatusPath:    runtimecontrol.Path(filepath.Dir(logPath)),
 	}
 	writeErr := writeBackgroundHandoff(writer, &handoff)
 	credential.Clear(handoff.Token)
@@ -167,7 +168,7 @@ func runNativeRuntimeChild(arguments []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 	defer application.Close()
-	statusServer, err := startRuntimeStatusServer(handoff.StatusPath, func() runtimeStatusSnapshot {
+	statusServer, err := runtimecontrol.Serve(handoff.StatusPath, func() runtimecontrol.Snapshot {
 		statusTracker.UpdateTraffic(application.Traffic(), time.Now())
 		return statusTracker.Snapshot()
 	})

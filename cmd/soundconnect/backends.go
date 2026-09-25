@@ -6,41 +6,24 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/soundadam/soundconnect/internal/backend"
-	"github.com/soundadam/soundconnect/internal/config"
+	"github.com/soundadam/soundconnect/internal/app"
 )
 
-type backendCatalogResponse struct {
-	SchemaVersion int                  `json:"schema_version"`
-	SOCKSListen   string               `json:"socks_listen"`
-	Backends      []backend.Descriptor `json:"backends"`
-}
-
-func runBackends(arguments []string, stdout, stderr io.Writer) int {
+func runBackends(arguments []string, stdout, stderr io.Writer) error {
 	flags := flag.NewFlagSet("soundconnect backends", flag.ContinueOnError)
 	asJSON := flags.Bool("json", false, "write machine-readable backend metadata")
-	if code, ok := parseFlags(flags, arguments, stdout, stderr); !ok {
-		return code
+	if err := parseCommand(flags, arguments, stdout, stderr); err != nil {
+		return err
 	}
-	if flags.NArg() != 0 {
-		fmt.Fprintln(stderr, "backends accepts no positional arguments")
-		return 2
-	}
-
-	response := backendCatalogResponse{
-		SchemaVersion: 1,
-		SOCKSListen:   config.DefaultSOCKSListen,
-		Backends:      backend.Catalog(),
-	}
+	catalog := app.Backends()
 	if *asJSON {
-		if err := json.NewEncoder(stdout).Encode(response); err != nil {
-			fmt.Fprintf(stderr, "encode backend metadata: %v\n", err)
-			return 1
+		if err := json.NewEncoder(stdout).Encode(catalog); err != nil {
+			return fmt.Errorf("encode backend metadata: %w", err)
 		}
-		return 0
+		return nil
 	}
-	for _, descriptor := range response.Backends {
+	for _, descriptor := range catalog.Backends {
 		fmt.Fprintf(stdout, "%s\t%s\t%s\n", descriptor.ID, descriptor.DisplayName, descriptor.DefaultGateway)
 	}
-	return 0
+	return nil
 }

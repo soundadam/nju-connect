@@ -13,6 +13,7 @@ import (
 	"os/signal"
 	"strings"
 
+	"github.com/soundadam/soundconnect/internal/runtimecontrol"
 	"github.com/soundadam/soundconnect/internal/speedtest"
 	"golang.org/x/term"
 )
@@ -109,7 +110,7 @@ func runSpeedtest(arguments []string, stdout, stderr io.Writer) int {
 		HelperPath: manager.ExecutablePath(), Store: speedtest.Store{Path: speedtest.LastResultPath(paths.Root)},
 		Probe: speedtestProbe,
 		RuntimeStatus: func() (speedtest.RuntimeState, error) {
-			snapshot, err := queryRuntimeStatus(runtimeStatusPath(paths.Root))
+			snapshot, err := runtimecontrol.Query(runtimecontrol.Path(paths.Root))
 			if err != nil {
 				return speedtest.RuntimeState{}, err
 			}
@@ -163,7 +164,7 @@ func runSpeedtestProbe(arguments []string, stdout, stderr io.Writer) int {
 	service := speedtest.Service{
 		Probe: speedtestProbe,
 		RuntimeStatus: func() (speedtest.RuntimeState, error) {
-			snapshot, err := queryRuntimeStatus(runtimeStatusPath(paths.Root))
+			snapshot, err := runtimecontrol.Query(runtimecontrol.Path(paths.Root))
 			if err != nil {
 				return speedtest.RuntimeState{}, err
 			}

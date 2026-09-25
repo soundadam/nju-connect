@@ -2,56 +2,28 @@ package main
 
 import (
 	"encoding/json"
-	"errors"
 	"flag"
 	"fmt"
 	"io"
 	"sync"
 	"time"
 
+	"github.com/soundadam/soundconnect/internal/app"
 	"github.com/soundadam/soundconnect/internal/backend/easyconnect/session"
 	"github.com/soundadam/soundconnect/internal/runtime"
+	"github.com/soundadam/soundconnect/internal/runtimecontrol"
 	"github.com/soundadam/soundconnect/internal/traffic"
 )
 
-const runtimeStatusSchema = 1
-
-var (
-	errRuntimeNotRunning    = errors.New("native runtime is not running")
-	errRuntimeAlreadyActive = errors.New("another native runtime is already active")
-)
-
-type runtimeTrafficStatus struct {
-	SessionStartedAt   *time.Time `json:"session_started_at,omitempty"`
-	SampledAtUnixMilli int64      `json:"sampled_at_unix_milli"`
-	UploadBytes        uint64     `json:"upload_bytes"`
-	DownloadBytes      uint64     `json:"download_bytes"`
-	ActiveConnections  int64      `json:"active_connections"`
-	TotalConnections   uint64     `json:"total_connections"`
-}
-
-type runtimeStatusSnapshot struct {
-	SchemaVersion      int                       `json:"schema_version"`
-	Running            bool                      `json:"running"`
-	State              string                    `json:"state"`
-	StartedAt          *time.Time                `json:"started_at,omitempty"`
-	Profile            runtime.ProtocolProfileID `json:"profile,omitempty"`
-	SOCKSListen        string                    `json:"socks_listen,omitempty"`
-	AccessEvidence     string                    `json:"access_evidence"`
-	LastCommandFailure string                    `json:"last_command_failure,omitempty"`
-	LastDataFailure    string                    `json:"last_data_failure,omitempty"`
-	Traffic            *runtimeTrafficStatus     `json:"traffic,omitempty"`
-}
-
 type runtimeStatusTracker struct {
 	mu       sync.RWMutex
-	snapshot runtimeStatusSnapshot
+	snapshot runtimecontrol.Snapshot
 }
 
 func newRuntimeStatusTracker(profile runtime.ProtocolProfileID) *runtimeStatusTracker {
 	startedAt := time.Now().UTC()
-	return &runtimeStatusTracker{snapshot: runtimeStatusSnapshot{
-		SchemaVersion:  runtimeStatusSchema,
+	return &runtimeStatusTracker{snapshot: runtimecontrol.Snapshot{
+		SchemaVersion:  runtimecontrol.SchemaVersion,
 		Running:        true,
 		State:          string(nativeapp.StateConnecting),
 		StartedAt:      &startedAt,
@@ -60,7 +32,7 @@ func newRuntimeStatusTracker(profile runtime.ProtocolProfileID) *runtimeStatusTr
 	}}
 }
 
-func (tracker *runtimeStatusTracker) Snapshot() runtimeStatusSnapshot {
+func (tracker *runtimeStatusTracker) Snapshot() runtimecontrol.Snapshot {
 	tracker.mu.RLock()
 	defer tracker.mu.RUnlock()
 	return tracker.snapshot
@@ -85,7 +57,7 @@ func (tracker *runtimeStatusTracker) UpdateIngressTraffic(snapshot traffic.Snaps
 		sessionStartedAt = &started
 	}
 	tracker.mu.Lock()
-	tracker.snapshot.Traffic = &runtimeTrafficStatus{
+	tracker.snapshot.Traffic = &runtimecontrol.Traffic{
 		SessionStartedAt: sessionStartedAt, SampledAtUnixMilli: sampledAt.UTC().UnixMilli(),
 		UploadBytes: snapshot.UploadBytes, DownloadBytes: snapshot.DownloadBytes,
 		ActiveConnections: snapshot.ActiveConnections, TotalConnections: snapshot.TotalConnections,
@@ -136,68 +108,36 @@ func runtimeStatusObserver(base nativeapp.ObserverFuncs, tracker *runtimeStatusT
 	}
 }
 
-func ensureNoActiveRuntime(path string) error {
-	_, err := queryRuntimeStatus(path)
-	if err == nil {
-		return errRuntimeAlreadyActive
-	}
-	if errors.Is(err, errRuntimeNotRunning) {
-		return nil
-	}
-	return err
-}
-
-func runStatus(arguments []string, stdout, stderr io.Writer) int {
+func runStatus(arguments []string, stdout, stderr io.Writer) error {
 	flags := flag.NewFlagSet("soundconnect status", flag.ContinueOnError)
 	asJSON := flags.Bool("json", false, "print JSON")
 	watch := flags.Bool("watch", false, "stream JSON status once per second")
-	if code, ok := parseFlags(flags, arguments, stdout, stderr); !ok {
-		return code
-	}
-	if flags.NArg() != 0 {
-		fmt.Fprintln(stderr, "status accepts no positional arguments")
-		return 2
+	if err := parseCommand(flags, arguments, stdout, stderr); err != nil {
+		return err
 	}
 	if *watch && !*asJSON {
-		fmt.Fprintln(stderr, "status --watch requires --json")
-		return 2
+		return app.Usagef("status --watch requires --json")
 	}
-	paths, err := commandPaths()
-	if err != nil {
-		fmt.Fprintf(stderr, "resolve local state: %v\n", err)
-		return 1
-	}
+	deps := commandDeps(nil, stderr)
 	for {
-		snapshot, err := currentRuntimeStatus(paths.Root)
+		snapshot, err := app.Status(deps)
 		if err != nil {
-			fmt.Fprintf(stderr, "read runtime status: %v\n", err)
-			return 1
+			return err
 		}
 		if err := writeRuntimeStatus(stdout, snapshot, *asJSON); err != nil {
-			fmt.Fprintf(stderr, "encode runtime status: %v\n", err)
-			return 1
+			return fmt.Errorf("encode runtime status: %w", err)
 		}
 		if !*watch {
 			if !snapshot.Running {
-				return 1
+				return exitCode(1)
 			}
-			return 0
+			return nil
 		}
 		time.Sleep(time.Second)
 	}
 }
 
-func currentRuntimeStatus(root string) (runtimeStatusSnapshot, error) {
-	snapshot, err := queryRuntimeStatus(runtimeStatusPath(root))
-	if errors.Is(err, errRuntimeNotRunning) {
-		return runtimeStatusSnapshot{
-			SchemaVersion: runtimeStatusSchema, State: "stopped", AccessEvidence: "unknown",
-		}, nil
-	}
-	return snapshot, err
-}
-
-func writeRuntimeStatus(stdout io.Writer, snapshot runtimeStatusSnapshot, asJSON bool) error {
+func writeRuntimeStatus(stdout io.Writer, snapshot runtimecontrol.Snapshot, asJSON bool) error {
 	if asJSON {
 		return json.NewEncoder(stdout).Encode(snapshot)
 	}
@@ -228,29 +168,19 @@ func formatTotalBytes(bytes uint64) string {
 	return fmt.Sprintf("%.1f KB", float64(bytes)/1_000)
 }
 
-func runDisconnect(arguments []string, stdout, stderr io.Writer) int {
+func runDisconnect(arguments []string, stdout, stderr io.Writer) error {
 	flags := flag.NewFlagSet("soundconnect disconnect", flag.ContinueOnError)
-	if code, ok := parseFlags(flags, arguments, stdout, stderr); !ok {
-		return code
+	if err := parseCommand(flags, arguments, stdout, stderr); err != nil {
+		return err
 	}
-	if flags.NArg() != 0 {
-		fmt.Fprintln(stderr, "disconnect accepts no positional arguments")
-		return 2
-	}
-	paths, err := commandPaths()
+	stopping, err := app.Disconnect(commandDeps(nil, stderr))
 	if err != nil {
-		fmt.Fprintf(stderr, "resolve local state: %v\n", err)
-		return 1
+		return err
 	}
-	err = requestRuntimeDisconnect(runtimeStatusPath(paths.Root))
-	if errors.Is(err, errRuntimeNotRunning) {
+	if stopping {
+		fmt.Fprintln(stdout, "stopping: true")
+	} else {
 		fmt.Fprintln(stdout, "running: false")
-		return 0
 	}
-	if err != nil {
-		fmt.Fprintf(stderr, "disconnect runtime: %v\n", err)
-		return 1
-	}
-	fmt.Fprintln(stdout, "stopping: true")
-	return 0
+	return nil
 }

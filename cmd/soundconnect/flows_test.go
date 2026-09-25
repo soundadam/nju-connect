@@ -22,6 +22,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/soundadam/soundconnect/internal/app"
 	"github.com/soundadam/soundconnect/internal/backend"
 	"github.com/soundadam/soundconnect/internal/backend/easyconnect/session"
 	"github.com/soundadam/soundconnect/internal/config"
@@ -65,7 +66,7 @@ func TestFlowSetupATrustPasswordFromAppPipe(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.BackendName() != backend.ATrust || got.AuthType != atrustPasswordAuthType || got.LoginDomain != "ldap-domain" || got.Username != "student" {
+	if got.BackendName() != backend.ATrust || got.AuthType != app.ATrustPasswordAuthType || got.LoginDomain != "ldap-domain" || got.Username != "student" {
 		t.Fatalf("configuration = %#v", got)
 	}
 	if secret, err := harness.readSecret(harness.paths.Credential); err != nil || secret != "synthetic-password" {
@@ -79,7 +80,7 @@ func TestFlowSetupATrustOAuthStoresNoPassword(t *testing.T) {
 	result := harness.run("setup", "--backend", "atrust", "--server", config.DefaultATrustServer).expect(t, 0)
 	harness.golden("setup_atrust_oauth", result)
 	got, err := config.Load(harness.paths.Config)
-	if err != nil || got.AuthType != atrustOAuthAuthType || got.LoginDomain != "oauth-domain" {
+	if err != nil || got.AuthType != app.ATrustOAuthAuthType || got.LoginDomain != "oauth-domain" {
 		t.Fatalf("configuration = %#v, err = %v", got, err)
 	}
 	if _, err := os.Lstat(harness.paths.Credential); !errors.Is(err, os.ErrNotExist) {
@@ -214,7 +215,7 @@ func (harness *cliHarness) connectATrust(ctx context.Context, arguments ...strin
 func (harness *cliHarness) writeATrustPasswordConfig() {
 	harness.writeConfig(config.Config{
 		Backend: backend.ATrust, Server: config.DefaultATrustServer, Username: "student",
-		SOCKSListen: "127.0.0.1:0", AuthType: atrustPasswordAuthType,
+		SOCKSListen: "127.0.0.1:0", AuthType: app.ATrustPasswordAuthType,
 	})
 }
 
@@ -644,7 +645,7 @@ func TestFlowEasyConnectVerificationCodeRequiresTerminalWithoutStdinFlag(t *test
 func (harness *cliHarness) writeATrustOAuthConfig() {
 	harness.writeConfig(config.Config{
 		Backend: backend.ATrust, Server: config.DefaultATrustServer,
-		SOCKSListen: "127.0.0.1:0", AuthType: atrustOAuthAuthType,
+		SOCKSListen: "127.0.0.1:0", AuthType: app.ATrustOAuthAuthType,
 	})
 }
 

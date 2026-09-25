@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/soundadam/soundconnect/internal/app"
 	"github.com/soundadam/soundconnect/internal/backend"
 	"github.com/soundadam/soundconnect/internal/backend/atrust"
 	"github.com/soundadam/soundconnect/internal/backend/easyconnect/session"
@@ -79,8 +80,8 @@ func (core *cliTestCore) Resume(context.Context, atrustbackend.ResumeRequest) (a
 func useATrustTestCore(t *testing.T) *cliTestCore {
 	t.Helper()
 	core := &cliTestCore{methods: []backend.AuthenticationMethod{
-		{Domain: "openldap13924", Type: atrustPasswordAuthType, Name: "Password"},
-		{Domain: "tenant-oauth", Type: atrustOAuthAuthType, Name: "OAuth", LoginURL: "https://vpn.nju.edu.cn/login"},
+		{Domain: "openldap13924", Type: app.ATrustPasswordAuthType, Name: "Password"},
+		{Domain: "tenant-oauth", Type: app.ATrustOAuthAuthType, Name: "OAuth", LoginURL: "https://vpn.nju.edu.cn/login"},
 	}}
 	previous := newATrustCore
 	newATrustCore = func() atrustbackend.Core { return core }
@@ -94,8 +95,8 @@ func TestATrustConnectReportsLoginFailureOnce(t *testing.T) {
 		authType    string
 		loginDomain string
 	}{
-		{name: "discovery", authType: atrustPasswordAuthType},
-		{name: "known-domain", authType: atrustPasswordAuthType, loginDomain: "openldap13924"},
+		{name: "discovery", authType: app.ATrustPasswordAuthType},
+		{name: "known-domain", authType: app.ATrustPasswordAuthType, loginDomain: "openldap13924"},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			paths := useATrustTestState(t)
@@ -112,7 +113,7 @@ func TestATrustConnectReportsLoginFailureOnce(t *testing.T) {
 
 func TestATrustConnectRejectsBackgroundRuntime(t *testing.T) {
 	paths := useATrustTestState(t)
-	writeATrustTestConfig(t, paths, atrustPasswordAuthType, "")
+	writeATrustTestConfig(t, paths, app.ATrustPasswordAuthType, "")
 	var stdout, stderr bytes.Buffer
 	code := runNativeConnectContext(context.Background(), []string{"--background"}, &stdout, &stderr, nil,
 		func(nativeapp.SessionConfig, string) (int, error) {
@@ -128,7 +129,7 @@ func TestSetupATrustRecordsDiscoveredMethod(t *testing.T) {
 	paths := useATrustTestState(t)
 	useATrustTestCore(t)
 	var stdout, stderr bytes.Buffer
-	code := runSetup([]string{"--backend", "atrust", "--server", "vpn.nju.edu.cn", "--auth-type", atrustOAuthAuthType}, &stdout, &stderr)
+	code := run([]string{"setup", "--backend", "atrust", "--server", "vpn.nju.edu.cn", "--auth-type", app.ATrustOAuthAuthType}, &stdout, &stderr)
 	if code != 0 {
 		t.Fatalf("exit=%d stderr=%q", code, stderr.String())
 	}
@@ -136,7 +137,7 @@ func TestSetupATrustRecordsDiscoveredMethod(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.BackendName() != backend.ATrust || got.AuthType != atrustOAuthAuthType || got.LoginDomain != "tenant-oauth" {
+	if got.BackendName() != backend.ATrust || got.AuthType != app.ATrustOAuthAuthType || got.LoginDomain != "tenant-oauth" {
 		t.Fatalf("config = %#v", got)
 	}
 	if !strings.Contains(stdout.String(), "credential: browser_oauth") {
@@ -150,7 +151,7 @@ func TestSetupATrustRecordsDiscoveredMethod(t *testing.T) {
 func TestSetupRejectsATrustFlagsForEasyConnect(t *testing.T) {
 	useATrustTestState(t)
 	var stdout, stderr bytes.Buffer
-	if code := runSetup([]string{"--auth-type", atrustPasswordAuthType}, &stdout, &stderr); code != 2 {
+	if code := run([]string{"setup", "--auth-type", app.ATrustPasswordAuthType}, &stdout, &stderr); code != 2 {
 		t.Fatalf("exit=%d stderr=%q", code, stderr.String())
 	}
 }
@@ -158,7 +159,7 @@ func TestSetupRejectsATrustFlagsForEasyConnect(t *testing.T) {
 func TestAuthInfoListsDiscoveredMethods(t *testing.T) {
 	useATrustTestCore(t)
 	var stdout, stderr bytes.Buffer
-	if code := runAuthInfo(nil, &stdout, &stderr); code != 0 ||
+	if code := run([]string{"auth-info"}, &stdout, &stderr); code != 0 ||
 		!strings.Contains(stdout.String(), "openldap13924") || !strings.Contains(stdout.String(), "tenant-oauth") {
 		t.Fatalf("exit=%d stdout=%q stderr=%q", code, stdout.String(), stderr.String())
 	}
@@ -182,7 +183,7 @@ func TestLogoutClearsATrustClientDataAndOAuthProfile(t *testing.T) {
 	t.Setenv("SOUNDCONNECT_ATRUST_OAUTH_HELPER", helper)
 
 	var stdout, stderr bytes.Buffer
-	if code := runLogout(nil, &stdout, &stderr); code != 0 {
+	if code := run([]string{"logout"}, &stdout, &stderr); code != 0 {
 		t.Fatalf("exit=%d stderr=%q", code, stderr.String())
 	}
 	if stdout.String() != "atrust_session_cleared: true\noauth_profile_cleared: true\n" {
@@ -193,14 +194,5 @@ func TestLogoutClearsATrustClientDataAndOAuthProfile(t *testing.T) {
 	}
 	if _, err := os.Stat(marker); err != nil {
 		t.Fatalf("helper was not asked to clear its profile: %v", err)
-	}
-}
-
-func TestReadBoundedLineRejectsOversizedCallback(t *testing.T) {
-	if line, err := readBoundedLine(strings.NewReader("https://a/\r\n"), 64); err != nil || line != "https://a/" {
-		t.Fatalf("line=%q err=%v", line, err)
-	}
-	if _, err := readBoundedLine(strings.NewReader(strings.Repeat("a", 65)+"\n"), 64); err == nil {
-		t.Fatal("oversized callback accepted")
 	}
 }

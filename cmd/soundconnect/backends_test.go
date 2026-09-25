@@ -5,16 +5,17 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/soundadam/soundconnect/internal/app"
 	"github.com/soundadam/soundconnect/internal/backend"
 	"github.com/soundadam/soundconnect/internal/config"
 )
 
 func TestBackendsJSONExposesSharedListenerAndCatalog(t *testing.T) {
 	var stdout, stderr bytes.Buffer
-	if code := runBackends([]string{"--json"}, &stdout, &stderr); code != 0 {
-		t.Fatalf("runBackends() = %d, stderr = %q", code, stderr.String())
+	if code := run([]string{"backends", "--json"}, &stdout, &stderr); code != 0 {
+		t.Fatalf("run(backends) = %d, stderr = %q", code, stderr.String())
 	}
-	var response backendCatalogResponse
+	var response app.BackendCatalog
 	if err := json.Unmarshal(stdout.Bytes(), &response); err != nil {
 		t.Fatal(err)
 	}
