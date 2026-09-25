@@ -27,13 +27,8 @@ const atrustGatewayDialTimeout = 15 * time.Second
 var newATrustCore = atrustbackend.NewCore
 
 // reportATrustError prints a user-facing aTrust failure and returns the exit
-// code. Builds without a protocol core get one stable, actionable message.
+// code.
 func reportATrustError(stderr io.Writer, action string, err error) int {
-	if errors.Is(err, atrustbackend.ErrProtocolNotImplemented) {
-		fmt.Fprintln(stderr, atrustbackend.ErrProtocolNotImplemented.Error())
-		fmt.Fprintln(stderr, `run "soundconnect configure --backend easyconnect" to use EasyConnect instead`)
-		return 1
-	}
 	fmt.Fprintf(stderr, "%s: %v\n", action, err)
 	return 1
 }

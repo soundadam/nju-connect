@@ -480,9 +480,7 @@ func runSetup(arguments []string, stdout, stderr io.Writer) int {
 }
 
 // chooseATrustSetupMethod selects the aTrust authentication method from the
-// gateway's advertised methods. Builds without a protocol core cannot
-// discover, so they record the requested method (shared password by
-// default) and leave the tenant login domain to connect-time discovery.
+// gateway's advertised methods.
 func chooseATrustSetupMethod(configured *config.Config, authType, loginDomain string, stderr io.Writer) int {
 	endpoint, err := parseATrustEndpoint(configured.Server)
 	if err != nil {
@@ -492,20 +490,6 @@ func chooseATrustSetupMethod(configured *config.Config, authType, loginDomain st
 	ctx, cancel := context.WithTimeout(context.Background(), atrustDiscoveryTimeout)
 	methods, err := (atrustbackend.Discovery{Core: newATrustCore()}).Discover(ctx, endpoint)
 	cancel()
-	if errors.Is(err, atrustbackend.ErrProtocolNotImplemented) {
-		selected := strings.TrimSpace(authType)
-		if selected == "" {
-			selected = atrustPasswordAuthType
-		}
-		if err := validateATrustAuthenticationType(selected); err != nil {
-			fmt.Fprintf(stderr, "setup failed: %v\n", err)
-			return 2
-		}
-		configured.AuthType = selected
-		configured.LoginDomain = strings.TrimSpace(loginDomain)
-		fmt.Fprintln(stderr, "note: aTrust gateway discovery is unavailable in this build; the saved method is not verified")
-		return 0
-	}
 	if err != nil {
 		fmt.Fprintf(stderr, "discover aTrust authentication: %v\n", err)
 		return 1

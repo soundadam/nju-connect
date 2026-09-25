@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -55,26 +56,55 @@ func writeATrustTestConfig(t *testing.T, paths config.Paths, authType, loginDoma
 	}
 }
 
-func TestATrustConnectFailsCleanlyWithoutProtocolCore(t *testing.T) {
+// cliTestCore is a protocol core whose discovery advertises fixed methods
+// and whose logins fail, so CLI tests never reach a gateway.
+type cliTestCore struct {
+	methods []backend.AuthenticationMethod
+	logins  int
+}
+
+func (core *cliTestCore) Discover(context.Context, backend.Endpoint) ([]backend.AuthenticationMethod, error) {
+	return core.methods, nil
+}
+
+func (core *cliTestCore) Authenticate(context.Context, atrustbackend.LoginRequest, atrustbackend.Prompter) (atrustbackend.Session, error) {
+	core.logins++
+	return nil, errors.New("synthetic login failure")
+}
+
+func (core *cliTestCore) Resume(context.Context, atrustbackend.ResumeRequest) (atrustbackend.Session, error) {
+	return nil, atrustbackend.ErrSessionExpired
+}
+
+func useATrustTestCore(t *testing.T) *cliTestCore {
+	t.Helper()
+	core := &cliTestCore{methods: []backend.AuthenticationMethod{
+		{Domain: "openldap13924", Type: atrustPasswordAuthType, Name: "Password"},
+		{Domain: "tenant-oauth", Type: atrustOAuthAuthType, Name: "OAuth", LoginURL: "https://vpn.nju.edu.cn/login"},
+	}}
+	previous := newATrustCore
+	newATrustCore = func() atrustbackend.Core { return core }
+	t.Cleanup(func() { newATrustCore = previous })
+	return core
+}
+
+func TestATrustConnectReportsLoginFailureOnce(t *testing.T) {
 	for _, test := range []struct {
 		name        string
 		authType    string
 		loginDomain string
 	}{
 		{name: "discovery", authType: atrustPasswordAuthType},
-		{name: "oauth", authType: atrustOAuthAuthType, loginDomain: "tenant-oauth"},
 		{name: "known-domain", authType: atrustPasswordAuthType, loginDomain: "openldap13924"},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			paths := useATrustTestState(t)
+			core := useATrustTestCore(t)
 			writeATrustTestConfig(t, paths, test.authType, test.loginDomain)
 			var stdout, stderr bytes.Buffer
 			code := runNativeConnectContext(context.Background(), nil, &stdout, &stderr, newProductionNativeSession, nil)
-			if code != 1 || !strings.Contains(stderr.String(), "aTrust protocol support is not available in this build") {
-				t.Fatalf("exit=%d stdout=%q stderr=%q", code, stdout.String(), stderr.String())
-			}
-			if strings.Count(stderr.String(), "not available") != 1 {
-				t.Fatalf("message repeated: %q", stderr.String())
+			if code != 1 || strings.Count(stderr.String(), "synthetic login failure") != 1 || core.logins != 1 {
+				t.Fatalf("exit=%d logins=%d stdout=%q stderr=%q", code, core.logins, stdout.String(), stderr.String())
 			}
 		})
 	}
@@ -94,8 +124,9 @@ func TestATrustConnectRejectsBackgroundRuntime(t *testing.T) {
 	}
 }
 
-func TestSetupATrustRecordsRequestedMethodWithoutProtocolCore(t *testing.T) {
+func TestSetupATrustRecordsDiscoveredMethod(t *testing.T) {
 	paths := useATrustTestState(t)
+	useATrustTestCore(t)
 	var stdout, stderr bytes.Buffer
 	code := runSetup([]string{"--backend", "atrust", "--server", "vpn.nju.edu.cn", "--auth-type", atrustOAuthAuthType}, &stdout, &stderr)
 	if code != 0 {
@@ -105,10 +136,10 @@ func TestSetupATrustRecordsRequestedMethodWithoutProtocolCore(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.BackendName() != backend.ATrust || got.AuthType != atrustOAuthAuthType || got.LoginDomain != "" {
+	if got.BackendName() != backend.ATrust || got.AuthType != atrustOAuthAuthType || got.LoginDomain != "tenant-oauth" {
 		t.Fatalf("config = %#v", got)
 	}
-	if !strings.Contains(stdout.String(), "credential: browser_oauth") || !strings.Contains(stderr.String(), "discovery is unavailable") {
+	if !strings.Contains(stdout.String(), "credential: browser_oauth") {
 		t.Fatalf("stdout=%q stderr=%q", stdout.String(), stderr.String())
 	}
 	if _, err := os.Stat(paths.Credential); !os.IsNotExist(err) {
@@ -124,11 +155,12 @@ func TestSetupRejectsATrustFlagsForEasyConnect(t *testing.T) {
 	}
 }
 
-func TestAuthInfoReportsMissingProtocolCore(t *testing.T) {
+func TestAuthInfoListsDiscoveredMethods(t *testing.T) {
+	useATrustTestCore(t)
 	var stdout, stderr bytes.Buffer
-	if code := runAuthInfo(nil, &stdout, &stderr); code != 1 ||
-		!strings.Contains(stderr.String(), atrustbackend.ErrProtocolNotImplemented.Error()) {
-		t.Fatalf("exit=%d stderr=%q", code, stderr.String())
+	if code := runAuthInfo(nil, &stdout, &stderr); code != 0 ||
+		!strings.Contains(stdout.String(), "openldap13924") || !strings.Contains(stdout.String(), "tenant-oauth") {
+		t.Fatalf("exit=%d stdout=%q stderr=%q", code, stdout.String(), stderr.String())
 	}
 }
 

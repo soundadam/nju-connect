@@ -1,12 +1,11 @@
 // Package atrustbackend is SoundConnect's aTrust backend.
 //
-// The package is split at a clean-room seam. SoundConnect owns everything on
-// this side of it: the interfaces in this file, the resource model and
+// SoundConnect owns the interfaces in this file, the resource model and
 // routing in resources.go and router.go, the lifecycle in runtime.go, and the
-// OAuth callback parser. The wire protocol lives behind Core and is supplied
-// by an independent implementation written from docs/protocol/atrust.md (see
-// docs/atrust-cleanroom.md). Until that implementation lands, NewCore returns
-// a core that fails every operation with ErrProtocolNotImplemented.
+// OAuth callback parser. The wire protocol lives behind Core; NewCore in
+// zjuconnect.go supplies it by adapting the pinned AGPL-3.0
+// github.com/mythologyli/zju-connect client. docs/protocol/atrust.md
+// describes the protocol for maintenance.
 package atrustbackend
 
 import (
@@ -18,10 +17,6 @@ import (
 	"github.com/soundadam/soundconnect/internal/backend"
 )
 
-// ErrProtocolNotImplemented is returned by every Core operation in builds
-// that do not contain an aTrust protocol implementation.
-var ErrProtocolNotImplemented = errors.New("aTrust protocol support is not available in this build")
-
 // ErrFactorUnavailable is returned by a Prompter that cannot supply the
 // requested authentication factor. A Core must surface it (wrapped or not)
 // instead of retrying the same factor.
@@ -32,7 +27,7 @@ var ErrFactorUnavailable = errors.New("aTrust authentication factor is unavailab
 // falls back to Core.Authenticate.
 var ErrSessionExpired = errors.New("saved aTrust session has expired")
 
-// Core is the protocol boundary a clean-room aTrust implementation satisfies.
+// Core is the aTrust protocol boundary.
 // Implementations must verify the gateway certificate against
 // Endpoint.Host while connecting to Endpoint.DialHost(), must never read
 // standard input or open a browser themselves, and must not log credentials,

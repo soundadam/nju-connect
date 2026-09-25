@@ -32,6 +32,12 @@ func SOCKSDomain(ctx context.Context) (string, bool) {
 	return domain, ok && domain != ""
 }
 
+// WithSOCKSDomain records the domain a SOCKS client requested so dialers can
+// read it back with SOCKSDomain.
+func WithSOCKSDomain(ctx context.Context, domain string) context.Context {
+	return context.WithValue(ctx, socksDomainContextKey{}, domain)
+}
+
 type SOCKSConfig struct {
 	Bind           string
 	Dialer         TCPDialer
@@ -207,7 +213,7 @@ func (server *SOCKSServer) handle(ctx context.Context, client net.Conn) {
 		return
 	}
 	if domain != "" {
-		connectionContext = context.WithValue(connectionContext, socksDomainContextKey{}, domain)
+		connectionContext = WithSOCKSDomain(connectionContext, domain)
 	}
 	upstream, err := server.config.Dialer.DialContext(connectionContext, "tcp4", destination.String())
 	if err != nil {

@@ -141,18 +141,6 @@ func testConnectConfig(core Core, t *testing.T) ConnectConfig {
 	}
 }
 
-func TestConnectWithUnavailableCoreReportsNotImplemented(t *testing.T) {
-	t.Parallel()
-	config := testConnectConfig(NewCore(), t)
-	config.SavedClientData = []byte("saved")
-	if _, err := Connect(context.Background(), config); !errors.Is(err, ErrProtocolNotImplemented) {
-		t.Fatalf("Connect() error = %v", err)
-	}
-	if _, err := (Discovery{}).Discover(context.Background(), backend.ATrustEndpoint("vpn.nju.edu.cn", 443)); !errors.Is(err, ErrProtocolNotImplemented) {
-		t.Fatalf("Discover() error = %v", err)
-	}
-}
-
 func TestDiscoveryRejectsInvalidEndpoint(t *testing.T) {
 	t.Parallel()
 	for _, endpoint := range []backend.Endpoint{{Port: 443}, {Host: "example.edu"}, {Host: "example.edu", Port: 65536}} {
