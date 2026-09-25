@@ -6,10 +6,9 @@ The audit started from `7e86436` and covers the native userspace core that has a
 
 Protocol backend selection (EasyConnect or aTrust), the shared 1081 sing-box
 handoff, and the macOS backend switch are specified in
-`docs/gui-backend-architecture.md`. The aTrust backend on this branch is a
-SoundConnect-owned seam with no wire-protocol implementation; its clean-room
-plan and information barriers are in `docs/atrust-dual-backend.md` and
-`docs/atrust-cleanroom.md`.
+`docs/gui-backend-architecture.md`. The aTrust backend adapts the pinned
+AGPL-3.0 `mythologyli/zju-connect` client behind SoundConnect's `Core`
+interface; see `docs/atrust-dual-backend.md`.
 
 ## Ownership and data flow
 
@@ -79,7 +78,7 @@ Installation-time compilation is a local-preview delivery choice, not an LGPL
 requirement. The complete modified source is maintained in the LGPL-covered
 `components/librespeed-cli` subtree of public `soundadam/soundprobe`, including upstream
 provenance, license, and build metadata. Do not copy that source into the
-proprietary soundconnect module or relicense it under the soundconnect license.
+soundconnect module or relicense it under the soundconnect license.
 A future Homebrew bottle may install a prebuilt helper from that source, but
 only after its source and binary provenance, signing, and release assets are
 independently verifiable.
@@ -185,7 +184,7 @@ second runtime-state authority.
 
 ## Dependency and release boundary
 
-`THIRD_PARTY_NOTICES` is the checked-in dependency notice index. It is separate from the proprietary `LICENSE`: the proprietary license does not grant rights to third-party materials. The release packager must ship the exact pinned upstream license texts and any applicable attributions alongside the binary; the index records the versions and obligations and is not permission to omit those texts.
+`THIRD_PARTY_NOTICES` is the checked-in dependency notice index. soundconnect is licensed under AGPL-3.0 (`LICENSE`), which is required by the linked AGPL-3.0 zju-connect module; the root license does not grant rights to third-party materials. The release packager must ship the exact pinned upstream license texts and any applicable attributions alongside the binary; the index records the versions and obligations and is not permission to omit those texts.
 
 The linked binary dependency set is derived from `go list -deps` and `go version -m`, not merely from the module graph. `golang.org/x/text` appears in the module graph but is not linked by `cmd/soundconnect` at this revision. No files under `research/upstream/` or `research/work/` are tracked or part of the product build.
 

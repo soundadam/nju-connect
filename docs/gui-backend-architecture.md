@@ -36,7 +36,7 @@ flowchart LR
 | `internal/config` | backend name, gateway, authentication selection, loopback listener | protocol cookies, OAuth browser state, passwords |
 | `internal/backend` | backend vocabulary, presentation-safe catalog, endpoint mapping, discovery and session contracts | UI state and Keychain implementation |
 | `internal/backend/easyconnect` | EasyConnect authentication and native session handoff | aTrust resources or SwiftUI state |
-| `internal/backend/atrust` | the clean-room seam: `Core`/`Session`/`Tunnel`/`Prompter` interfaces, resource model, SOCKS routing, lifecycle, OAuth callback validation | wire-protocol code (supplied by the clean-room core), EasyConnect tokens, UI controls |
+| `internal/backend/atrust` | `Core`/`Session`/`Tunnel`/`Prompter` interfaces, the zju-connect protocol adapter, resource model, SOCKS routing, lifecycle, OAuth callback validation | EasyConnect tokens, UI controls |
 | `cmd/soundconnect` | lifecycle, config selection, Keychain access, interactive prompts, status publication | SwiftUI layout |
 | `SoundConnectUI` | user-facing backend selection and sanitized presentation | passwords, protocol requests, tunnel sockets |
 | `ATrustOAuthHelper` | isolated WebKit profile for browser login; returns only the authorization code | aTrust session state, passwords |
@@ -77,16 +77,15 @@ One-time verification codes travel through the running `connect` process's
 stdin (`--verification-code-stdin`). For aTrust, the CLI implements the seam's
 `Prompter`: the Keychain password, the verification-code pipe, and the OAuth
 helper (or a pasted callback URL when the helper is absent). The protocol core
-never reads standard input. aTrust client data is opaque to everything outside
+never reads the terminal: upstream standard-input prompts are bridged to the
+`Prompter`. aTrust client data is opaque to everything outside
 the core and is stored in its own Keychain item.
 
 ## Current slice
 
-The aTrust protocol core is not in this build. Selecting aTrust exercises the
-full configure/connect/status path and fails with "aTrust protocol support is
-not available in this build"; see `docs/atrust-dual-backend.md` for the
-clean-room plan. The design-preview build keeps simulated state so layout
-review does not start a real VPN process.
+Selecting aTrust runs the zju-connect-backed protocol core in the foreground
+(see `docs/atrust-dual-backend.md`). The design-preview build keeps simulated
+state so layout review does not start a real VPN process.
 
 ## Release gates
 

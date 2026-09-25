@@ -33,11 +33,9 @@ command does not infer liveness from a PID file or `runtime.log`.
 ## Protocol backends
 
 soundconnect separates the application from the campus VPN protocol. The
-EasyConnect backend is the default. An aTrust backend is selectable, but this
-build contains only its SoundConnect-owned seam: `connect` with the aTrust
-backend stops with "aTrust protocol support is not available in this build"
-and exit code 1 until the independently written protocol core lands (see
-`docs/atrust-cleanroom.md`).
+EasyConnect backend is the default. The aTrust backend uses the pinned
+AGPL-3.0 `mythologyli/zju-connect` client as its protocol core and runs in the
+foreground (see `docs/atrust-dual-backend.md`).
 
 ```sh
 soundconnect backends --json                 # presentation-safe backend catalog
@@ -88,8 +86,8 @@ an injected semantic version and checksums:
 make cli-release VERSION=v1.0.0
 ```
 
-The archives include `LICENSE`, `THIRD_PARTY_NOTICES`, and the linked modules'
-license texts. Signing, notarization, tag creation, upload, and publication
+soundconnect is licensed under AGPL-3.0; see `LICENSE`. The archives include
+`LICENSE`, `THIRD_PARTY_NOTICES`, and the linked modules' license texts. Signing, notarization, tag creation, upload, and publication
 remain separate release gates.
 
 ## macOS development first run

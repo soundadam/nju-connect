@@ -1,10 +1,11 @@
-# aTrust dual-backend plan
+# aTrust dual backend
 
 SoundConnect supports two mutually exclusive campus VPN backends behind one
-application: EasyConnect (implemented) and aTrust (selectable; protocol core
-pending). This document describes the backend boundary on `main` and the
-clean-room plan for the aTrust protocol core. The information barriers that
-govern who may author that core are defined in `docs/atrust-cleanroom.md`.
+application: EasyConnect (SoundConnect's own implementation) and aTrust
+(through the pinned AGPL-3.0 `mythologyli/zju-connect` client). This document
+describes the backend boundary on `main` and how the aTrust protocol core is
+supplied. The earlier clean-room plan (`docs/atrust-cleanroom.md`) is
+superseded; `docs/protocol/atrust.md` is kept as a maintenance reference.
 
 ## Boundary
 
@@ -46,34 +47,48 @@ name the retired `ztna.nju.edu.cn` gateway are redirected.
     and address resource routing, direct fallback for non-resources, DNS
     overrides, traffic counters, and lifecycle;
   - `ParseOAuthCallbackCode` — local callback validation.
-- A placeholder core (`NewCore`) whose operations fail with
-  `ErrProtocolNotImplemented`. `connect` with the aTrust backend therefore
-  exits 1 with "aTrust protocol support is not available in this build".
+- The protocol core (`NewCore`, `zjuconnect.go`), an adapter over
+  `github.com/mythologyli/zju-connect` pinned in `go.mod`.
 - The macOS backend switch and the `soundconnect-atrust-oauth-helper` WebKit
   login helper.
 
-## Clean-room plan
+## Protocol core
 
-1. **Capture.** A capture author, who has not read zju-connect source, records
-   the aTrust client's observable behavior against the NJU gateway and writes
-   `docs/protocol/atrust.md` with redacted fixtures (see
-   `docs/atrust-cleanroom.md` for the method and requirements).
-2. **Implementation.** An implementer who has read only the specification,
-   the fixtures, and `main` writes a `Core` in `internal/backend/atrust` and
-   replaces `NewCore`. It must:
-   - verify the gateway certificate against `Endpoint.Host` while dialing
-     `Endpoint.DialHost()` through the supplied `DialFunc`;
-   - request every interactive factor through the `Prompter`;
-   - return `ErrSessionExpired` from `Resume` when saved client data is
-     rejected, so the lifecycle falls back to an interactive login;
-   - translate gateway resources into `Resources` and pass `Validate`;
-   - be tested against the redacted fixtures and a local fake gateway.
-3. **Acceptance.** An attended NJU test covering OAuth, password plus SMS,
-   resume, resource routing through the shared SOCKS listener, DNS overrides,
-   reconnect, logout, and shutdown.
+`NewCore` adapts the upstream `client/atrust` package to `Core`:
+
+- `Discover` calls the upstream public `authConfig` discovery against
+  `Endpoint.DialHost()`, so the NJU gateway pin (`vpn.nju.edu.cn` dialed at
+  `219.219.118.20`, see `backend.ATrustEndpoint`) applies to every request.
+- `Authenticate` collects the password or the OAuth authorization code through
+  the `Prompter` before calling the upstream `Setup`. The upstream client reads
+  later factors (SMS code, captcha answer) with `fmt.Scanln` after logging a
+  prompt; the adapter installs a scoped bridge that replaces `os.Stdin` with a
+  pipe and watches the standard logger, answering each prompt through the
+  `Prompter`. The bridge is process-wide, so upstream logins are serialized,
+  and it stays installed until `Setup` returns even after cancellation.
+- `Resume` runs `Setup` with the saved client data and no authentication type.
+  Any rejection that is not a network or cancellation error is reported as
+  `ErrSessionExpired`, and every prompt is refused.
+- `Session.Resources` translates upstream IP, domain, and DNS resources into
+  `Resources`, dropping individual entries that cannot be represented.
+  Upstream domain resources always cover their subdomains, with a dot
+  boundary.
+- `Tunnel.DialTCP` passes the original SOCKS domain and its upstream domain
+  resource to the upstream TCP tunnel so the node receives the name.
+
+Known deviations from the `Core` contract, inherited from the upstream client:
+it dials with its own interface-bound dialer (the `DialFunc`, and therefore a
+configured upstream proxy, is ignored), it does not verify gateway or node
+certificates, and it has no gateway logout.
+
+Acceptance is an attended NJU test: password plus SMS, resume, resource
+routing through the shared SOCKS listener to `172.21.0.1`, DNS overrides,
+logout, and shutdown.
 
 ## Open gates
 
+- Certificate verification and upstream-proxy support in the protocol core
+  (both require changes to the pinned upstream client).
 - Background hosting for aTrust (the CLI currently refuses
   `connect --background` for aTrust and the macOS host runs it in the
   foreground).

@@ -18,8 +18,7 @@ owner-only runtime socket。`make macos-preview` 仍保留模拟状态，专门�
 面板先停止当前 runtime，再通过 CLI 的非秘密 `configure --backend` 选择新后端并启动；
 两个后端共用 CLI 所有的 SOCKS5 监听端口与 Keychain 密码。后端目录（网关默认值、
 认证能力）由 `soundconnect backends --json` 提供，Swift 不硬编码协议信息。aTrust
-目前以前台进程运行；在协议核心完成前，选择 aTrust 会显示 CLI 返回的
-“aTrust protocol support is not available in this build”。
+目前以前台进程运行，协议核心由固定版本的 zju-connect 提供。
 
 `soundconnect-atrust-oauth-helper` 是独立的 WebKit 登录窗口：使用隔离且持久的
 网站数据存储，只在需要用户交互时显示窗口，在网关回调被浏览器加载前截获并只把授权码
