@@ -14,6 +14,17 @@
 userspace runtime；验证码仅通过本机 stdin 管道提交；状态、SOCKS5 地址和流量来自
 owner-only runtime socket。`make macos-preview` 仍保留模拟状态，专门用于视觉预览。
 
+顶部的服务开关现为三段式 `BackendSwitch`：关闭、EasyConnect、aTrust。切换后端时，
+面板先停止当前 runtime，再通过 CLI 的非秘密 `configure --backend` 选择新后端并启动；
+两个后端共用 CLI 所有的 SOCKS5 监听端口与 Keychain 密码。后端目录（网关默认值、
+认证能力）由 `soundconnect backends --json` 提供，Swift 不硬编码协议信息。aTrust
+目前以前台进程运行；在协议核心完成前，选择 aTrust 会显示 CLI 返回的
+“aTrust protocol support is not available in this build”。
+
+`soundconnect-atrust-oauth-helper` 是独立的 WebKit 登录窗口：使用隔离且持久的
+网站数据存储，只在需要用户交互时显示窗口，在网关回调被浏览器加载前截获并只把授权码
+通过本机管道交给 CLI；`soundconnect logout` 会调用 `--clear-data` 清除其数据。
+
 ## 面板槽位拓扑
 
 面板使用固定顺序的槽位，而不是按状态把测速栏插入不同位置。测速与 VPN

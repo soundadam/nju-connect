@@ -4,6 +4,13 @@ This is the single detailed product architecture and release-readiness document.
 
 The audit started from `7e86436` and covers the native userspace core that has already been validated against the live gateway. The macOS SwiftUI menu-bar app invokes the bundled Go CLI for setup, attended authentication, background runtime start/stop, status, traffic, and campus speed testing. The UI integration does not change gateway wire bytes, start a vendor service, install a Network Extension, or change routes/DNS/PF.
 
+Protocol backend selection (EasyConnect or aTrust), the shared 1081 sing-box
+handoff, and the macOS backend switch are specified in
+`docs/gui-backend-architecture.md`. The aTrust backend on this branch is a
+SoundConnect-owned seam with no wire-protocol implementation; its clean-room
+plan and information barriers are in `docs/atrust-dual-backend.md` and
+`docs/atrust-cleanroom.md`.
+
 ## Ownership and data flow
 
 ```mermaid

@@ -32,7 +32,17 @@
       },
       {
         "domain": [
-          "vpn.nju.edu.cn"
+          "vpn.nju.edu.cn",
+          "ztna.nju.edu.cn"
+        ],
+        "action": "route",
+        "outbound": "direct"
+      },
+      {
+        "network": "tcp",
+        "port": 441,
+        "ip_cidr": [
+          "219.219.112.0/20"
         ],
         "action": "route",
         "outbound": "direct"

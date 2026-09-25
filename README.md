@@ -30,6 +30,27 @@ add `--watch` to stream that snapshot once per second. A
 stopped runtime is reported explicitly and returns a nonzero status; the
 command does not infer liveness from a PID file or `runtime.log`.
 
+## Protocol backends
+
+soundconnect separates the application from the campus VPN protocol. The
+EasyConnect backend is the default. An aTrust backend is selectable, but this
+build contains only its SoundConnect-owned seam: `connect` with the aTrust
+backend stops with "aTrust protocol support is not available in this build"
+and exit code 1 until the independently written protocol core lands (see
+`docs/atrust-cleanroom.md`).
+
+```sh
+soundconnect backends --json                 # presentation-safe backend catalog
+soundconnect configure --backend atrust      # switch non-secret settings only
+soundconnect setup --backend atrust --auth-type auth/psw
+soundconnect logout                          # forget saved aTrust session state
+```
+
+Both backends share the one CLI-owned SOCKS5 listener (default
+`127.0.0.1:1081`) and the Keychain VPN password. `configure` refuses to change
+the profile while a runtime is active. Set an absolute
+`SOUNDCONNECT_CONFIG_DIR` to run against an isolated configuration directory.
+
 ## Campus speed test
 
 `soundconnect speedtest` measures the pinned NJU campus IPv4 LibreSpeed target.
