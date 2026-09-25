@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"net"
+	"net/netip"
 	"testing"
 	"time"
 
@@ -133,4 +134,67 @@ func eventuallyTraffic(t *testing.T, counters *traffic.Counters, upload, downloa
 		time.Sleep(time.Millisecond)
 	}
 	t.Fatalf("traffic snapshot = %+v", counters.Snapshot())
+}
+
+func TestSOCKSDomainRequestExposesOriginalNameToDialer(t *testing.T) {
+	type dialRecord struct {
+		address string
+		domain  string
+		ok      bool
+	}
+	dialed := make(chan dialRecord, 1)
+	dialer := testTCPDialFunc(func(ctx context.Context, _ string, address string) (net.Conn, error) {
+		domain, ok := SOCKSDomain(ctx)
+		dialed <- dialRecord{address: address, domain: domain, ok: ok}
+		client, remote := net.Pipe()
+		go func() { _ = remote.Close() }()
+		return client, nil
+	})
+	resolve := func(_ context.Context, name string) (netip.Addr, error) {
+		if name != "intranet.example.edu" {
+			return netip.Addr{}, errors.New("unexpected name")
+		}
+		return netip.MustParseAddr("10.1.2.3"), nil
+	}
+	server, err := NewSOCKSServer(SOCKSConfig{Bind: "127.0.0.1:0", Dialer: dialer, ResolveIPv4: resolve})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	ready := make(chan struct{}, 1)
+	go func() {
+		_ = server.Run(ctx, func(component Component, available bool) {
+			if component == ComponentSOCKS && available {
+				ready <- struct{}{}
+			}
+		})
+	}()
+	<-ready
+	connection, err := net.Dial("tcp", server.Addr().String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer connection.Close()
+	if err := writeFull(connection, []byte{5, 1, 0}); err != nil {
+		t.Fatal(err)
+	}
+	method := make([]byte, 2)
+	if _, err := io.ReadFull(connection, method); err != nil {
+		t.Fatal(err)
+	}
+	name := "intranet.example.edu"
+	request := append([]byte{5, 1, 0, 3, byte(len(name))}, name...)
+	request = binary.BigEndian.AppendUint16(request, 22)
+	if err := writeFull(connection, request); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case record := <-dialed:
+		if record.address != "10.1.2.3:22" || !record.ok || record.domain != name {
+			t.Fatalf("dial record = %+v", record)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("dialer was not called")
+	}
 }
