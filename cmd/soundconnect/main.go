@@ -13,11 +13,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/soundadam/soundconnect/internal/backend/easyconnect/auth"
 	"github.com/soundadam/soundconnect/internal/config"
 	"github.com/soundadam/soundconnect/internal/core"
 	"github.com/soundadam/soundconnect/internal/credential"
 	"github.com/soundadam/soundconnect/internal/doctor"
-	"github.com/soundadam/soundconnect/internal/gatewayauth"
 	setupservice "github.com/soundadam/soundconnect/internal/setup"
 	"golang.org/x/term"
 )

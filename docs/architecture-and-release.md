@@ -8,12 +8,12 @@ The audit started from `7e86436` and covers the native userspace core that has a
 
 ```mermaid
 flowchart TD
-    cfg["internal/config\nsole Config authority"] --> auth["internal/gatewayauth\nHTTPS auth and bootstrap"]
+    cfg["internal/config\nsole Config authority"] --> auth["internal/backend/easyconnect/auth\nHTTPS auth and bootstrap"]
     cred["internal/credential\nKeychain, file, or hidden prompt"] --> auth
     auth --> state["SessionState + Bootstrap"]
     state --> plan["internal/core\nDataplanePlan"]
     auth --> token["NativeGatewayToken\ntyped gateway boundary"]
-    plan --> app["internal/nativeapp\nstable application adapter"]
+    plan --> app["internal/backend/easyconnect/session\nstable application adapter"]
     token --> app
     app --> session["runtime.NativeSession\nresource and lifecycle owner"]
     session --> owner["runtime.Owner\nreadiness and watchdog"]
@@ -125,7 +125,7 @@ The 250 ms sample on Linux amd64 measured `BuildICMPHeartbeat` at 239–272 ns, 
 
 ## Portable core and platform integration
 
-The portable core is the Go userspace path in `internal/core`, `internal/gatewayauth`, `internal/runtime`, `internal/sessiontoken`, `internal/traffic`, and `internal/nativeapp`. Packaging, credentials, process supervision, UI, certificate policy, and OS service integration are separate host concerns.
+The portable core is the Go userspace path in `internal/core`, `internal/backend`, `internal/runtime`, `internal/sessiontoken`, and `internal/traffic`. Packaging, credentials, process supervision, UI, certificate policy, and OS service integration are separate host concerns.
 
 | Capability | Linux | macOS | Windows |
 | --- | --- | --- | --- |

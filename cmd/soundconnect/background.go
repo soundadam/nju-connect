@@ -15,10 +15,10 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/soundadam/soundconnect/internal/backend/easyconnect/session"
 	"github.com/soundadam/soundconnect/internal/config"
 	"github.com/soundadam/soundconnect/internal/core"
 	"github.com/soundadam/soundconnect/internal/credential"
-	"github.com/soundadam/soundconnect/internal/nativeapp"
 	"github.com/soundadam/soundconnect/internal/runtime"
 	"github.com/soundadam/soundconnect/internal/sessiontoken"
 )

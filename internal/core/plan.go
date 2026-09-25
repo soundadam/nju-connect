@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/soundadam/soundconnect/internal/gatewayauth"
+	"github.com/soundadam/soundconnect/internal/backend/easyconnect/auth"
 )
 
 type DataplaneMode string

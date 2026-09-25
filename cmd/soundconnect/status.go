@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/soundadam/soundconnect/internal/nativeapp"
+	"github.com/soundadam/soundconnect/internal/backend/easyconnect/session"
 	"github.com/soundadam/soundconnect/internal/runtime"
 )
 

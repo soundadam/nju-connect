@@ -27,7 +27,7 @@ vet:
 
 .PHONY: bench
 bench:
-	$(GO) test ./internal/runtime ./internal/nativeapp -run '^$$' -bench . -benchmem -benchtime=$(BENCHTIME) -count=$(BENCHCOUNT)
+	$(GO) test ./internal/runtime ./internal/backend/easyconnect/session -run '^$$' -bench . -benchmem -benchtime=$(BENCHTIME) -count=$(BENCHCOUNT)
 
 .PHONY: leak-check
 leak-check:
