@@ -12,10 +12,14 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+# The Go core (CLI, protocol backends, runtime) is checked without Swift, so a
+# red core job always means a Go problem. The macOS app is only a UI shell over
+# the CLI; its job consumes the fixtures the Go tests generate in
+# testdata/contract, and never the other way round.
 jobs:
-  macos:
-    name: macOS (Go + Swift)
-    runs-on: macos-15
+  core-linux:
+    name: Core (Go, Linux + cross builds)
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -25,24 +29,32 @@ jobs:
         run: make fmt-check
       - name: go vet
         run: go vet ./...
+      - name: go vet (windows)
+        run: GOOS=windows go vet ./...
       - name: go test -race
         run: go test -race ./...
-      - name: swift test
-        run: swift test --package-path macos
-      - name: versioning
-        run: make versioning-test
+      - name: cross build
+        run: make build-platforms
 
-  linux:
-    name: Linux (Go tests + cross builds)
-    runs-on: ubuntu-latest
+  core-macos:
+    name: Core (Go, macOS)
+    runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
+      - name: go vet
+        run: go vet ./...
       - name: go test -race
         run: go test -race ./...
-      - name: go vet (windows)
-        run: GOOS=windows go vet ./...
-      - name: cross build
-        run: make build-platforms
+
+  macos-ui:
+    name: macOS UI shell (Swift)
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: swift test
+        run: swift test --package-path macos
+      - name: versioning
+        run: make versioning-test

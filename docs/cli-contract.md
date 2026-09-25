@@ -159,7 +159,12 @@ directory (`0700`) and the socket (`0600`) must be owned by the current user.
 - `testdata/contract/*`: JSON and NDJSON produced by real CLI runs and decoded
   by `macos/Tests/SoundConnectUITests/CLIContractFixtureTests.swift`.
   Wall-clock times, latency and the CPU architecture are normalized to fixed
-  values that still decode.
+  values of the same shape; timestamps keep Go's nanosecond digits.
+
+The dependency runs one way: the Go core owns the contract and generates the
+fixtures, and the Swift UI shell consumes them. CI checks the core in its own
+jobs (`Core (Go, …)`) without Swift, so a failing `macOS UI shell (Swift)` job
+points at the app, never at the core.
 
 To regenerate both after an intended change, run the command below, review
 `git diff`, and update the Swift decoders in the same PR if a fixture changed:
