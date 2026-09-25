@@ -145,6 +145,10 @@ func validateSOCKSConfig(config SOCKSConfig) error {
 
 func (server *SOCKSServer) Addr() net.Addr { return server.listener.Addr() }
 
+// Close releases the listener of a server whose Run was never started. Run
+// closes the listener itself when its context ends.
+func (server *SOCKSServer) Close() error { return server.listener.Close() }
+
 func (server *SOCKSServer) Run(ctx context.Context, report func(Component, bool)) error {
 	serveContext, cancel := context.WithCancel(ctx)
 	defer cancel()
