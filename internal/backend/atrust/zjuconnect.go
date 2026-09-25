@@ -247,6 +247,9 @@ func (core zjuCore) run(ctx context.Context, request setupRequest, prompter Prom
 			if promptErr := bridge.Err(); promptErr != nil {
 				return nil, promptErr
 			}
+			if rejection := bridge.Rejection(); rejection != "" {
+				return nil, fmt.Errorf("%w (%s)", backend.ErrCredentialRejected, rejection)
+			}
 			return nil, fmt.Errorf("aTrust login failed: %w", outcome.err)
 		}
 		session, err := newZJUSession(outcome.client, outcome.clientData)

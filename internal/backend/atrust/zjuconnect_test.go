@@ -145,6 +145,41 @@ func TestZJUCoreReportsUnavailableFactor(t *testing.T) {
 	}
 }
 
+func TestZJUCoreReportsRejectedPassword(t *testing.T) {
+	quietLogger(t)
+	core := zjuCore{setup: func(setupRequest) (upstreamClient, []byte, error) {
+		log.Println("Perform POST /passport/v1/auth/psw")
+		log.Printf("Code: %d, Message: %s", 10302, "用户名或密码错误")
+		log.Println("Perform POST /passport/v1/auth/authCheck")
+		log.Printf("Code: %d, Message: %s", 1, "unrelated")
+		return nil, nil, errors.New("unsupported next authentication service: auth/unknown")
+	}}
+	prompter := PrompterFuncs{OnPassword: func(context.Context, PasswordRequest) ([]byte, error) { return []byte("wrong"), nil }}
+	_, err := core.Authenticate(context.Background(), passwordLogin(), prompter)
+	if !errors.Is(err, backend.ErrCredentialRejected) {
+		t.Fatalf("Authenticate() error = %v", err)
+	}
+	if want := "gateway rejected the username or password (gateway code 10302: 用户名或密码错误)"; err.Error() != want {
+		t.Fatalf("Authenticate() error = %q, want %q", err, want)
+	}
+}
+
+func TestZJUCoreIgnoresAnswersOutsidePasswordLogin(t *testing.T) {
+	quietLogger(t)
+	core := zjuCore{setup: func(setupRequest) (upstreamClient, []byte, error) {
+		log.Println("Perform POST /passport/v1/auth/psw")
+		log.Printf("Code: %d, Message: %s", 0, "")
+		log.Println("Perform POST /passport/v1/auth/sms")
+		log.Printf("Code: %d, Message: %s", 10501, "wrong code")
+		return nil, nil, errors.New("sms rejected")
+	}}
+	prompter := PrompterFuncs{OnPassword: func(context.Context, PasswordRequest) ([]byte, error) { return []byte("pw"), nil }}
+	_, err := core.Authenticate(context.Background(), passwordLogin(), prompter)
+	if err == nil || errors.Is(err, backend.ErrCredentialRejected) {
+		t.Fatalf("Authenticate() error = %v", err)
+	}
+}
+
 func TestZJUCorePassesOAuthCodeUpFront(t *testing.T) {
 	quietLogger(t)
 	var seen setupRequest
