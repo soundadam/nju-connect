@@ -120,11 +120,11 @@ func TestStatusCommandSupportsTextJSONAndStoppedState(t *testing.T) {
 	defer server.Close()
 
 	stdout.Reset()
-	if code := runStatus(nil, &stdout, &stderr); code != 0 || !strings.Contains(stdout.String(), "running: true\nstate: reconnecting\n") {
+	if code := run([]string{"status"}, &stdout, &stderr); code != 0 || !strings.Contains(stdout.String(), "running: true\nstate: reconnecting\n") {
 		t.Fatalf("live text exit=%d stdout=%q stderr=%q", code, stdout.String(), stderr.String())
 	}
 	stdout.Reset()
-	if code := runStatus([]string{"--json"}, &stdout, &stderr); code != 0 {
+	if code := run([]string{"status", "--json"}, &stdout, &stderr); code != 0 {
 		t.Fatalf("live JSON exit=%d stderr=%q", code, stderr.String())
 	}
 	var snapshot runtimecontrol.Snapshot
@@ -136,7 +136,7 @@ func TestStatusCommandSupportsTextJSONAndStoppedState(t *testing.T) {
 func TestStatusWatchRequiresJSON(t *testing.T) {
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
-	if code := runStatus([]string{"--watch"}, &stdout, &stderr); code != 2 ||
+	if code := run([]string{"status", "--watch"}, &stdout, &stderr); code != 2 ||
 		stdout.Len() != 0 || stderr.String() != "status --watch requires --json\n" {
 		t.Fatalf("exit=%d stdout=%q stderr=%q", code, stdout.String(), stderr.String())
 	}

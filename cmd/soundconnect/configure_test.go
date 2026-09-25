@@ -34,8 +34,8 @@ func TestConfigureSwitchesToATrustWithoutTouchingSecrets(t *testing.T) {
 	t.Cleanup(func() { resolveDefaultPaths = previousPaths })
 
 	var stdout, stderr bytes.Buffer
-	if code := runConfigure([]string{"--backend", "atrust"}, &stdout, &stderr); code != 0 {
-		t.Fatalf("runConfigure() = %d, stderr = %q", code, stderr.String())
+	if code := run([]string{"configure", "--backend", "atrust"}, &stdout, &stderr); code != 0 {
+		t.Fatalf("run(configure) = %d, stderr = %q", code, stderr.String())
 	}
 	got, err := config.Load(paths.Config)
 	if err != nil {
@@ -75,8 +75,8 @@ func TestConfigureSwitchesBackToEasyConnectAndClearsATrustFields(t *testing.T) {
 	t.Cleanup(func() { resolveDefaultPaths = previousPaths })
 
 	var stdout, stderr bytes.Buffer
-	if code := runConfigure([]string{"--backend", "easyconnect"}, &stdout, &stderr); code != 0 {
-		t.Fatalf("runConfigure() = %d, stderr = %q", code, stderr.String())
+	if code := run([]string{"configure", "--backend", "easyconnect"}, &stdout, &stderr); code != 0 {
+		t.Fatalf("run(configure) = %d, stderr = %q", code, stderr.String())
 	}
 	got, err := config.Load(paths.Config)
 	if err != nil {
@@ -110,8 +110,8 @@ func TestConfigurePreservesTheSharedListenerAcrossBackendSwitches(t *testing.T) 
 	t.Cleanup(func() { resolveDefaultPaths = previousPaths })
 
 	var stdout, stderr bytes.Buffer
-	if code := runConfigure([]string{"--backend", "atrust"}, &stdout, &stderr); code != 0 {
-		t.Fatalf("runConfigure() = %d, stderr = %q", code, stderr.String())
+	if code := run([]string{"configure", "--backend", "atrust"}, &stdout, &stderr); code != 0 {
+		t.Fatalf("run(configure) = %d, stderr = %q", code, stderr.String())
 	}
 	got, err := config.Load(paths.Config)
 	if err != nil {
@@ -146,8 +146,8 @@ func TestConfigureRefusesLiveRuntime(t *testing.T) {
 	t.Cleanup(func() { resolveDefaultPaths = previousPaths })
 
 	var stdout, stderr bytes.Buffer
-	if code := runConfigure([]string{"--backend", "atrust"}, &stdout, &stderr); code != 1 ||
+	if code := run([]string{"configure", "--backend", "atrust"}, &stdout, &stderr); code != 1 ||
 		!strings.Contains(stderr.String(), "another native runtime is already active") {
-		t.Fatalf("runConfigure() = %d, stdout=%q stderr=%q", code, stdout.String(), stderr.String())
+		t.Fatalf("run(configure) = %d, stdout=%q stderr=%q", code, stdout.String(), stderr.String())
 	}
 }

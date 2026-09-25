@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -20,7 +19,6 @@ import (
 	"github.com/soundadam/soundconnect/internal/config"
 	"github.com/soundadam/soundconnect/internal/core"
 	"github.com/soundadam/soundconnect/internal/credential"
-	"github.com/soundadam/soundconnect/internal/doctor"
 	setupservice "github.com/soundadam/soundconnect/internal/setup"
 )
 
@@ -52,13 +50,13 @@ func run(arguments []string, stdout, stderr io.Writer) int {
 	case "configure":
 		return runConfigure(arguments[1:], stdout, stderr)
 	case "backends":
-		return runBackends(arguments[1:], stdout, stderr)
+		return exitStatus(runBackends(arguments[1:], stdout, stderr), stderr)
 	case "auth-info":
-		return runAuthInfo(arguments[1:], stdout, stderr)
+		return exitStatus(runAuthInfo(arguments[1:], stdout, stderr), stderr)
 	case "migrate":
 		return runMigrate(arguments[1:], stdout, stderr)
 	case "doctor":
-		return runDoctor(arguments[1:], stdout, stderr)
+		return exitStatus(runDoctor(arguments[1:], stdout, stderr), stderr)
 	case "connect":
 		return connectCommand(arguments[1:], stdout, stderr)
 	case "disconnect":
@@ -78,53 +76,6 @@ func run(arguments []string, stdout, stderr io.Writer) int {
 		writeUsage(stderr)
 		return 2
 	}
-}
-
-func runAuthInfo(arguments []string, stdout, stderr io.Writer) int {
-	flags := flag.NewFlagSet("soundconnect auth-info", flag.ContinueOnError)
-	backendValue := flags.String("backend", string(backend.ATrust), "protocol backend")
-	server := flags.String("server", backend.DefaultATrustGateway, "aTrust gateway host or host:port")
-	asJSON := flags.Bool("json", false, "write machine-readable authentication methods")
-	if code, ok := parseFlags(flags, arguments, stdout, stderr); !ok {
-		return code
-	}
-	if flags.NArg() != 0 {
-		fmt.Fprintln(stderr, "auth-info accepts no positional arguments")
-		return 2
-	}
-	backendName, err := backend.ParseName(*backendValue)
-	if err != nil {
-		fmt.Fprintf(stderr, "select protocol backend: %v\n", err)
-		return 2
-	}
-	if backendName != backend.ATrust {
-		fmt.Fprintln(stderr, "auth-info is currently available only for the aTrust backend")
-		return 2
-	}
-	endpoint, err := app.ParseATrustEndpoint(*server)
-	if err != nil {
-		fmt.Fprintf(stderr, "parse aTrust gateway: %v\n", err)
-		return 2
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), app.ATrustDiscoveryTimeout)
-	defer cancel()
-	methods, err := (atrustbackend.Discovery{Core: newATrustCore()}).Discover(ctx, endpoint)
-	if err != nil {
-		return reportATrustError(stderr, "discover aTrust authentication", err)
-	}
-	if *asJSON {
-		if err := json.NewEncoder(stdout).Encode(methods); err != nil {
-			fmt.Fprintf(stderr, "encode authentication methods: %v\n", err)
-			return 1
-		}
-		return 0
-	}
-	for _, method := range methods {
-		fmt.Fprintf(stdout, "backend: %s\nauth_name: %s\nauth_type: %s\nlogin_domain: %s\n",
-			backendName, method.Name, method.Type, method.Domain)
-	}
-	return 0
 }
 
 func runMigrate(arguments []string, stdout, stderr io.Writer) int {
@@ -474,42 +425,6 @@ func promptLineAllowEmpty(input *bufio.Reader, output io.Writer, prompt string) 
 		return "", err
 	}
 	return strings.TrimSpace(value), nil
-}
-
-func runDoctor(arguments []string, stdout, stderr io.Writer) int {
-	flags := flag.NewFlagSet("soundconnect doctor", flag.ContinueOnError)
-	asJSON := flags.Bool("json", false, "print JSON")
-	if code, ok := parseFlags(flags, arguments, stdout, stderr); !ok {
-		return code
-	}
-	if flags.NArg() != 0 {
-		fmt.Fprintln(stderr, "doctor accepts no positional arguments")
-		return 2
-	}
-	paths, err := commandPaths()
-	if err != nil {
-		fmt.Fprintf(stderr, "resolve local state: %v\n", err)
-		return 1
-	}
-	passwordStore, err := newSystemCredentialStore(paths.Credential)
-	if err != nil {
-		fmt.Fprintf(stderr, "prepare credential store: %v\n", err)
-		return 1
-	}
-	report := doctor.Build(paths, passwordStore)
-	if *asJSON {
-		if err := json.NewEncoder(stdout).Encode(report); err != nil {
-			fmt.Fprintf(stderr, "encode report: %v\n", err)
-			return 1
-		}
-	} else {
-		fmt.Fprintf(stdout, "ready: %t\nconfiguration: %s\ncredential_store: %s\nupstream_proxy: %s\n",
-			report.Ready, report.Configuration, report.CredentialStore, report.UpstreamProxy)
-	}
-	if !report.Ready {
-		return 1
-	}
-	return 0
 }
 
 func writeUsage(output io.Writer) {

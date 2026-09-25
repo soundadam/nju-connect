@@ -129,7 +129,7 @@ func TestSetupATrustRecordsDiscoveredMethod(t *testing.T) {
 	paths := useATrustTestState(t)
 	useATrustTestCore(t)
 	var stdout, stderr bytes.Buffer
-	code := runSetup([]string{"--backend", "atrust", "--server", "vpn.nju.edu.cn", "--auth-type", app.ATrustOAuthAuthType}, &stdout, &stderr)
+	code := run([]string{"setup", "--backend", "atrust", "--server", "vpn.nju.edu.cn", "--auth-type", app.ATrustOAuthAuthType}, &stdout, &stderr)
 	if code != 0 {
 		t.Fatalf("exit=%d stderr=%q", code, stderr.String())
 	}
@@ -151,7 +151,7 @@ func TestSetupATrustRecordsDiscoveredMethod(t *testing.T) {
 func TestSetupRejectsATrustFlagsForEasyConnect(t *testing.T) {
 	useATrustTestState(t)
 	var stdout, stderr bytes.Buffer
-	if code := runSetup([]string{"--auth-type", app.ATrustPasswordAuthType}, &stdout, &stderr); code != 2 {
+	if code := run([]string{"setup", "--auth-type", app.ATrustPasswordAuthType}, &stdout, &stderr); code != 2 {
 		t.Fatalf("exit=%d stderr=%q", code, stderr.String())
 	}
 }
@@ -159,7 +159,7 @@ func TestSetupRejectsATrustFlagsForEasyConnect(t *testing.T) {
 func TestAuthInfoListsDiscoveredMethods(t *testing.T) {
 	useATrustTestCore(t)
 	var stdout, stderr bytes.Buffer
-	if code := runAuthInfo(nil, &stdout, &stderr); code != 0 ||
+	if code := run([]string{"auth-info"}, &stdout, &stderr); code != 0 ||
 		!strings.Contains(stdout.String(), "openldap13924") || !strings.Contains(stdout.String(), "tenant-oauth") {
 		t.Fatalf("exit=%d stdout=%q stderr=%q", code, stdout.String(), stderr.String())
 	}
@@ -183,7 +183,7 @@ func TestLogoutClearsATrustClientDataAndOAuthProfile(t *testing.T) {
 	t.Setenv("SOUNDCONNECT_ATRUST_OAUTH_HELPER", helper)
 
 	var stdout, stderr bytes.Buffer
-	if code := runLogout(nil, &stdout, &stderr); code != 0 {
+	if code := run([]string{"logout"}, &stdout, &stderr); code != 0 {
 		t.Fatalf("exit=%d stderr=%q", code, stderr.String())
 	}
 	if stdout.String() != "atrust_session_cleared: true\noauth_profile_cleared: true\n" {
