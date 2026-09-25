@@ -13,6 +13,7 @@ type ProtocolProfileID string
 const (
 	ProfileEasyConnect767FixedPreface ProtocolProfileID = "easyconnect-7.6.7"
 	ProfileCommunityUTLSCompat        ProtocolProfileID = "community-utls"
+	ProfileATrustTCP                  ProtocolProfileID = "atrust-tcp"
 )
 
 type ProtocolEvidenceID string
@@ -72,6 +73,8 @@ func ParseProtocolProfileID(value string) (ProtocolProfileID, error) {
 	switch ProtocolProfileID(value) {
 	case ProfileCommunityUTLSCompat:
 		return ProfileCommunityUTLSCompat, nil
+	case ProfileATrustTCP:
+		return ProfileATrustTCP, nil
 	case ProfileEasyConnect767FixedPreface:
 		return ProfileEasyConnect767FixedPreface, nil
 	default:

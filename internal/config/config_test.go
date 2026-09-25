@@ -5,6 +5,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/soundadam/soundconnect/internal/backend"
 )
 
 func TestReplaceAndLoad(t *testing.T) {
@@ -42,6 +44,32 @@ func TestDefaultUsesNJUDefaultServer(t *testing.T) {
 	}
 	if configured.SOCKSListen != DefaultSOCKSListen {
 		t.Fatalf("SOCKSListen = %q, want %q", configured.SOCKSListen, DefaultSOCKSListen)
+	}
+	if configured.BackendName() != backend.EasyConnect {
+		t.Fatalf("Backend = %q, want %q", configured.BackendName(), backend.EasyConnect)
+	}
+}
+
+func TestATrustConfigDoesNotRequireUsername(t *testing.T) {
+	configured := Config{
+		Backend: backend.ATrust, Server: DefaultATrustServer,
+		SOCKSListen: DefaultSOCKSListen, AuthType: "auth/httpsOauth2", LoginDomain: "tenant-oauth",
+	}
+	if err := configured.Validate(); err != nil {
+		t.Fatalf("Validate() error = %v", err)
+	}
+	configured.LoginDomain = ""
+	if err := configured.Validate(); err != nil {
+		t.Fatalf("Validate() rejected a dynamically discovered login domain: %v", err)
+	}
+	configured.LoginDomain = "openldap13924"
+	configured.AuthType = "auth/psw"
+	if err := configured.Validate(); err == nil {
+		t.Fatal("Validate() accepted aTrust password authentication without a username")
+	}
+	configured.Username = "student"
+	if err := configured.Validate(); err != nil {
+		t.Fatalf("Validate() rejected aTrust password authentication: %v", err)
 	}
 }
 

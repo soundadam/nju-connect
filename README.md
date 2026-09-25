@@ -30,6 +30,25 @@ add `--watch` to stream that snapshot once per second. A
 stopped runtime is reported explicitly and returns a nonzero status; the
 command does not infer liveness from a PID file or `runtime.log`.
 
+## Protocol backends
+
+soundconnect separates the application from the campus VPN protocol. The
+EasyConnect backend is the default. The aTrust backend uses the pinned
+AGPL-3.0 `mythologyli/zju-connect` client as its protocol core and runs in the
+foreground (see `docs/atrust-dual-backend.md`).
+
+```sh
+soundconnect backends --json                 # presentation-safe backend catalog
+soundconnect configure --backend atrust      # switch non-secret settings only
+soundconnect setup --backend atrust --auth-type auth/psw
+soundconnect logout                          # forget saved aTrust session state
+```
+
+Both backends share the one CLI-owned SOCKS5 listener (default
+`127.0.0.1:1081`) and the Keychain VPN password. `configure` refuses to change
+the profile while a runtime is active. Set an absolute
+`SOUNDCONNECT_CONFIG_DIR` to run against an isolated configuration directory.
+
 ## Campus speed test
 
 `soundconnect speedtest` measures the pinned NJU campus IPv4 LibreSpeed target.
@@ -67,8 +86,8 @@ an injected semantic version and checksums:
 make cli-release VERSION=v1.0.0
 ```
 
-The archives include `LICENSE`, `THIRD_PARTY_NOTICES`, and the linked modules'
-license texts. Signing, notarization, tag creation, upload, and publication
+soundconnect is licensed under AGPL-3.0; see `LICENSE`. The archives include
+`LICENSE`, `THIRD_PARTY_NOTICES`, and the linked modules' license texts. Signing, notarization, tag creation, upload, and publication
 remain separate release gates.
 
 ## macOS development first run
@@ -95,3 +114,40 @@ For an explicitly local, dirty-tree preview, use
 a `file://` Cask into the installed `soundadam/local` tap checkout (falling back
 to `~/workspaces/soundadam/homebrew-local` when the tap is not installed), and
 never publishes an artifact.
+
+## Versioning and local iteration
+
+soundconnect follows the sing-box prerelease sequence. Git tags add a leading
+`v`, while the version embedded in the app and CLI does not:
+
+```text
+v1.1.0-alpha.1 -> v1.1.0-beta.1 -> v1.1.0-rc.1 -> v1.1.0
+```
+
+Repeated builds in one channel increment its sequence number. By default, a
+local update from installed stable version `1.0.0` starts the next feature train
+as `1.1.0-alpha.1`, and the next local update becomes `1.1.0-alpha.2`. Stable
+maintenance releases remain on the patch line, so the stable successor to
+`1.0.0` is `1.0.1`:
+
+```sh
+make local-update
+make local-update CHANNEL=beta
+make local-update CHANNEL=rc
+make local-update CHANNEL=stable
+```
+
+`local-update` resolves the active tap with `brew --repo soundadam/local`. It
+runs the release checks, builds the universal app, updates and commits the local
+Cask, reinstalls it, removes quarantine only from the installed development
+preview, and verifies the installed app, embedded CLI, code signature, and
+helper hash. Set `PUSH_TAP=1` to push the resulting private-tap commit. Use
+`INSTALL_UPDATE=0` when only packaging and committing the Cask is desired.
+
+`make macos-dev` builds the CLI, menu-bar app, and aTrust OAuth helper, signs
+them with a local Apple Development identity, and runs the app against the
+freshly built CLI.
+
+Local Casks use `file://` artifacts and are not public releases. A public
+release must start from a clean tagged commit, use immutable uploaded assets,
+verify the downloaded SHA-256, and satisfy signing and notarization gates.

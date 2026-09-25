@@ -115,13 +115,20 @@ private struct RuntimeStatus: Decodable {
 
 func soundConnectHelperEnvironment(
     homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser,
-    temporaryDirectory: String = NSTemporaryDirectory()
+    temporaryDirectory: String = NSTemporaryDirectory(),
+    configDirectory: String? = ProcessInfo.processInfo.environment["SOUNDCONNECT_CONFIG_DIR"]
 ) -> [String: String] {
-    [
+    var environment = [
         "HOME": homeDirectory.path,
         "PATH": "/usr/bin:/bin:/usr/sbin:/sbin",
         "TMPDIR": temporaryDirectory,
     ]
+    // An isolated profile directory must reach the helper so it reads the
+    // same runtime status socket as the app's own CLI calls.
+    if let configDirectory, !configDirectory.isEmpty {
+        environment["SOUNDCONNECT_CONFIG_DIR"] = configDirectory
+    }
+    return environment
 }
 
 @MainActor

@@ -12,32 +12,42 @@ import (
 	"strings"
 
 	"github.com/pelletier/go-toml/v2"
+	"github.com/soundadam/soundconnect/internal/backend"
 )
 
 const (
-	DefaultServer      = "vpn.nju.edu.cn"
+	DefaultServer       = backend.DefaultEasyConnectGateway
+	DefaultATrustServer = backend.DefaultATrustGateway
+	// DefaultSOCKSListen is shared by every protocol backend.
 	DefaultSOCKSListen = "127.0.0.1:1081"
 	maxConfigBytes     = 1 << 20
 )
 
 // Config contains only non-secret connection settings.
 type Config struct {
-	Server        string `toml:"server"`
-	Username      string `toml:"username"`
-	SOCKSListen   string `toml:"socks_listen"`
-	UpstreamProxy string `toml:"upstream_proxy"`
-	TLSInsecure   bool   `toml:"tls_insecure"`
+	Backend       backend.Name `toml:"backend"`
+	Server        string       `toml:"server"`
+	Username      string       `toml:"username"`
+	SOCKSListen   string       `toml:"socks_listen"`
+	UpstreamProxy string       `toml:"upstream_proxy"`
+	TLSInsecure   bool         `toml:"tls_insecure"`
 	// NativeTLSInsecure applies only to the legacy native L3 protocol TLS.
 	// It must not weaken the HTTPS channel carrying credentials and MFA.
-	NativeTLSInsecure bool `toml:"native_tls_insecure"`
+	NativeTLSInsecure bool   `toml:"native_tls_insecure"`
+	AuthType          string `toml:"auth_type,omitempty"`
+	LoginDomain       string `toml:"login_domain,omitempty"`
 }
 
 func Default() Config {
-	return Config{Server: DefaultServer, SOCKSListen: DefaultSOCKSListen}
+	return Config{Backend: backend.EasyConnect, Server: DefaultServer, SOCKSListen: DefaultSOCKSListen}
 }
 
 func (configured Config) Validate() error {
-	if strings.TrimSpace(configured.Username) == "" {
+	backendName := configured.BackendName()
+	if _, err := backend.ParseName(string(backendName)); err != nil {
+		return err
+	}
+	if backendName == backend.EasyConnect && strings.TrimSpace(configured.Username) == "" {
 		return errors.New("username is required")
 	}
 	if err := validateServer(configured.Server); err != nil {
@@ -46,7 +56,22 @@ func (configured Config) Validate() error {
 	if err := validateLoopback(configured.SOCKSListen); err != nil {
 		return err
 	}
+	if backendName == backend.ATrust {
+		if strings.TrimSpace(configured.AuthType) == "" {
+			return errors.New("aTrust authentication type is required")
+		}
+		if configured.AuthType == "auth/psw" && strings.TrimSpace(configured.Username) == "" {
+			return errors.New("username is required for aTrust password authentication")
+		}
+	}
 	return validateProxy(configured.UpstreamProxy)
+}
+
+func (configured Config) BackendName() backend.Name {
+	if configured.Backend == "" {
+		return backend.EasyConnect
+	}
+	return configured.Backend
 }
 
 func Parse(data []byte) (Config, error) {

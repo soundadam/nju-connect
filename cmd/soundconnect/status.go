@@ -9,8 +9,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/soundadam/soundconnect/internal/nativeapp"
+	"github.com/soundadam/soundconnect/internal/backend/easyconnect/session"
 	"github.com/soundadam/soundconnect/internal/runtime"
+	"github.com/soundadam/soundconnect/internal/traffic"
 )
 
 const runtimeStatusSchema = 1
@@ -66,6 +67,18 @@ func (tracker *runtimeStatusTracker) Snapshot() runtimeStatusSnapshot {
 }
 
 func (tracker *runtimeStatusTracker) UpdateTraffic(snapshot nativeapp.TrafficSnapshot, sampledAt time.Time) {
+	tracker.UpdateIngressTraffic(traffic.Snapshot{
+		SessionStartedAt:  snapshot.SessionStartedAt,
+		UploadBytes:       snapshot.UploadBytes,
+		DownloadBytes:     snapshot.DownloadBytes,
+		ActiveConnections: snapshot.ActiveConnections,
+		TotalConnections:  snapshot.TotalConnections,
+	}, sampledAt)
+}
+
+// UpdateIngressTraffic records counters measured at a backend's SOCKS
+// ingress, such as the aTrust connection's.
+func (tracker *runtimeStatusTracker) UpdateIngressTraffic(snapshot traffic.Snapshot, sampledAt time.Time) {
 	var sessionStartedAt *time.Time
 	if !snapshot.SessionStartedAt.IsZero() {
 		started := snapshot.SessionStartedAt.UTC()
@@ -204,11 +217,15 @@ func writeRuntimeStatus(stdout io.Writer, snapshot runtimeStatusSnapshot, asJSON
 		fmt.Fprintf(stdout, "last_data_failure: %s\n", snapshot.LastDataFailure)
 	}
 	if snapshot.Traffic != nil {
-		fmt.Fprintf(stdout, "traffic: upload=%d download=%d active=%d total=%d\n",
-			snapshot.Traffic.UploadBytes, snapshot.Traffic.DownloadBytes,
+		fmt.Fprintf(stdout, "traffic: upload=%s download=%s active=%d total=%d\n",
+			formatTotalBytes(snapshot.Traffic.UploadBytes), formatTotalBytes(snapshot.Traffic.DownloadBytes),
 			snapshot.Traffic.ActiveConnections, snapshot.Traffic.TotalConnections)
 	}
 	return nil
+}
+
+func formatTotalBytes(bytes uint64) string {
+	return fmt.Sprintf("%.1f KB", float64(bytes)/1_000)
 }
 
 func runDisconnect(arguments []string, stdout, stderr io.Writer) int {

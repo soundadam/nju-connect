@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/soundadam/soundconnect/internal/backend"
 	"github.com/soundadam/soundconnect/internal/config"
 	"github.com/soundadam/soundconnect/internal/credential"
 )
@@ -13,14 +14,17 @@ import (
 type SecretReader func(prompt string) ([]byte, error)
 
 func Save(paths config.Paths, configured config.Config, store credential.Store, read SecretReader) error {
+	if err := configured.Validate(); err != nil {
+		return err
+	}
+	if configured.BackendName() == backend.ATrust && configured.AuthType != "auth/psw" {
+		return config.Replace(paths.Config, configured)
+	}
 	if read == nil {
 		return errors.New("secret reader is required")
 	}
 	if store == nil {
 		return errors.New("credential store is required")
-	}
-	if err := configured.Validate(); err != nil {
-		return err
 	}
 
 	password, err := read("VPN password: ")

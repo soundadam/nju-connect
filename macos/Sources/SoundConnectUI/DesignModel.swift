@@ -9,6 +9,7 @@ enum DesignScenario: String, CaseIterable, Identifiable, Hashable {
     case connected
     case reconnecting
     case credentialRejected
+    case credentialAccessCancelled
     case transportFailed
 
     var id: String { rawValue }
@@ -22,6 +23,7 @@ enum DesignScenario: String, CaseIterable, Identifiable, Hashable {
         case .connected: return uiText("Connected", "已连接")
         case .reconnecting: return uiText("Reconnecting", "重连中")
         case .credentialRejected: return uiText("Authentication failed", "认证失败")
+        case .credentialAccessCancelled: return uiText("Keychain cancelled", "钥匙串访问已取消")
         case .transportFailed: return uiText("Transport failed", "传输失败")
         }
     }
@@ -54,8 +56,9 @@ struct TrafficRates {
 @MainActor
 final class DesignModel: ObservableObject {
     private static let maximumTrafficRateSamples = 30
-    let gatewayServer: String
+    private let gatewayOverride: String?
     private let controller: SoundConnectControlling?
+    private var pendingBackendStart = false
     private var pollingTask: Task<Void, Never>?
     private var isRefreshingStatus = false
 	private var lastTrafficSample: (sampledAtUnixMilli: Int64, upload: UInt64, download: UInt64)?
@@ -87,22 +90,40 @@ final class DesignModel: ObservableObject {
     @Published private(set) var isServiceEnabled: Bool
     @Published private(set) var uploadRateSamples: [Double] = []
     @Published private(set) var downloadRateSamples: [Double] = []
+    /// The selected protocol backend. The Go CLI owns protocol behavior; this
+    /// is only the user's selection and the runtime's reported owner.
+    @Published private(set) var backend: SoundConnectBackend
+    @Published private(set) var backendCatalog: SoundConnectBackendCatalog?
 
     init(
         scenario: DesignScenario = .connected,
-        gatewayServer: String = "vpn.nju.edu.cn",
+        gatewayServer: String? = nil,
+        backend: SoundConnectBackend = .easyConnect,
         controller: SoundConnectControlling? = nil
     ) {
         self.scenario = scenario
-        self.gatewayServer = gatewayServer
+        self.gatewayOverride = gatewayServer
+        self.backend = backend
         self.controller = controller
         self.isServiceEnabled = scenario != .stopped && scenario != .setup
-        if controller != nil {
+        if let controller {
             self.scenario = .stopped
             self.isServiceEnabled = false
+            controller.loadBackendCatalog { [weak self] catalog in
+                self?.backendCatalog = catalog
+            }
             refreshRuntimeStatus()
             startPolling()
         }
+    }
+
+    /// Gateway identity for the selected backend: an explicit override, the
+    /// Go-owned catalog default, or NJU's shared gateway before the catalog
+    /// loads.
+    var gatewayServer: String {
+        gatewayOverride
+            ?? backendCatalog?.descriptor(for: backend)?.defaultGateway
+            ?? "vpn.nju.edu.cn"
     }
 
     var menuBarGatewayLabel: String {
@@ -126,7 +147,7 @@ final class DesignModel: ObservableObject {
         case .waitingMFA: return .waitingMFA
         case .connected: return .connected
         case .reconnecting: return .reconnecting
-        case .credentialRejected, .transportFailed: return .degraded
+        case .credentialRejected, .credentialAccessCancelled, .transportFailed: return .degraded
         }
     }
 
@@ -140,11 +161,12 @@ final class DesignModel: ObservableObject {
         switch scenario {
         case .setup: return uiText("Setup required", "需要完成初始设置")
         case .stopped: return uiText("Service offline", "服务离线")
-        case .connecting: return uiText("Connecting to campus VPN", "正在建立校园 VPN")
+        case .connecting: return uiText("\(backend.title) · Connecting…", "\(backend.title) · 正在连接")
         case .waitingMFA: return uiText("Waiting for verification code", "等待短信验证码")
-        case .connected: return uiText("Campus VPN connected", "校园 VPN 已连接")
-        case .reconnecting: return uiText("Reconnecting campus VPN", "校园 VPN 正在重连")
+        case .connected: return uiText("\(backend.title) · Connected", "\(backend.title) · 已连接")
+        case .reconnecting: return uiText("\(backend.title) · Reconnecting…", "\(backend.title) · 正在重连")
         case .credentialRejected: return uiText("Authentication failed", "认证失败")
+        case .credentialAccessCancelled: return uiText("Keychain access cancelled", "钥匙串访问已取消")
         case .transportFailed: return uiText("VPN transport failed", "VPN 传输失败")
         }
     }
@@ -152,8 +174,8 @@ final class DesignModel: ObservableObject {
     var statusDetail: String {
         if scenario == .setup {
             return uiText(
-                "Enter your school account and VPN password. A verification code may be requested next.",
-                "请设置学校账号与 VPN 长期密码；短信或动态口令将在网关随后要求时单独输入"
+                "Enter the NJU account and password shared by both backends. A verification code may be requested next.",
+                "请输入两个后端共用的南大账号和密码；短信或动态口令将在网关随后要求时单独输入"
             )
         }
         if isReconfiguringCredentials {
@@ -165,7 +187,10 @@ final class DesignModel: ObservableObject {
         case .stopped:
             return ""
         case .connecting:
-            return uiText("Opening the VPN data stream and local proxy.", "认证已完成，正在打开双向 VPN 数据流和本机代理")
+            return uiText(
+                "Opening the \(backend.title) data stream and local proxy.",
+                "正在打开 \(backend.title) 数据流和本机代理"
+            )
         case .waitingMFA:
             return uiText("The verification code is not saved or logged.", "验证码不会被保存或写入日志")
         case .connected:
@@ -177,6 +202,11 @@ final class DesignModel: ObservableObject {
             )
         case .credentialRejected:
             return ""
+        case .credentialAccessCancelled:
+            return uiText(
+                "Retry, then choose Allow when macOS asks to access the saved VPN password.",
+                "请点击重试，并在 macOS 请求读取已保存 VPN 密码时选择“允许”"
+            )
         case .transportFailed:
             return uiText("The proxy or VPN transport failed. Fix the issue and retry.", "账号、前置代理或 VPN 传输未能完成；修复后点击重试")
         }
@@ -216,6 +246,14 @@ final class DesignModel: ObservableObject {
         controller == nil ? "127.0.0.1:1081" : runtimeSOCKSEndpoint
     }
 
+    /// Listener port and the gateway it leads to, for example "1081 → vpn.nju.edu.cn".
+    var socksRouteSummary: String {
+        guard let port = socksEndpoint.split(separator: ":").last, !port.isEmpty else {
+            return "— → \(gatewayServer)"
+        }
+        return "\(port) → \(gatewayServer)"
+    }
+
     var rates: TrafficRates {
         if controller != nil {
             return runtimeRates
@@ -247,7 +285,7 @@ final class DesignModel: ObservableObject {
 
     var menuBarIconState: MenuBarIconState {
         switch scenario {
-        case .setup, .credentialRejected, .transportFailed:
+        case .setup, .credentialRejected, .credentialAccessCancelled, .transportFailed:
             return .needsAttention
         case .connecting, .waitingMFA, .reconnecting:
             return .inProgress
@@ -266,6 +304,8 @@ final class DesignModel: ObservableObject {
         switch scenario {
         case .credentialRejected:
             return uiText("Gateway rejected the account or password.", "VPN 网关未接受账号或长期密码")
+        case .credentialAccessCancelled:
+            return uiText("Allow Keychain access on the next attempt.", "下次重试时请允许访问钥匙串")
         case .transportFailed:
             return uiText("Reconnect after fixing the issue.", "问题修复后可重新连接")
         default:
@@ -277,8 +317,45 @@ final class DesignModel: ObservableObject {
         scenario == .credentialRejected
     }
 
+    /// Selects a backend and turns the service on. A live runtime is never
+    /// mutated in place: it is stopped, and the new backend starts after the
+    /// stop completes, so both backends can share the one SOCKS listener.
+    func activateBackend(_ selection: SoundConnectBackend) {
+        guard canControlService, !isPerformingAction else { return }
+        if selection == backend, isServiceEnabled { return }
+        let shouldRestart = selection != backend && isServiceEnabled
+        backend = selection
+        guard shouldRestart, let controller else {
+            setServiceEnabled(true)
+            return
+        }
+        pendingBackendStart = true
+        isPerformingAction = true
+        scenario = .connecting
+        actionMessage = uiText("Switching to \(selection.title)…", "正在切换到 \(selection.title)")
+        controller.disconnect { [weak self] result in
+            guard let self else { return }
+            guard self.pendingBackendStart else { return }
+            self.pendingBackendStart = false
+            switch result {
+            case .success:
+                self.clearRuntimeTraffic()
+                self.isServiceEnabled = true
+                self.scenario = .connecting
+                self.actionMessage = uiText("Starting \(selection.title)…", "正在启动 \(selection.title)")
+                self.startConnection(using: controller)
+            case .failure(let error):
+                self.isPerformingAction = false
+                self.isServiceEnabled = true
+                self.scenario = .transportFailed
+                self.actionMessage = error.localizedDescription
+            }
+        }
+    }
+
     func setServiceEnabled(_ enabled: Bool) {
         guard canControlService else { return }
+        if !enabled { pendingBackendStart = false }
         isServiceEnabled = enabled
         guard let controller else {
             scenario = enabled ? .connecting : .stopped
@@ -334,6 +411,7 @@ final class DesignModel: ObservableObject {
         scenario = .connecting
         actionMessage = uiText("Saving credentials…", "正在保存账号与密码")
         controller.saveConfiguration(
+            backend: backend,
             server: gatewayServer,
             account: schoolAccount,
             password: vpnPassword
@@ -438,6 +516,7 @@ final class DesignModel: ObservableObject {
 
     private func startConnection(using controller: SoundConnectControlling) {
         controller.connect(
+            backend: backend,
             verificationRequested: { [weak self] in
                 guard let self else { return }
                 self.scenario = .waitingMFA
@@ -452,6 +531,14 @@ final class DesignModel: ObservableObject {
                     self.refreshRuntimeStatus()
                 case .failure(let error):
                     self.isServiceEnabled = false
+                    if error.isKeychainAccessCancellation {
+                        self.scenario = .credentialAccessCancelled
+                        self.actionMessage = uiText(
+                            "Keychain access was cancelled. Retry and choose Allow.",
+                            "钥匙串访问已取消；请重试并选择“允许”"
+                        )
+                        return
+                    }
                     self.scenario = self.isCredentialFailure(error.localizedDescription)
                         ? .credentialRejected
                         : .transportFailed
@@ -463,6 +550,13 @@ final class DesignModel: ObservableObject {
 
     private func apply(_ snapshot: SoundConnectRuntimeSnapshot) {
         if snapshot.running {
+            if pendingBackendStart { return }
+            if let runningBackend = snapshot.backend, runningBackend != backend {
+                guard !isPerformingAction else { return }
+                // Adopt a runtime that was already running (for example one
+                // started from the CLI) instead of reporting a mismatch.
+                backend = runningBackend
+            }
             isServiceEnabled = true
             switch snapshot.state {
             case "connected": scenario = .connected

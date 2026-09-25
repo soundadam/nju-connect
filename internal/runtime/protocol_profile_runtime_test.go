@@ -9,7 +9,7 @@ import (
 )
 
 func TestParseProtocolProfileIDAcceptsOnlyNamedProfiles(t *testing.T) {
-	for _, want := range []ProtocolProfileID{ProfileCommunityUTLSCompat, ProfileEasyConnect767FixedPreface} {
+	for _, want := range []ProtocolProfileID{ProfileCommunityUTLSCompat, ProfileEasyConnect767FixedPreface, ProfileATrustTCP} {
 		got, err := ParseProtocolProfileID(string(want))
 		if err != nil || got != want {
 			t.Fatalf("parse %q = %q, %v", want, got, err)

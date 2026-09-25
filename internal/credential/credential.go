@@ -1,7 +1,7 @@
-// Package credential obtains the long-lived soundconnect login credential without
-// putting it in command arguments or configuration. SMS and TOTP codes are
-// deliberately outside this package because they are one-time authentication
-// inputs and must not be persisted.
+// Package credential stores long-lived soundconnect authentication material
+// without putting it in command arguments or configuration. SMS and TOTP codes
+// are deliberately outside this package because they are one-time
+// authentication inputs and must not be persisted.
 package credential
 
 import (
@@ -11,14 +11,15 @@ import (
 const maxCredentialBytes = 1 << 20
 
 var (
-	ErrPlaintextOptIn      = errors.New("plaintext credential file requires explicit opt-in")
-	ErrNotRegular          = errors.New("credential path is not a regular file")
-	ErrInsecurePermissions = errors.New("credential file permissions are broader than 0600")
-	ErrWrongOwner          = errors.New("credential path is not owned by the current user")
-	ErrInsecureDirectory   = errors.New("credential directory must be private")
-	ErrEmptyCredential     = errors.New("credential is empty")
-	ErrCredentialTooLarge  = errors.New("credential exceeds the size limit")
-	ErrNoTerminal          = errors.New("hidden prompt requires a terminal")
+	ErrPlaintextOptIn         = errors.New("plaintext credential file requires explicit opt-in")
+	ErrNotRegular             = errors.New("credential path is not a regular file")
+	ErrInsecurePermissions    = errors.New("credential file permissions are broader than 0600")
+	ErrWrongOwner             = errors.New("credential path is not owned by the current user")
+	ErrInsecureDirectory      = errors.New("credential directory must be private")
+	ErrEmptyCredential        = errors.New("credential is empty")
+	ErrCredentialTooLarge     = errors.New("credential exceeds the size limit")
+	ErrNoTerminal             = errors.New("hidden prompt requires a terminal")
+	ErrKeychainAccessCanceled = errors.New("Keychain access was cancelled; retry and allow access to the saved VPN password")
 )
 
 // Store is the narrow contract required by setup, authentication, and
@@ -28,6 +29,14 @@ type Store interface {
 	Inspect() error
 	Get() ([]byte, error)
 	Set([]byte) error
+}
+
+// Clearable is implemented by stores that can forget their persisted
+// authentication material. One-time verification codes never implement a
+// Store and therefore cannot be cleared or persisted here.
+type Clearable interface {
+	Store
+	Clear() error
 }
 
 func validateSecret(secret []byte) error {

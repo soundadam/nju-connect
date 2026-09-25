@@ -172,6 +172,42 @@ func (s *FileStore) Set(secret []byte) error {
 	return nil
 }
 
+// Clear removes the owner-only credential file. It treats an already absent
+// file as success and rechecks the inode before removal to avoid deleting a
+// replacement path after the initial inspection.
+func (s *FileStore) Clear() error {
+	if s == nil || s.path == "" {
+		return errors.New("credential file backend is not initialized")
+	}
+	info, err := os.Lstat(s.path)
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("inspect credential file: %w", err)
+	}
+	if err := validateFileInfo(info); err != nil {
+		return err
+	}
+	current, err := os.Lstat(s.path)
+	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return nil
+		}
+		return fmt.Errorf("reinspect credential file: %w", err)
+	}
+	if !os.SameFile(info, current) {
+		return errors.New("credential file changed while clearing")
+	}
+	if err := os.Remove(s.path); err != nil {
+		return fmt.Errorf("remove credential file: %w", err)
+	}
+	if err := syncDirectory(filepath.Dir(s.path)); err != nil {
+		return fmt.Errorf("sync credential directory: %w", err)
+	}
+	return nil
+}
+
 func syncDirectory(path string) error {
 	directory, err := os.Open(path) // #nosec G304 -- validated private directory is intentionally synchronized.
 	if err != nil {

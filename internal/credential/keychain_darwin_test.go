@@ -38,6 +38,17 @@ func (backend *fakeKeychainBackend) set(_, _ string, secret []byte) error {
 	return nil
 }
 
+func (backend *fakeKeychainBackend) delete(_, _ string) error {
+	if backend.err != nil {
+		return backend.err
+	}
+	if backend.secret == nil {
+		return os.ErrNotExist
+	}
+	backend.secret = nil
+	return nil
+}
+
 func TestKeychainStoreRoundTripUsesBackendWithoutExposingSecretMetadata(t *testing.T) {
 	backend := &fakeKeychainBackend{}
 	store := newKeychainStore("service", "account", backend)
@@ -73,6 +84,23 @@ func TestKeychainStorePreservesNotFoundAndBackendErrors(t *testing.T) {
 	}
 }
 
+func TestKeychainStoreClearIsIdempotent(t *testing.T) {
+	backend := &fakeKeychainBackend{}
+	store := newKeychainStore("service", "account", backend)
+	if err := store.Clear(); err != nil {
+		t.Fatalf("Clear() missing item error = %v", err)
+	}
+	if err := store.Set([]byte("synthetic-session")); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Clear(); err != nil {
+		t.Fatalf("Clear() error = %v", err)
+	}
+	if backend.secret != nil {
+		t.Fatal("Clear() retained the Keychain value")
+	}
+}
+
 func TestSystemStoreUsesStableKeychainIdentifiers(t *testing.T) {
 	store, err := NewSystemStore("/legacy/path")
 	if err != nil {
@@ -84,5 +112,26 @@ func TestSystemStoreUsesStableKeychainIdentifiers(t *testing.T) {
 	}
 	if keychain.service != "com.soundadam.soundconnect" || keychain.account != "vpn-password" {
 		t.Fatalf("Keychain identifiers = %q / %q", keychain.service, keychain.account)
+	}
+}
+
+func TestATrustClientDataStoreUsesSeparateKeychainIdentifier(t *testing.T) {
+	store, err := NewATrustClientDataStore("/ignored/path")
+	if err != nil {
+		t.Fatal(err)
+	}
+	keychain, ok := store.(*KeychainStore)
+	if !ok {
+		t.Fatalf("aTrust store type = %T", store)
+	}
+	if keychain.service != "com.soundadam.soundconnect" || keychain.account != "atrust-client-data" {
+		t.Fatalf("aTrust Keychain identifiers = %q / %q", keychain.service, keychain.account)
+	}
+}
+
+func TestKeychainStatusExplainsCancelledAuthorization(t *testing.T) {
+	err := keychainStatus("read", errSecUserCanceled)
+	if !errors.Is(err, ErrKeychainAccessCanceled) {
+		t.Fatalf("keychainStatus() error = %v", err)
 	}
 }

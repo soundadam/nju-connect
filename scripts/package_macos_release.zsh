@@ -8,7 +8,7 @@ usage() {
 
 [[ $# -ge 1 && $# -le 2 ]] || usage
 
-readonly version="$1"
+readonly version="${1#v}"
 readonly repo_root="${0:A:h:h}"
 readonly output_root="${2:-${repo_root}/dist}"
 readonly app_name="soundconnect.app"
@@ -18,11 +18,10 @@ readonly app_root="${stage_root}/${app_name}"
 readonly contents_root="${app_root}/Contents"
 readonly release_dir="${output_root}/${version}"
 readonly allow_dirty="${SOUNDCONNECT_ALLOW_DIRTY:-0}"
+source "${repo_root}/scripts/versioning.zsh"
 
-[[ "$version" == <->.<->.<-> ]] || {
-  print -u2 -- "version must use MAJOR.MINOR.PATCH"
-  exit 64
-}
+soundconnect_parse_version "$version"
+readonly bundle_version="$(soundconnect_bundle_version "$version")"
 
 for tool in go swift ditto lipo codesign plutil shasum git; do
   command -v "$tool" >/dev/null || {
@@ -64,9 +63,20 @@ swift build \
   --arch x86_64 \
   --product soundconnect-menu
 
+swift build \
+  --package-path "${repo_root}/macos" \
+  -c release \
+  --arch arm64 \
+  --arch x86_64 \
+  --product soundconnect-atrust-oauth-helper
+
 install -m 0755 \
   "${repo_root}/macos/.build/apple/Products/Release/soundconnect-menu" \
   "${contents_root}/MacOS/soundconnect-menu"
+
+install -m 0755 \
+  "${repo_root}/macos/.build/apple/Products/Release/soundconnect-atrust-oauth-helper" \
+  "${contents_root}/Helpers/soundconnect-atrust-oauth-helper"
 
 for arch in arm64 amd64; do
   GOOS=darwin GOARCH="$arch" CGO_ENABLED=1 go build \
@@ -85,7 +95,7 @@ install -m 0644 "${repo_root}/packaging/macos/Info.plist" "${contents_root}/Info
 install -m 0644 "${repo_root}/packaging/macos/AppIcon.icns" \
   "${contents_root}/Resources/AppIcon.icns"
 plutil -replace CFBundleShortVersionString -string "$version" "${contents_root}/Info.plist"
-plutil -replace CFBundleVersion -string "${version//./}" "${contents_root}/Info.plist"
+plutil -replace CFBundleVersion -string "$bundle_version" "${contents_root}/Info.plist"
 
 install -m 0644 "${repo_root}/LICENSE" "${contents_root}/Resources/LICENSE"
 install -m 0644 "${repo_root}/THIRD_PARTY_NOTICES" "${contents_root}/Resources/THIRD_PARTY_NOTICES"
@@ -117,6 +127,7 @@ done < <(
 }
 
 codesign --force --sign - --timestamp=none "${contents_root}/Helpers/soundconnect"
+codesign --force --sign - --timestamp=none "${contents_root}/Helpers/soundconnect-atrust-oauth-helper"
 codesign --force --sign - --timestamp=none "${contents_root}/MacOS/soundconnect-menu"
 codesign --force --sign - --timestamp=none "$app_root"
 
@@ -125,6 +136,7 @@ plutil -lint "${contents_root}/Info.plist"
 [[ "$("${contents_root}/Helpers/soundconnect" version)" == "soundconnect ${version}" ]]
 file "${contents_root}/MacOS/soundconnect-menu" | grep -q 'universal binary'
 file "${contents_root}/Helpers/soundconnect" | grep -q 'universal binary'
+file "${contents_root}/Helpers/soundconnect-atrust-oauth-helper" | grep -q 'universal binary'
 
 rm -f -- "${release_dir}/${archive_name}"
 COPYFILE_DISABLE=1 ditto -c -k --keepParent "$app_root" "${release_dir}/${archive_name}"
@@ -137,6 +149,7 @@ readonly release_notes_path="${release_dir}/soundconnect-${version}-release-note
 {
   print -- "product=soundconnect"
   print -- "version=${version}"
+  print -- "bundle_version=${bundle_version}"
   print -- "source_repository=https://github.com/soundadam/soundconnect"
   print -- "source_commit=${source_commit}"
   print -- "source_dirty=${source_dirty}"
@@ -149,7 +162,7 @@ readonly release_notes_path="${release_dir}/soundconnect-${version}-release-note
   print -- "ui_backend=native-cli-control"
   print -- "campus_speed_helper=external-homebrew-formula"
   print -- "campus_speed_helper_formula=librespeed-cli-soundconnect"
-  print -- "license=proprietary; authorized users only"
+  print -- "license=AGPL-3.0"
 } > "$manifest_path"
 
 {
@@ -162,7 +175,7 @@ readonly release_notes_path="${release_dir}/soundconnect-${version}-release-note
   print -- "- VPN setup, background runtime control, status, traffic, and campus speed testing use the bundled CLI."
   print -- "- Campus speed testing requires the separate librespeed-cli-soundconnect Homebrew Formula."
   print -- "- The app and CLI are ad-hoc signed and are not Apple-notarized."
-  print -- "- The source repository is private and the software is proprietary; public download does not grant a license."
+  print -- "- soundconnect is available under AGPL-3.0; corresponding source is published with each release."
   print -- "- The Cask does not remove quarantine or bypass Gatekeeper."
   print
   print -- "Provenance:"

@@ -14,8 +14,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/soundadam/soundconnect/internal/backend/easyconnect/session"
 	"github.com/soundadam/soundconnect/internal/config"
-	"github.com/soundadam/soundconnect/internal/nativeapp"
 	"github.com/soundadam/soundconnect/internal/runtime"
 )
 
@@ -141,6 +141,21 @@ func TestStatusWatchRequiresJSON(t *testing.T) {
 	}
 }
 
+func TestTextStatusFormatsTrafficTotalsInKB(t *testing.T) {
+	snapshot := runtimeStatusSnapshot{
+		Running: true, State: "connected", Traffic: &runtimeTrafficStatus{
+			UploadBytes: 1_500, DownloadBytes: 2_750,
+		},
+	}
+	var output bytes.Buffer
+	if err := writeRuntimeStatus(&output, snapshot, false); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(output.String(), "traffic: upload=1.5 KB download=2.8 KB") {
+		t.Fatalf("text status = %q", output.String())
+	}
+}
+
 func TestConnectGuidesUserWhenRuntimeIsAlreadyActive(t *testing.T) {
 	root := t.TempDir()
 	paths := config.Paths{Root: root, Config: filepath.Join(root, "config.toml"), Credential: filepath.Join(root, "credential")}
@@ -191,5 +206,27 @@ func TestRuntimeStatusRejectsUnsafePathAndDuplicateServer(t *testing.T) {
 	defer server.Close()
 	if err := ensureNoActiveRuntime(path); err == nil || !strings.Contains(err.Error(), "already active") {
 		t.Fatalf("duplicate runtime check = %v", err)
+	}
+}
+
+func TestRuntimeStatusAcceptsATrustTCPProfile(t *testing.T) {
+	path := runtimeStatusPath(t.TempDir())
+	tracker := newRuntimeStatusTracker(runtime.ProfileATrustTCP)
+	observer := runtimeStatusObserver(nativeapp.ObserverFuncs{}, tracker)
+	observer.StateChanged(nativeapp.StateConnected)
+	observer.SOCKSListening(config.DefaultSOCKSListen)
+	observer.AccessEvidence(true)
+
+	server, err := startRuntimeStatusServer(path, tracker.Snapshot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer server.Close()
+	snapshot, err := queryRuntimeStatus(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if snapshot.Profile != runtime.ProfileATrustTCP || snapshot.SOCKSListen != config.DefaultSOCKSListen || snapshot.AccessEvidence != "available" {
+		t.Fatalf("aTrust runtime status = %+v", snapshot)
 	}
 }

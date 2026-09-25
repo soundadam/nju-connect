@@ -4,16 +4,22 @@ This is the single detailed product architecture and release-readiness document.
 
 The audit started from `7e86436` and covers the native userspace core that has already been validated against the live gateway. The macOS SwiftUI menu-bar app invokes the bundled Go CLI for setup, attended authentication, background runtime start/stop, status, traffic, and campus speed testing. The UI integration does not change gateway wire bytes, start a vendor service, install a Network Extension, or change routes/DNS/PF.
 
+Protocol backend selection (EasyConnect or aTrust), the shared 1081 sing-box
+handoff, and the macOS backend switch are specified in
+`docs/gui-backend-architecture.md`. The aTrust backend adapts the pinned
+AGPL-3.0 `mythologyli/zju-connect` client behind SoundConnect's `Core`
+interface; see `docs/atrust-dual-backend.md`.
+
 ## Ownership and data flow
 
 ```mermaid
 flowchart TD
-    cfg["internal/config\nsole Config authority"] --> auth["internal/gatewayauth\nHTTPS auth and bootstrap"]
+    cfg["internal/config\nsole Config authority"] --> auth["internal/backend/easyconnect/auth\nHTTPS auth and bootstrap"]
     cred["internal/credential\nKeychain, file, or hidden prompt"] --> auth
     auth --> state["SessionState + Bootstrap"]
     state --> plan["internal/core\nDataplanePlan"]
     auth --> token["NativeGatewayToken\ntyped gateway boundary"]
-    plan --> app["internal/nativeapp\nstable application adapter"]
+    plan --> app["internal/backend/easyconnect/session\nstable application adapter"]
     token --> app
     app --> session["runtime.NativeSession\nresource and lifecycle owner"]
     session --> owner["runtime.Owner\nreadiness and watchdog"]
@@ -72,7 +78,7 @@ Installation-time compilation is a local-preview delivery choice, not an LGPL
 requirement. The complete modified source is maintained in the LGPL-covered
 `components/librespeed-cli` subtree of public `soundadam/soundprobe`, including upstream
 provenance, license, and build metadata. Do not copy that source into the
-proprietary soundconnect module or relicense it under the soundconnect license.
+soundconnect module or relicense it under the soundconnect license.
 A future Homebrew bottle may install a prebuilt helper from that source, but
 only after its source and binary provenance, signing, and release assets are
 independently verifiable.
@@ -125,7 +131,7 @@ The 250 ms sample on Linux amd64 measured `BuildICMPHeartbeat` at 239–272 ns, 
 
 ## Portable core and platform integration
 
-The portable core is the Go userspace path in `internal/core`, `internal/gatewayauth`, `internal/runtime`, `internal/sessiontoken`, `internal/traffic`, and `internal/nativeapp`. Packaging, credentials, process supervision, UI, certificate policy, and OS service integration are separate host concerns.
+The portable core is the Go userspace path in `internal/core`, `internal/backend`, `internal/runtime`, `internal/sessiontoken`, and `internal/traffic`. Packaging, credentials, process supervision, UI, certificate policy, and OS service integration are separate host concerns.
 
 | Capability | Linux | macOS | Windows |
 | --- | --- | --- | --- |
@@ -178,7 +184,7 @@ second runtime-state authority.
 
 ## Dependency and release boundary
 
-`THIRD_PARTY_NOTICES` is the checked-in dependency notice index. It is separate from the proprietary `LICENSE`: the proprietary license does not grant rights to third-party materials. The release packager must ship the exact pinned upstream license texts and any applicable attributions alongside the binary; the index records the versions and obligations and is not permission to omit those texts.
+`THIRD_PARTY_NOTICES` is the checked-in dependency notice index. soundconnect is licensed under AGPL-3.0 (`LICENSE`), which is required by the linked AGPL-3.0 zju-connect module; the root license does not grant rights to third-party materials. The release packager must ship the exact pinned upstream license texts and any applicable attributions alongside the binary; the index records the versions and obligations and is not permission to omit those texts.
 
 The linked binary dependency set is derived from `go list -deps` and `go version -m`, not merely from the module graph. `golang.org/x/text` appears in the module graph but is not linked by `cmd/soundconnect` at this revision. No files under `research/upstream/` or `research/work/` are tracked or part of the product build.
 

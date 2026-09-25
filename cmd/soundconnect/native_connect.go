@@ -12,12 +12,13 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/soundadam/soundconnect/internal/backend"
+	"github.com/soundadam/soundconnect/internal/backend/easyconnect/auth"
+	"github.com/soundadam/soundconnect/internal/backend/easyconnect/session"
 	"github.com/soundadam/soundconnect/internal/config"
 	"github.com/soundadam/soundconnect/internal/core"
 	"github.com/soundadam/soundconnect/internal/credential"
 	"github.com/soundadam/soundconnect/internal/dial"
-	"github.com/soundadam/soundconnect/internal/gatewayauth"
-	"github.com/soundadam/soundconnect/internal/nativeapp"
 	"github.com/soundadam/soundconnect/internal/runtime"
 	"github.com/soundadam/soundconnect/internal/sessiontoken"
 )
@@ -95,6 +96,13 @@ func runNativeConnectContext(
 	if err != nil {
 		fmt.Fprintf(stderr, "upstream preflight: %v\n", err)
 		return 1
+	}
+	if configured.BackendName() == backend.ATrust {
+		if *background {
+			fmt.Fprintln(stderr, "aTrust background runtime is not implemented yet")
+			return 2
+		}
+		return runATrustConnectContext(ctx, paths, configured, *verificationCodeStdin, stdout, stderr)
 	}
 
 	passwordStore, _, err := commandCredentialStore(paths)
@@ -276,8 +284,9 @@ func nativeCLIObserver(output io.Writer) nativeapp.ObserverFuncs {
 			fmt.Fprintf(output, "socks: %s\n", address)
 		},
 		OnTraffic: func(snapshot nativeapp.TrafficSnapshot) {
-			fmt.Fprintf(output, "traffic: upload=%d download=%d active=%d total=%d\n",
-				snapshot.UploadBytes, snapshot.DownloadBytes, snapshot.ActiveConnections, snapshot.TotalConnections)
+			fmt.Fprintf(output, "traffic: upload=%s download=%s active=%d total=%d\n",
+				formatTotalBytes(snapshot.UploadBytes), formatTotalBytes(snapshot.DownloadBytes),
+				snapshot.ActiveConnections, snapshot.TotalConnections)
 		},
 		OnAccessEvidence: func(available bool) {
 			fmt.Fprintf(output, "access: available=%t\n", available)

@@ -13,16 +13,20 @@ import (
 	"strings"
 	"time"
 
+	"github.com/soundadam/soundconnect/internal/backend"
+	"github.com/soundadam/soundconnect/internal/backend/atrust"
+	"github.com/soundadam/soundconnect/internal/backend/easyconnect/auth"
 	"github.com/soundadam/soundconnect/internal/config"
 	"github.com/soundadam/soundconnect/internal/core"
 	"github.com/soundadam/soundconnect/internal/credential"
 	"github.com/soundadam/soundconnect/internal/doctor"
-	"github.com/soundadam/soundconnect/internal/gatewayauth"
 	setupservice "github.com/soundadam/soundconnect/internal/setup"
 	"golang.org/x/term"
 )
 
 var version = "dev"
+
+const atrustDiscoveryTimeout = 25 * time.Second
 
 var (
 	connectCommand = runNativeConnect
@@ -47,6 +51,12 @@ func run(arguments []string, stdout, stderr io.Writer) int {
 		return 0
 	case "setup":
 		return runSetup(arguments[1:], stdout, stderr)
+	case "configure":
+		return runConfigure(arguments[1:], stdout, stderr)
+	case "backends":
+		return runBackends(arguments[1:], stdout, stderr)
+	case "auth-info":
+		return runAuthInfo(arguments[1:], stdout, stderr)
 	case "migrate":
 		return runMigrate(arguments[1:], stdout, stderr)
 	case "doctor":
@@ -55,6 +65,8 @@ func run(arguments []string, stdout, stderr io.Writer) int {
 		return connectCommand(arguments[1:], stdout, stderr)
 	case "disconnect":
 		return runDisconnect(arguments[1:], stdout, stderr)
+	case "logout":
+		return runLogout(arguments[1:], stdout, stderr)
 	case "dry-run":
 		return dryRunCommand(arguments[1:], stdout, stderr)
 	case "status":
@@ -68,6 +80,53 @@ func run(arguments []string, stdout, stderr io.Writer) int {
 		writeUsage(stderr)
 		return 2
 	}
+}
+
+func runAuthInfo(arguments []string, stdout, stderr io.Writer) int {
+	flags := flag.NewFlagSet("soundconnect auth-info", flag.ContinueOnError)
+	backendValue := flags.String("backend", string(backend.ATrust), "protocol backend")
+	server := flags.String("server", backend.DefaultATrustGateway, "aTrust gateway host or host:port")
+	asJSON := flags.Bool("json", false, "write machine-readable authentication methods")
+	if code, ok := parseFlags(flags, arguments, stdout, stderr); !ok {
+		return code
+	}
+	if flags.NArg() != 0 {
+		fmt.Fprintln(stderr, "auth-info accepts no positional arguments")
+		return 2
+	}
+	backendName, err := backend.ParseName(*backendValue)
+	if err != nil {
+		fmt.Fprintf(stderr, "select protocol backend: %v\n", err)
+		return 2
+	}
+	if backendName != backend.ATrust {
+		fmt.Fprintln(stderr, "auth-info is currently available only for the aTrust backend")
+		return 2
+	}
+	endpoint, err := parseATrustEndpoint(*server)
+	if err != nil {
+		fmt.Fprintf(stderr, "parse aTrust gateway: %v\n", err)
+		return 2
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), atrustDiscoveryTimeout)
+	defer cancel()
+	methods, err := (atrustbackend.Discovery{Core: newATrustCore()}).Discover(ctx, endpoint)
+	if err != nil {
+		return reportATrustError(stderr, "discover aTrust authentication", err)
+	}
+	if *asJSON {
+		if err := json.NewEncoder(stdout).Encode(methods); err != nil {
+			fmt.Fprintf(stderr, "encode authentication methods: %v\n", err)
+			return 1
+		}
+		return 0
+	}
+	for _, method := range methods {
+		fmt.Fprintf(stdout, "backend: %s\nauth_name: %s\nauth_type: %s\nlogin_domain: %s\n",
+			backendName, method.Name, method.Type, method.Domain)
+	}
+	return 0
 }
 
 func runMigrate(arguments []string, stdout, stderr io.Writer) int {
@@ -309,8 +368,11 @@ func readRawVerificationCode(input io.Reader) ([]byte, error) {
 
 func runSetup(arguments []string, stdout, stderr io.Writer) int {
 	flags := flag.NewFlagSet("soundconnect setup", flag.ContinueOnError)
+	backendValue := flags.String("backend", string(backend.EasyConnect), "protocol backend (easyconnect or atrust)")
 	server := flags.String("server", "", "campus VPN gateway host or host:port")
 	username := flags.String("username", "", "campus account")
+	authType := flags.String("auth-type", "", "aTrust authentication type (auth/httpsOauth2 or auth/psw)")
+	loginDomain := flags.String("login-domain", "", "aTrust login domain override")
 	socksListen := flags.String("socks-listen", config.DefaultSOCKSListen, "numeric loopback SOCKS5 listener")
 	upstreamProxy := flags.String("upstream-proxy", "", "optional socks5 upstream URL")
 	tlsInsecure := flags.Bool("tls-insecure", false, "allow an unverified development gateway certificate")
@@ -323,16 +385,35 @@ func runSetup(arguments []string, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stderr, "setup accepts no positional arguments")
 		return 2
 	}
+	backendName, err := backend.ParseName(*backendValue)
+	if err != nil {
+		fmt.Fprintf(stderr, "select protocol backend: %v\n", err)
+		return 2
+	}
+	if backendName != backend.ATrust && (strings.TrimSpace(*authType) != "" || strings.TrimSpace(*loginDomain) != "") {
+		fmt.Fprintln(stderr, "auth-type and login-domain are only available for the aTrust backend")
+		return 2
+	}
+	if *passwordStdin && backendName == backend.ATrust && strings.TrimSpace(*authType) == "" {
+		// A password supplied through the private GUI pipe is an explicit
+		// request for shared-password authentication. Discovery still
+		// determines the tenant-specific login domain.
+		*authType = atrustPasswordAuthType
+	}
 	lineReader := bufio.NewReader(os.Stdin)
 	if strings.TrimSpace(*server) == "" {
-		value, err := promptLineDefault(lineReader, stderr, "Gateway", config.DefaultServer)
+		defaultServer := config.DefaultServer
+		if backendName == backend.ATrust {
+			defaultServer = config.DefaultATrustServer
+		}
+		value, err := promptLineDefault(lineReader, stderr, "Gateway", defaultServer)
 		if err != nil {
 			fmt.Fprintf(stderr, "read gateway: %v\n", err)
 			return 1
 		}
 		*server = value
 	}
-	if strings.TrimSpace(*username) == "" {
+	if backendName == backend.EasyConnect && strings.TrimSpace(*username) == "" {
 		value, err := promptLine(lineReader, stderr, "Account: ")
 		if err != nil {
 			fmt.Fprintf(stderr, "read account: %v\n", err)
@@ -346,12 +427,26 @@ func runSetup(arguments []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 	configured := config.Config{
+		Backend:           backendName,
 		Server:            *server,
 		Username:          *username,
 		SOCKSListen:       *socksListen,
 		UpstreamProxy:     *upstreamProxy,
 		TLSInsecure:       *tlsInsecure,
 		NativeTLSInsecure: *nativeTLSInsecure,
+	}
+	if backendName == backend.ATrust {
+		if code := chooseATrustSetupMethod(&configured, *authType, *loginDomain, stderr); code != 0 {
+			return code
+		}
+		if configured.AuthType == atrustPasswordAuthType && strings.TrimSpace(configured.Username) == "" {
+			value, promptErr := promptLine(lineReader, stderr, "Account: ")
+			if promptErr != nil {
+				fmt.Fprintf(stderr, "read account: %v\n", promptErr)
+				return 1
+			}
+			configured.Username = value
+		}
 	}
 	readSecret := func(prompt string) ([]byte, error) {
 		if *passwordStdin {
@@ -361,16 +456,55 @@ func runSetup(arguments []string, stdout, stderr io.Writer) int {
 			Input: os.Stdin, Output: stderr, Prompt: prompt,
 		}).Get()
 	}
-	passwordStore, err := newSystemCredentialStore(paths.Credential)
-	if err != nil {
-		fmt.Fprintf(stderr, "prepare credential store: %v\n", err)
-		return 1
+	var passwordStore credential.Store
+	if backendName == backend.EasyConnect || configured.AuthType == atrustPasswordAuthType {
+		passwordStore, err = newSystemCredentialStore(paths.Credential)
+		if err != nil {
+			fmt.Fprintf(stderr, "prepare credential store: %v\n", err)
+			return 1
+		}
 	}
 	if err := setupservice.Save(paths, configured, passwordStore, readSecret); err != nil {
 		fmt.Fprintf(stderr, "setup failed: %v\n", err)
 		return 1
 	}
-	fmt.Fprintf(stdout, "configuration: %s\ncredential: system_store\n", paths.Config)
+	credentialStatus := "system_store"
+	if backendName == backend.ATrust {
+		credentialStatus = "browser_oauth"
+		if configured.AuthType == atrustPasswordAuthType {
+			credentialStatus = "system_store_password"
+		}
+	}
+	fmt.Fprintf(stdout, "configuration: %s\nbackend: %s\ncredential: %s\n", paths.Config, backendName, credentialStatus)
+	return 0
+}
+
+// chooseATrustSetupMethod selects the aTrust authentication method from the
+// gateway's advertised methods.
+func chooseATrustSetupMethod(configured *config.Config, authType, loginDomain string, stderr io.Writer) int {
+	endpoint, err := parseATrustEndpoint(configured.Server)
+	if err != nil {
+		fmt.Fprintf(stderr, "parse aTrust gateway: %v\n", err)
+		return 2
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), atrustDiscoveryTimeout)
+	methods, err := (atrustbackend.Discovery{Core: newATrustCore()}).Discover(ctx, endpoint)
+	cancel()
+	if err != nil {
+		fmt.Fprintf(stderr, "discover aTrust authentication: %v\n", err)
+		return 1
+	}
+	selected, err := selectATrustAuthenticationMethod(methods, authType, loginDomain)
+	if err != nil {
+		fmt.Fprintf(stderr, "setup failed: %v\n", err)
+		return 1
+	}
+	if err := validateATrustAuthenticationType(selected.Type); err != nil {
+		fmt.Fprintf(stderr, "setup failed: %v\n", err)
+		return 1
+	}
+	configured.AuthType = selected.Type
+	configured.LoginDomain = selected.Domain
 	return 0
 }
 
@@ -479,10 +613,14 @@ func writeUsage(output io.Writer) {
 With no command, soundconnect runs connect.
 
 commands:
-  setup      configure or update the account and long-lived password
+  setup      configure backend, account, and long-lived password
+  configure  switch non-secret backend and listener settings
+  backends   print non-secret backend metadata and capabilities
+  auth-info  discover public aTrust authentication methods without logging in
   migrate    import pre-release worktree configuration and credential state
   connect    authenticate and run the native userspace VPN core (default)
   disconnect stop the active native userspace VPN core
+  logout     clear saved aTrust session and OAuth browser state
   dry-run    authenticate and validate gateway handoff without starting dataplane
   status     print sanitized runtime status
   speedtest  measure the NJU campus IPv4 path

@@ -4,6 +4,10 @@
 build:
 	mkdir -p $(dir $(BINARY))
 	$(GO) build -o $(BINARY) ./cmd/soundconnect
+	@if [ "$$(uname -s)" = "Darwin" ]; then \
+		swift build --package-path macos -c release --product soundconnect-atrust-oauth-helper; \
+		cp "$$(swift build --package-path macos -c release --show-bin-path)/soundconnect-atrust-oauth-helper" "$(dir $(BINARY))"; \
+	fi
 
 .PHONY: build-platforms
 build-platforms:
@@ -27,7 +31,7 @@ vet:
 
 .PHONY: bench
 bench:
-	$(GO) test ./internal/runtime ./internal/nativeapp -run '^$$' -bench . -benchmem -benchtime=$(BENCHTIME) -count=$(BENCHCOUNT)
+	$(GO) test ./internal/runtime ./internal/backend/easyconnect/session -run '^$$' -bench . -benchmem -benchtime=$(BENCHTIME) -count=$(BENCHCOUNT)
 
 .PHONY: leak-check
 leak-check:

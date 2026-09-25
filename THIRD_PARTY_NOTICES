@@ -1,28 +1,42 @@
 soundconnect third-party notices
 ================================
 
-soundconnect is proprietary software. This notice applies only to third-party
-components linked into the soundconnect command binary. The proprietary
-LICENSE does not replace, restrict, or grant rights under these licenses.
+soundconnect is AGPL-3.0 software. This notice applies to
+third-party components linked into the soundconnect command binary. The root
+LICENSE does not replace, restrict, or grant rights under their licenses.
+
+The aTrust backend links `github.com/mythologyli/zju-connect` at
+`v1.2.3-0.20260803141543-cb3a819c9bcc` (commit
+`cb3a819c9bcc34571862982ee4bcc19c66ed903b`), licensed under AGPL-3.0. Its
+protocol implementation is the reason soundconnect, including the combined
+EasyConnect/aTrust binary, is distributed under AGPL-3.0.
 
 The versions below are pinned by go.mod/go.sum and were verified against
 'go list -deps ./cmd/soundconnect' and 'go version -m bin/soundconnect' on
-2026-08-03. “Indirect” means the module is linked transitively; it is still
+2026-09-25. “Indirect” means the module is linked transitively; it is still
 covered by the binary distribution notice.
 
 Component                                      Version                                      Link-time use  License
 ---------------------------------------------- -------------------------------------------- --------------  -------------------------------
-github.com/andybalholm/brotli                  v1.0.6                                       indirect       MIT-style
-github.com/google/btree                         v1.1.2                                       indirect       Apache-2.0
-github.com/klauspost/compress                   v1.17.4                                      indirect       BSD-style plus component notices
+github.com/andybalholm/brotli                  v1.2.1                                       indirect       MIT-style
+github.com/google/btree                         v1.1.3                                       indirect       Apache-2.0
+github.com/klauspost/compress                   v1.18.6                                      indirect       BSD-style plus component notices
+github.com/miekg/dns                            v1.1.72                                      indirect       BSD-3-Clause
+github.com/mythologyli/sing-tun                 v0.0.0-20260201144630-c04d9db95dc7         indirect       GPL-3.0-or-later
+github.com/mythologyli/zju-connect              v1.2.3-0.20260803141543-cb3a819c9bcc        direct         AGPL-3.0
+github.com/patrickmn/go-cache                   v2.1.0+incompatible                          indirect       MIT
 github.com/pelletier/go-toml/v2                v2.4.3                                       direct         MIT
 github.com/refraction-networking/utls          v1.8.2                                       direct         BSD-style; dicttls is BSD-3-Clause
 github.com/sagernet/gvisor                     v0.0.0-20250811-sing-box-mod.1              direct         Apache-2.0 plus embedded MIT/BSD notices
+github.com/sagernet/sing                       v0.7.18                                      indirect       GPL-3.0-or-later
+go4.org/intern                                  v0.0.0-20230525184215-6c62f75575cb         indirect       BSD-3-Clause
+go4.org/unsafe/assume-no-moving-gc             v0.0.0-20231121144256-b99613f794b6         indirect       BSD-3-Clause
 golang.org/x/crypto                             v0.54.0                                      indirect       Go BSD-style
 golang.org/x/net                                v0.57.0                                      direct         Go BSD-style
 golang.org/x/sys                                v0.47.0                                      indirect       Go BSD-style
 golang.org/x/term                               v0.45.0                                      direct         Go BSD-style
-golang.org/x/time                               v0.7.0                                       indirect       Go BSD-style
+golang.org/x/time                               v0.15.0                                      indirect       Go BSD-style
+inet.af/netaddr                                 v0.0.0-20230525184311-b8eac61e914a         indirect       BSD-3-Clause
 
 Required release obligations
 ----------------------------
@@ -44,6 +58,10 @@ Required release obligations
    below in its documentation directory or equivalent “about licenses” view.
    This compact index records provenance and obligations; it is not a waiver
    of the text-reproduction requirements.
+6. `sing-tun` and `sing` are GPL-3.0-or-later components introduced through
+   the aTrust dependency graph. Their source and license terms must accompany
+   a distributed corresponding-source release. AGPLv3 section 13 permits this
+   combined work while retaining the GPL terms for those covered parts.
 
 Pinned license-file inventory
 -----------------------------
@@ -53,10 +71,18 @@ The audit found these files in the exact pinned module roots:
 * github.com/andybalholm/brotli: LICENSE
 * github.com/google/btree: LICENSE
 * github.com/klauspost/compress: LICENSE
+* github.com/miekg/dns: LICENSE
+* github.com/mythologyli/sing-tun: LICENSE
+* github.com/mythologyli/zju-connect: LICENSE
+* github.com/patrickmn/go-cache: LICENSE
 * github.com/pelletier/go-toml/v2: LICENSE
 * github.com/refraction-networking/utls: LICENSE and dicttls/LICENSE
 * github.com/sagernet/gvisor: LICENSE
+* github.com/sagernet/sing: LICENSE
+* go4.org/intern: LICENSE
+* go4.org/unsafe/assume-no-moving-gc: LICENSE
 * golang.org/x/crypto, x/net, x/sys, x/term, x/time: LICENSE
+* inet.af/netaddr: LICENSE
 
 The release packager should copy these files verbatim, preserving their
 copyright and disclaimer text. Do not place research/upstream or research/work
@@ -68,7 +94,7 @@ Separately installed campus speed-test component
 The optional campus speed-test component is a separately downloaded and
 executed derivative of LibreSpeed CLI v1.0.13 (commit
 2f2408764d88e9601aa64a03b340f8e3151003e4), licensed under LGPL-3.0. It is
-not linked into the proprietary soundconnect binary. The component applies the
+not linked into the soundconnect binary. The component applies the
 checked-in progress-JSON and explicit SOCKS5 patches. Its pinned source archive
 SHA-256 is 5ad938b61e3edc0ca95e2ccff0c06e97a69383f3cbb0243bd47b21b9865f9f55.
 Every component release must include the unchanged upstream license, both
@@ -77,18 +103,26 @@ patches, source provenance, and a corresponding-source download.
 Source and license references
 -----------------------------
 
-* brotli v1.0.6: https://github.com/andybalholm/brotli/blob/v1.0.6/LICENSE
-* btree v1.1.2: https://github.com/google/btree/blob/v1.1.2/LICENSE
-* compress v1.17.4: https://github.com/klauspost/compress/blob/v1.17.4/LICENSE
+* brotli v1.2.1: https://github.com/andybalholm/brotli/blob/v1.2.1/LICENSE
+* btree v1.1.3: https://github.com/google/btree/blob/v1.1.3/LICENSE
+* compress v1.18.6: https://github.com/klauspost/compress/blob/v1.18.6/LICENSE
+* miekg/dns v1.1.72: https://github.com/miekg/dns/blob/v1.1.72/LICENSE
+* sing-tun pinned license: https://github.com/Mythologyli/sing-tun/blob/c04d9db95dc7/LICENSE
+* zju-connect pinned source and license: https://github.com/Mythologyli/zju-connect/tree/cb3a819c9bcc34571862982ee4bcc19c66ed903b
+* go-cache v2.1.0: https://github.com/patrickmn/go-cache/blob/v2.1.0/LICENSE
 * go-toml/v2 v2.4.3: https://github.com/pelletier/go-toml/blob/v2.4.3/LICENSE
 * utls v1.8.2: https://github.com/refraction-networking/utls/blob/v1.8.2/LICENSE
 * utls dicttls: https://github.com/refraction-networking/utls/tree/v1.8.2/dicttls
 * sagernet/gvisor pinned module metadata and license: https://pkg.go.dev/github.com/sagernet/gvisor@v0.0.0-20250811-sing-box-mod.1
+* sagernet/sing v0.7.18: https://github.com/SagerNet/sing/blob/v0.7.18/LICENSE
+* go4.org/intern pinned license: https://github.com/go4org/intern/blob/6c62f75575cb/LICENSE
+* go4.org/unsafe/assume-no-moving-gc pinned license: https://github.com/go4org/unsafe-assume-no-moving-gc/blob/b99613f794b6/LICENSE
 * x/crypto v0.54.0: https://github.com/golang/crypto/blob/v0.54.0/LICENSE
 * x/net v0.57.0: https://github.com/golang/net/blob/v0.57.0/LICENSE
 * x/sys v0.47.0: https://github.com/golang/sys/blob/v0.47.0/LICENSE
 * x/term v0.45.0: https://github.com/golang/term/blob/v0.45.0/LICENSE
-* x/time v0.7.0: https://github.com/golang/time/blob/v0.7.0/LICENSE
+* x/time v0.15.0: https://github.com/golang/time/blob/v0.15.0/LICENSE
+* inet.af/netaddr pinned license: https://github.com/inetaf/netaddr/blob/b8eac61e914a/LICENSE
 
 'golang.org/x/text v0.40.0' is present in the module graph but is not linked
 by 'cmd/soundconnect' at this revision, so it is not included above. Re-run

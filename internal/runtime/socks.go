@@ -18,8 +18,25 @@ import (
 )
 
 const maxSOCKSConnections = 256
+const socksRelayDrainTimeout = 2 * time.Second
 
 type ResolveIPv4Func func(context.Context, string) (netip.Addr, error)
+
+type socksDomainContextKey struct{}
+
+// SOCKSDomain returns the original SOCKS domain when the client used address
+// type 3. Protocol backends can retain domain-resource routing after the shared
+// SOCKS server resolves the numeric destination.
+func SOCKSDomain(ctx context.Context) (string, bool) {
+	domain, ok := ctx.Value(socksDomainContextKey{}).(string)
+	return domain, ok && domain != ""
+}
+
+// WithSOCKSDomain records the domain a SOCKS client requested so dialers can
+// read it back with SOCKSDomain.
+func WithSOCKSDomain(ctx context.Context, domain string) context.Context {
+	return context.WithValue(ctx, socksDomainContextKey{}, domain)
+}
 
 type SOCKSConfig struct {
 	Bind           string
@@ -134,6 +151,10 @@ func validateSOCKSConfig(config SOCKSConfig) error {
 
 func (server *SOCKSServer) Addr() net.Addr { return server.listener.Addr() }
 
+// Close releases the listener of a server whose Run was never started. Run
+// closes the listener itself when its context ends.
+func (server *SOCKSServer) Close() error { return server.listener.Close() }
+
 func (server *SOCKSServer) Run(ctx context.Context, report func(Component, bool)) error {
 	serveContext, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -186,10 +207,13 @@ func (server *SOCKSServer) handle(ctx context.Context, client net.Conn) {
 	if err := negotiateSOCKS(client); err != nil {
 		return
 	}
-	destination, reply, err := server.readDestination(connectionContext, client)
+	destination, domain, reply, err := server.readDestination(connectionContext, client)
 	if err != nil {
 		_ = writeSOCKSReply(client, reply)
 		return
+	}
+	if domain != "" {
+		connectionContext = WithSOCKSDomain(connectionContext, domain)
 	}
 	upstream, err := server.config.Dialer.DialContext(connectionContext, "tcp4", destination.String())
 	if err != nil {
@@ -230,48 +254,50 @@ func negotiateSOCKS(connection net.Conn) error {
 	return writeFull(connection, []byte{5, 0})
 }
 
-func (server *SOCKSServer) readDestination(ctx context.Context, connection net.Conn) (netip.AddrPort, byte, error) {
+func (server *SOCKSServer) readDestination(ctx context.Context, connection net.Conn) (netip.AddrPort, string, byte, error) {
 	header := make([]byte, 4)
 	if _, err := io.ReadFull(connection, header); err != nil {
-		return netip.AddrPort{}, 0x01, err
+		return netip.AddrPort{}, "", 0x01, err
 	}
 	if header[0] != 5 || header[1] != 1 || header[2] != 0 {
-		return netip.AddrPort{}, 0x07, errors.New("SOCKS request is not TCP CONNECT")
+		return netip.AddrPort{}, "", 0x07, errors.New("SOCKS request is not TCP CONNECT")
 	}
 	var address netip.Addr
+	domainName := ""
 	switch header[3] {
 	case 1:
 		value := [4]byte{}
 		if _, err := io.ReadFull(connection, value[:]); err != nil {
-			return netip.AddrPort{}, 0x01, err
+			return netip.AddrPort{}, "", 0x01, err
 		}
 		address = netip.AddrFrom4(value)
 	case 3:
 		length := []byte{0}
 		if _, err := io.ReadFull(connection, length); err != nil || length[0] == 0 {
-			return netip.AddrPort{}, 0x04, errors.New("invalid SOCKS domain")
+			return netip.AddrPort{}, "", 0x04, errors.New("invalid SOCKS domain")
 		}
 		domain := make([]byte, int(length[0]))
 		if _, err := io.ReadFull(connection, domain); err != nil {
-			return netip.AddrPort{}, 0x04, err
+			return netip.AddrPort{}, "", 0x04, err
 		}
 		if server.config.ResolveIPv4 == nil {
-			return netip.AddrPort{}, 0x04, errors.New("SOCKS domain resolver is unavailable")
+			return netip.AddrPort{}, "", 0x04, errors.New("SOCKS domain resolver is unavailable")
 		}
-		resolved, err := server.config.ResolveIPv4(ctx, string(domain))
+		domainName = string(domain)
+		resolved, err := server.config.ResolveIPv4(ctx, domainName)
 		clear(domain)
 		if err != nil || !resolved.Is4() {
-			return netip.AddrPort{}, 0x04, errors.New("SOCKS domain resolution failed")
+			return netip.AddrPort{}, "", 0x04, errors.New("SOCKS domain resolution failed")
 		}
 		address = resolved
 	default:
-		return netip.AddrPort{}, 0x08, errors.New("SOCKS address type is unsupported")
+		return netip.AddrPort{}, "", 0x08, errors.New("SOCKS address type is unsupported")
 	}
 	port := make([]byte, 2)
 	if _, err := io.ReadFull(connection, port); err != nil {
-		return netip.AddrPort{}, 0x01, err
+		return netip.AddrPort{}, "", 0x01, err
 	}
-	return netip.AddrPortFrom(address, binary.BigEndian.Uint16(port)), 0, nil
+	return netip.AddrPortFrom(address, binary.BigEndian.Uint16(port)), domainName, 0, nil
 }
 
 func writeSOCKSReply(connection net.Conn, status byte) error {
@@ -279,6 +305,10 @@ func writeSOCKSReply(connection net.Conn, status byte) error {
 }
 
 func relayPayload(client, upstream net.Conn, counters *traffic.Counters) {
+	relayPayloadWithDrain(client, upstream, counters, socksRelayDrainTimeout)
+}
+
+func relayPayloadWithDrain(client, upstream net.Conn, counters *traffic.Counters, drainTimeout time.Duration) {
 	completed := make(chan struct{}, 2)
 	copyDirection := func(destination, source net.Conn, account func(uint64)) {
 		_, _ = io.Copy(payloadAccountingWriter{Writer: destination, account: account}, source)
@@ -290,7 +320,12 @@ func relayPayload(client, upstream net.Conn, counters *traffic.Counters) {
 	go copyDirection(upstream, client, counters.AddUpload)
 	go copyDirection(client, upstream, counters.AddDownload)
 	<-completed
+	drainTimer := time.AfterFunc(drainTimeout, func() {
+		_ = client.Close()
+		_ = upstream.Close()
+	})
 	<-completed
+	drainTimer.Stop()
 }
 
 type payloadAccountingWriter struct {

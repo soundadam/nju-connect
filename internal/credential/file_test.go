@@ -181,3 +181,23 @@ func TestFileStoreRejectsEmptyAndOversizedCredentials(t *testing.T) {
 		t.Fatalf("credential path exists after rejected writes: %v", err)
 	}
 }
+
+func TestFileStoreClearRemovesCredentialAndIsIdempotent(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "nested", "credential")
+	store, err := NewFileStore(path, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Set([]byte("synthetic-session")); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Clear(); err != nil {
+		t.Fatalf("Clear() error = %v", err)
+	}
+	if _, err := os.Stat(path); !errors.Is(err, fs.ErrNotExist) {
+		t.Fatalf("credential path after Clear() = %v", err)
+	}
+	if err := store.Clear(); err != nil {
+		t.Fatalf("second Clear() error = %v", err)
+	}
+}

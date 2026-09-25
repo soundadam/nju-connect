@@ -25,24 +25,7 @@ struct DashboardHeader: View {
                     .controlSize(.mini)
             }
 
-            Toggle(
-                uiText("VPN service", "VPN 服务"),
-                isOn: Binding(
-                    get: { model.isServiceEnabled },
-                    set: { model.setServiceEnabled($0) }
-                )
-            )
-            .labelsHidden()
-            .toggleStyle(.switch)
-            .controlSize(.small)
-            .frame(minWidth: 44, minHeight: 32)
-            .contentShape(Rectangle())
-            .disabled(!model.canControlService || model.isPerformingAction)
-            .help(
-                model.isServiceEnabled
-                    ? uiText("Stop soundconnect", "停止 soundconnect 服务")
-                    : uiText("Start soundconnect", "启动 soundconnect 服务")
-            )
+            BackendSwitch(model: model)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)

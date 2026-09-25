@@ -15,6 +15,8 @@ import (
 	"sync"
 	"syscall"
 	"time"
+
+	"github.com/soundadam/soundconnect/internal/runtime"
 )
 
 const maximumRuntimeStatus = 16 << 10
@@ -271,12 +273,16 @@ func queryRuntimeStatus(path string) (runtimeStatusSnapshot, error) {
 
 func validRuntimeStatusSnapshot(snapshot runtimeStatusSnapshot) bool {
 	if snapshot.SchemaVersion != runtimeStatusSchema || !snapshot.Running || !validRuntimeStatusState(snapshot.State) ||
-		snapshot.Profile != "community-utls" || !validAccessEvidence(snapshot.AccessEvidence) ||
+		!validRuntimeStatusProfile(snapshot.Profile) || !validAccessEvidence(snapshot.AccessEvidence) ||
 		!validStatusSOCKSListen(snapshot.SOCKSListen) || !validCommandFailure(snapshot.LastCommandFailure) ||
 		!validDataFailure(snapshot.LastDataFailure) {
 		return false
 	}
 	return true
+}
+
+func validRuntimeStatusProfile(profile runtime.ProtocolProfileID) bool {
+	return profile == runtime.ProfileCommunityUTLSCompat || profile == runtime.ProfileATrustTCP
 }
 
 func validAccessEvidence(value string) bool {

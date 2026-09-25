@@ -4,6 +4,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/soundadam/soundconnect/internal/backend"
 	"github.com/soundadam/soundconnect/internal/config"
 	"github.com/soundadam/soundconnect/internal/credential"
 )
@@ -29,5 +30,30 @@ func TestBuildReportsReadyLocalState(t *testing.T) {
 	report := Build(paths, store)
 	if !report.Ready || report.Configuration != "ready" || report.CredentialStore != "ready" {
 		t.Fatalf("report = %+v", report)
+	}
+}
+
+func TestBuildDoesNotRequirePasswordForATrustOAuth(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "soundconnect")
+	paths := config.Paths{Root: root, Config: filepath.Join(root, "config.toml")}
+	configured := config.Config{
+		Backend: backend.ATrust, Server: config.DefaultATrustServer,
+		SOCKSListen: config.DefaultSOCKSListen, AuthType: "auth/httpsOauth2",
+	}
+	if err := config.Replace(paths.Config, configured); err != nil {
+		t.Fatal(err)
+	}
+	report := Build(paths, nil)
+	if !report.Ready || report.CredentialStore != "not_required" {
+		t.Fatalf("report = %+v", report)
+	}
+
+	configured.AuthType = "auth/psw"
+	configured.Username = "student"
+	if err := config.Replace(paths.Config, configured); err != nil {
+		t.Fatal(err)
+	}
+	if report := Build(paths, nil); report.Ready || report.CredentialStore != "invalid" {
+		t.Fatalf("aTrust password report = %+v", report)
 	}
 }

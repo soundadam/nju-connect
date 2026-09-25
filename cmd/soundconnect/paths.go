@@ -8,6 +8,7 @@ import (
 var (
 	resolveDefaultPaths      = config.DefaultPaths
 	newSystemCredentialStore = credential.NewSystemStore
+	newATrustClientDataStore = credential.NewATrustClientDataStore
 )
 
 func commandPaths() (config.Paths, error) {

@@ -13,6 +13,10 @@ final class SpeedTestModelTests: XCTestCase {
             traffic: SoundConnectTrafficSnapshot(uploadBytes: 12, downloadBytes: 34, activeConnections: 2)
         )
         var savedAccount: String?
+        var savedBackend: SoundConnectBackend?
+        var connectedBackends: [SoundConnectBackend] = []
+        var connectError: SoundConnectBackendError?
+        var catalog: SoundConnectBackendCatalog? = testBackendCatalog
         var disconnectCalls = 0
 		var statusMonitorCompletion: SoundConnectStatusCompletion?
 
@@ -29,13 +33,19 @@ final class SpeedTestModelTests: XCTestCase {
 			statusMonitorCompletion = nil
 		}
 
+        func loadBackendCatalog(completion: @escaping SoundConnectCatalogCompletion) {
+            completion(catalog)
+        }
+
         func saveConfiguration(
+            backend: SoundConnectBackend,
             server: String,
             account: String,
             password: String,
             completion: @escaping SoundConnectActionCompletion
         ) {
             savedAccount = account
+            savedBackend = backend
             snapshot = SoundConnectRuntimeSnapshot(
                 configured: true, running: false, state: "stopped", socksListen: "", traffic: nil
             )
@@ -43,12 +53,19 @@ final class SpeedTestModelTests: XCTestCase {
         }
 
         func connect(
+            backend: SoundConnectBackend,
             verificationRequested: @escaping @MainActor @Sendable () -> Void,
             completion: @escaping SoundConnectActionCompletion
         ) {
+            connectedBackends.append(backend)
+            if let connectError {
+                completion(.failure(connectError))
+                return
+            }
             snapshot = SoundConnectRuntimeSnapshot(
                 configured: true, running: true, state: "connected",
-                socksListen: "127.0.0.1:1081", traffic: nil
+                socksListen: "127.0.0.1:1081", traffic: nil,
+                profile: backend == .aTrust ? "atrust-tcp" : "community-utls"
             )
             completion(.success(()))
         }
@@ -67,13 +84,134 @@ final class SpeedTestModelTests: XCTestCase {
     func testHelperEnvironmentPreservesRequiredHomeWithRestrictedPath() {
         let environment = soundConnectHelperEnvironment(
             homeDirectory: URL(fileURLWithPath: "/Users/tester"),
-            temporaryDirectory: "/private/tmp/tester/"
+            temporaryDirectory: "/private/tmp/tester/",
+            configDirectory: nil
         )
 
         XCTAssertEqual(environment["HOME"], "/Users/tester")
         XCTAssertEqual(environment["PATH"], "/usr/bin:/bin:/usr/sbin:/sbin")
         XCTAssertEqual(environment["TMPDIR"], "/private/tmp/tester/")
         XCTAssertEqual(environment.count, 3)
+    }
+
+    func testHelperEnvironmentForwardsOnlyAnIsolatedConfigDirectory() {
+        let environment = soundConnectHelperEnvironment(
+            homeDirectory: URL(fileURLWithPath: "/Users/tester"),
+            temporaryDirectory: "/private/tmp/tester/",
+            configDirectory: "/private/tmp/soundconnect-test"
+        )
+
+        XCTAssertEqual(environment["SOUNDCONNECT_CONFIG_DIR"], "/private/tmp/soundconnect-test")
+        XCTAssertEqual(environment.count, 4)
+    }
+
+    func testBackendCatalogDecodesGoOwnedGatewayAndAuthenticationMetadata() throws {
+        let payload = #"{"schema_version":1,"socks_listen":"127.0.0.1:1081","backends":[{"id":"easyconnect","display_name":"EasyConnect","short_name":"easyconnect","default_gateway":"vpn.nju.edu.cn","authentication":["shared_password","verification_code"]},{"id":"atrust","display_name":"aTrust","short_name":"aTrust","default_gateway":"vpn.nju.edu.cn","authentication":["shared_password","verification_code","oauth"]}]}"#.data(using: .utf8)!
+        let catalog = try JSONDecoder().decode(SoundConnectBackendCatalog.self, from: payload)
+
+        XCTAssertEqual(catalog.socksListen, "127.0.0.1:1081")
+        XCTAssertEqual(catalog.descriptor(for: .aTrust)?.defaultGateway, "vpn.nju.edu.cn")
+        XCTAssertEqual(catalog.descriptor(for: .aTrust)?.authentication, [.sharedPassword, .verificationCode, .oauth])
+    }
+
+    func testRuntimeSnapshotMapsStatusProfileToBackend() {
+        func snapshot(_ profile: String?) -> SoundConnectRuntimeSnapshot {
+            SoundConnectRuntimeSnapshot(
+                configured: true, running: true, state: "connected",
+                socksListen: "127.0.0.1:1081", traffic: nil, profile: profile
+            )
+        }
+        XCTAssertEqual(snapshot("atrust-tcp").backend, .aTrust)
+        XCTAssertEqual(snapshot("community-utls").backend, .easyConnect)
+        XCTAssertNil(snapshot(nil).backend)
+    }
+
+    func testKeychainCancellationIsRecognized() {
+        XCTAssertTrue(SoundConnectBackendError(message: "read Keychain credential: OSStatus -128").isKeychainAccessCancellation)
+        XCTAssertTrue(SoundConnectBackendError(message: "Keychain access was cancelled; retry").isKeychainAccessCancellation)
+        XCTAssertFalse(SoundConnectBackendError(message: "authentication rejected").isKeychainAccessCancellation)
+    }
+
+    @MainActor
+    func testKeychainCancellationIsPresentedAsItsOwnState() {
+        let controller = FakeSoundConnectController()
+        controller.snapshot = SoundConnectRuntimeSnapshot(
+            configured: true, running: false, state: "stopped", socksListen: "", traffic: nil
+        )
+        controller.connectError = SoundConnectBackendError(message: "read credential: read Keychain credential: Keychain access was cancelled")
+        let model = DesignModel(controller: controller)
+
+        model.setServiceEnabled(true)
+
+        XCTAssertEqual(model.scenario, .credentialAccessCancelled)
+        XCTAssertEqual(model.statusTitle, "Keychain access cancelled")
+        XCTAssertEqual(model.retryTitle, "Retry")
+        XCTAssertFalse(model.isServiceEnabled)
+    }
+
+    @MainActor
+    func testSelectingBackendWhileStoppedStartsIt() {
+        let controller = FakeSoundConnectController()
+        controller.snapshot = SoundConnectRuntimeSnapshot(
+            configured: true, running: false, state: "stopped", socksListen: "", traffic: nil
+        )
+        let model = DesignModel(controller: controller)
+        XCTAssertEqual(model.backend, .easyConnect)
+
+        model.activateBackend(.aTrust)
+
+        XCTAssertEqual(controller.connectedBackends, [.aTrust])
+        XCTAssertEqual(model.backend, .aTrust)
+        XCTAssertEqual(model.gatewayServer, "vpn.nju.edu.cn")
+        XCTAssertEqual(model.scenario, .connected)
+        XCTAssertEqual(model.socksRouteSummary, "1081 → vpn.nju.edu.cn")
+    }
+
+    @MainActor
+    func testSwitchingBackendStopsTheRuntimeBeforeStartingTheOther() {
+        let controller = FakeSoundConnectController()
+        controller.snapshot = SoundConnectRuntimeSnapshot(
+            configured: true, running: true, state: "connected",
+            socksListen: "127.0.0.1:1081", traffic: nil, profile: "community-utls"
+        )
+        let model = DesignModel(controller: controller)
+        XCTAssertEqual(model.backend, .easyConnect)
+        XCTAssertTrue(model.isServiceEnabled)
+
+        model.activateBackend(.aTrust)
+
+        XCTAssertEqual(controller.disconnectCalls, 1)
+        XCTAssertEqual(controller.connectedBackends, [.aTrust])
+        XCTAssertEqual(model.backend, .aTrust)
+        XCTAssertEqual(model.scenario, .connected)
+    }
+
+    @MainActor
+    func testModelAdoptsAnAlreadyRunningBackendOnLaunch() {
+        let controller = FakeSoundConnectController()
+        controller.snapshot = SoundConnectRuntimeSnapshot(
+            configured: true, running: true, state: "connected",
+            socksListen: "127.0.0.1:1081", traffic: nil, profile: "atrust-tcp"
+        )
+        let model = DesignModel(controller: controller)
+
+        XCTAssertEqual(model.backend, .aTrust)
+        XCTAssertEqual(model.scenario, .connected)
+        XCTAssertEqual(model.statusTitle, "aTrust · Connected")
+    }
+
+    @MainActor
+    func testSetupSavesCredentialsForTheSelectedBackend() {
+        let controller = FakeSoundConnectController()
+        controller.snapshot = SoundConnectRuntimeSnapshot(
+            configured: false, running: false, state: "stopped", socksListen: "", traffic: nil
+        )
+        let model = DesignModel(backend: .aTrust, controller: controller)
+
+        model.completeSetup(schoolAccount: "student", vpnPassword: "test-only")
+
+        XCTAssertEqual(controller.savedBackend, .aTrust)
+        XCTAssertEqual(controller.connectedBackends, [.aTrust])
     }
 
     func testLiveRateFormattingStartsAtKilobytesAndSwitchesAtPointOneMegabyte() {
@@ -294,3 +432,24 @@ final class SpeedTestModelTests: XCTestCase {
         return defaults
     }
 }
+
+private let testBackendCatalog = SoundConnectBackendCatalog(
+    schemaVersion: 1,
+    socksListen: "127.0.0.1:1081",
+    backends: [
+        SoundConnectBackendDescriptor(
+            id: .easyConnect,
+            displayName: "EasyConnect",
+            shortName: "easyconnect",
+            defaultGateway: "vpn.nju.edu.cn",
+            authentication: [.sharedPassword, .verificationCode]
+        ),
+        SoundConnectBackendDescriptor(
+            id: .aTrust,
+            displayName: "aTrust",
+            shortName: "aTrust",
+            defaultGateway: "vpn.nju.edu.cn",
+            authentication: [.sharedPassword, .verificationCode, .oauth]
+        ),
+    ]
+)

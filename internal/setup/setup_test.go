@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/soundadam/soundconnect/internal/backend"
 	"github.com/soundadam/soundconnect/internal/config"
 	"github.com/soundadam/soundconnect/internal/credential"
 )
@@ -57,6 +58,54 @@ func TestSaveWritesPrivateConfigAndCredential(t *testing.T) {
 		if info.Mode().Perm() != 0600 {
 			t.Fatalf("%s mode = %04o", path, info.Mode().Perm())
 		}
+	}
+}
+
+func TestSaveATrustDoesNotReadOrStorePassword(t *testing.T) {
+	paths := setupTestPaths(t)
+	configured := config.Config{
+		Backend: backend.ATrust, Server: config.DefaultATrustServer,
+		SOCKSListen: config.DefaultSOCKSListen, AuthType: "auth/httpsOauth2", LoginDomain: "tenant-oauth",
+	}
+	if err := Save(paths, configured, nil, nil); err != nil {
+		t.Fatalf("Save() error = %v", err)
+	}
+	loaded, err := config.Load(paths.Config)
+	if err != nil || loaded != configured {
+		t.Fatalf("config = %#v, err = %v", loaded, err)
+	}
+	if _, err := os.Stat(paths.Credential); !os.IsNotExist(err) {
+		t.Fatalf("credential path exists or returned unexpected error: %v", err)
+	}
+}
+
+func TestSaveATrustPasswordStoresCredential(t *testing.T) {
+	paths := setupTestPaths(t)
+	store, err := credential.NewFileStore(paths.Credential, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	configured := config.Config{
+		Backend: backend.ATrust, Server: config.DefaultATrustServer,
+		Username: "student", SOCKSListen: config.DefaultSOCKSListen,
+		AuthType: "auth/psw", LoginDomain: "openldap13924",
+	}
+	err = Save(paths, configured, store, func(prompt string) ([]byte, error) {
+		if prompt != "VPN password: " {
+			t.Fatalf("prompt = %q", prompt)
+		}
+		return []byte("synthetic-password"), nil
+	})
+	if err != nil {
+		t.Fatalf("Save() error = %v", err)
+	}
+	secret, err := store.Get()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer credential.Clear(secret)
+	if string(secret) != "synthetic-password" {
+		t.Fatal("stored aTrust password differs")
 	}
 }
 
