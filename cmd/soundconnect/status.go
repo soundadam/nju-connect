@@ -2,13 +2,13 @@ package main
 
 import (
 	"encoding/json"
-	"errors"
 	"flag"
 	"fmt"
 	"io"
 	"sync"
 	"time"
 
+	"github.com/soundadam/soundconnect/internal/app"
 	"github.com/soundadam/soundconnect/internal/backend/easyconnect/session"
 	"github.com/soundadam/soundconnect/internal/runtime"
 	"github.com/soundadam/soundconnect/internal/runtimecontrol"
@@ -108,41 +108,30 @@ func runtimeStatusObserver(base nativeapp.ObserverFuncs, tracker *runtimeStatusT
 	}
 }
 
-func runStatus(arguments []string, stdout, stderr io.Writer) int {
+func runStatus(arguments []string, stdout, stderr io.Writer) error {
 	flags := flag.NewFlagSet("soundconnect status", flag.ContinueOnError)
 	asJSON := flags.Bool("json", false, "print JSON")
 	watch := flags.Bool("watch", false, "stream JSON status once per second")
-	if code, ok := parseFlags(flags, arguments, stdout, stderr); !ok {
-		return code
-	}
-	if flags.NArg() != 0 {
-		fmt.Fprintln(stderr, "status accepts no positional arguments")
-		return 2
+	if err := parseCommand(flags, arguments, stdout, stderr); err != nil {
+		return err
 	}
 	if *watch && !*asJSON {
-		fmt.Fprintln(stderr, "status --watch requires --json")
-		return 2
+		return app.Usagef("status --watch requires --json")
 	}
-	paths, err := commandPaths()
-	if err != nil {
-		fmt.Fprintf(stderr, "resolve local state: %v\n", err)
-		return 1
-	}
+	deps := commandDeps(nil, stderr)
 	for {
-		snapshot, err := runtimecontrol.Current(paths.Root)
+		snapshot, err := app.Status(deps)
 		if err != nil {
-			fmt.Fprintf(stderr, "read runtime status: %v\n", err)
-			return 1
+			return err
 		}
 		if err := writeRuntimeStatus(stdout, snapshot, *asJSON); err != nil {
-			fmt.Fprintf(stderr, "encode runtime status: %v\n", err)
-			return 1
+			return fmt.Errorf("encode runtime status: %w", err)
 		}
 		if !*watch {
 			if !snapshot.Running {
-				return 1
+				return exitCode(1)
 			}
-			return 0
+			return nil
 		}
 		time.Sleep(time.Second)
 	}
@@ -179,29 +168,19 @@ func formatTotalBytes(bytes uint64) string {
 	return fmt.Sprintf("%.1f KB", float64(bytes)/1_000)
 }
 
-func runDisconnect(arguments []string, stdout, stderr io.Writer) int {
+func runDisconnect(arguments []string, stdout, stderr io.Writer) error {
 	flags := flag.NewFlagSet("soundconnect disconnect", flag.ContinueOnError)
-	if code, ok := parseFlags(flags, arguments, stdout, stderr); !ok {
-		return code
+	if err := parseCommand(flags, arguments, stdout, stderr); err != nil {
+		return err
 	}
-	if flags.NArg() != 0 {
-		fmt.Fprintln(stderr, "disconnect accepts no positional arguments")
-		return 2
-	}
-	paths, err := commandPaths()
+	stopping, err := app.Disconnect(commandDeps(nil, stderr))
 	if err != nil {
-		fmt.Fprintf(stderr, "resolve local state: %v\n", err)
-		return 1
+		return err
 	}
-	err = runtimecontrol.RequestDisconnect(runtimecontrol.Path(paths.Root))
-	if errors.Is(err, runtimecontrol.ErrNotRunning) {
+	if stopping {
+		fmt.Fprintln(stdout, "stopping: true")
+	} else {
 		fmt.Fprintln(stdout, "running: false")
-		return 0
 	}
-	if err != nil {
-		fmt.Fprintf(stderr, "disconnect runtime: %v\n", err)
-		return 1
-	}
-	fmt.Fprintln(stdout, "stopping: true")
-	return 0
+	return nil
 }

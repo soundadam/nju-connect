@@ -48,7 +48,7 @@ func run(arguments []string, stdout, stderr io.Writer) int {
 	case "setup":
 		return runSetup(arguments[1:], stdout, stderr)
 	case "configure":
-		return runConfigure(arguments[1:], stdout, stderr)
+		return exitStatus(runConfigure(arguments[1:], stdout, stderr), stderr)
 	case "backends":
 		return exitStatus(runBackends(arguments[1:], stdout, stderr), stderr)
 	case "auth-info":
@@ -60,13 +60,13 @@ func run(arguments []string, stdout, stderr io.Writer) int {
 	case "connect":
 		return connectCommand(arguments[1:], stdout, stderr)
 	case "disconnect":
-		return runDisconnect(arguments[1:], stdout, stderr)
+		return exitStatus(runDisconnect(arguments[1:], stdout, stderr), stderr)
 	case "logout":
-		return runLogout(arguments[1:], stdout, stderr)
+		return exitStatus(runLogout(arguments[1:], stdout, stderr), stderr)
 	case "dry-run":
 		return dryRunCommand(arguments[1:], stdout, stderr)
 	case "status":
-		return runStatus(arguments[1:], stdout, stderr)
+		return exitStatus(runStatus(arguments[1:], stdout, stderr), stderr)
 	case "speedtest":
 		return runSpeedtest(arguments[1:], stdout, stderr)
 	case "_native-runtime":
