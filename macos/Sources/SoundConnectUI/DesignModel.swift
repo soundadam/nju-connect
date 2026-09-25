@@ -563,7 +563,7 @@ final class DesignModel: ObservableObject {
                         )
                         return
                     }
-                    self.scenario = self.isCredentialFailure(error.localizedDescription)
+                    self.scenario = Self.isCredentialFailure(error.localizedDescription)
                         ? .credentialRejected
                         : .transportFailed
                     self.actionMessage = error.localizedDescription
@@ -653,10 +653,11 @@ final class DesignModel: ObservableObject {
         downloadRateSamples.removeAll(keepingCapacity: true)
     }
 
-    private func isCredentialFailure(_ message: String) -> Bool {
-        message.localizedCaseInsensitiveContains("authentication rejected")
-            || message.localizedCaseInsensitiveContains("password authentication")
-            || message.localizedCaseInsensitiveContains("credential")
-            || message.localizedCaseInsensitiveContains("no saved VPN password")
+    /// Whether a failed connect was about the saved username or password.
+    /// The CLI marks a rejected sign-in with the stable `credential_rejected:`
+    /// token and a missing password with `no saved VPN password`.
+    nonisolated static func isCredentialFailure(_ message: String) -> Bool {
+        message.contains("credential_rejected:")
+            || message.contains("no saved VPN password")
     }
 }
