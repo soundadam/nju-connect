@@ -10,6 +10,10 @@ import (
 	"testing"
 	"time"
 
+	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/huh"
+	"github.com/charmbracelet/x/ansi"
+
 	"github.com/soundadam/soundconnect/internal/app"
 )
 
@@ -141,5 +145,51 @@ func TestForCommandUsesLinePromptsWithoutATerminal(t *testing.T) {
 	interaction, interactive := ForCommand(app.LineOptions{Input: file}, io.Discard)
 	if _, ok := interaction.(*app.LineInteraction); !ok || interactive {
 		t.Fatalf("ForCommand() = %T, %t", interaction, interactive)
+	}
+}
+
+func TestFitWindowKeepsFormsOffTheRightEdge(t *testing.T) {
+	for _, test := range []struct{ width, height, wantWidth, wantHeight int }{
+		{120, 30, 80, 30},
+		{80, 24, 78, 24},
+		{40, 10, 38, 10},
+		{2, 5, 1, 5},
+		{0, 0, 80, 24},
+	} {
+		got := fitWindow(nil, tea.WindowSizeMsg{Width: test.width, Height: test.height})
+		want := tea.WindowSizeMsg{Width: test.wantWidth, Height: test.wantHeight}
+		if got != want {
+			t.Errorf("fitWindow(%dx%d) = %+v, want %+v", test.width, test.height, got, want)
+		}
+	}
+	key := tea.KeyMsg{Type: tea.KeyEnter}
+	if got, ok := fitWindow(nil, key).(tea.KeyMsg); !ok || got.Type != key.Type {
+		t.Error("fitWindow changed a key press")
+	}
+}
+
+// Every line huh draws must end clear of the last column, or terminals that
+// wrap there, or draw the border as two cells, stack redraws instead of
+// replacing them.
+func TestFormLinesStayNarrowerThanTheTerminal(t *testing.T) {
+	for _, width := range []int{0, 30, 79, 80, 81, 200} {
+		tui := New(strings.NewReader(""), io.Discard)
+		form := tui.form(huh.NewInput().Title("Verification code").
+			Description("A verification code was sent to 138****0000, which is a long enough sentence to wrap."))
+		form.Init()
+		form.Update(fitWindow(form, tea.WindowSizeMsg{Width: width, Height: 24}))
+		view := form.View()
+		if strings.TrimSpace(view) == "" {
+			t.Fatalf("width %d: empty form", width)
+		}
+		limit := width - formRightMargin
+		if width == 0 {
+			limit = maximumFormWidth
+		}
+		for _, line := range strings.Split(view, "\n") {
+			if got := ansi.StringWidth(line); got > limit {
+				t.Errorf("width %d: line is %d cells: %q", width, got, line)
+			}
+		}
 	}
 }

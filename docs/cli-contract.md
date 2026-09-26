@@ -53,6 +53,14 @@ Cobra) are checked against the same surface.
   show interactive forms on stderr (`internal/tui`). `TERM=dumb` or
   `SOUNDCONNECT_ACCESSIBLE=1` keeps plain line prompts. Anything piped or
   redirected gets the line prompts described below, byte for byte.
+- Forms lay out at most 80 columns wide and at least two columns short of
+  the width the terminal reports (80 when it reports none), because the
+  renderer redraws by moving the cursor up one row per line: a line that
+  fills the last column takes two rows in terminals that wrap there, draw
+  the `┃` border as two cells, or report a column more than they show, and
+  every redraw would then stack below the last one. A terminal that cannot
+  move the cursor up at all still stacks frames; `TERM=dumb` or
+  `SOUNDCONNECT_ACCESSIBLE=1` is the workaround there.
 - The linked aTrust core (zju-connect) narrates its requests, prompts and
   node probes through Go's standard logger. None of that reaches stdout or
   stderr: `internal/backend/atrust` captures it, answers its prompts through
