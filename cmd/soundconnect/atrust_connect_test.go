@@ -106,7 +106,7 @@ func TestATrustConnectRejectsBackgroundRuntime(t *testing.T) {
 	}
 	var stdout, stderr bytes.Buffer
 	code := runConnectContext(context.Background(), deps, []string{"--background"}, &stdout, &stderr)
-	if code != 2 || !strings.Contains(stderr.String(), "aTrust background runtime is not implemented yet") {
+	if code != 2 || !strings.Contains(stderr.String(), `--background is EasyConnect only; run "soundconnect connect" in the foreground for aTrust`) {
 		t.Fatalf("exit=%d stderr=%q", code, stderr.String())
 	}
 }
