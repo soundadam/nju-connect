@@ -2,8 +2,6 @@ $ soundconnect connect -h
 exit: 0
 --- stdout
 Usage of soundconnect connect:
-  -background
-    	continue the native runtime as a detached process after authentication
-  -verification-code-stdin
-    	read the verification code from standard input without requiring a terminal
+      --background                continue the native runtime as a detached process after authentication
+      --verification-code-stdin   read the verification code from standard input without requiring a terminal
 --- stderr

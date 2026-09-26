@@ -57,7 +57,7 @@ func emptyStdin(t *testing.T) *os.File {
 
 // runConnectContext runs connect under ctx and returns its exit status.
 func runConnectContext(ctx context.Context, deps app.Deps, arguments []string, stdout, stderr io.Writer) int {
-	return exitStatus(connect(ctx, deps, arguments, stdout, stderr), stderr)
+	return runContext(ctx, deps, append([]string{"connect"}, arguments...), stdout, stderr)
 }
 
 // isolatedDeps is testDeps for a fresh, empty state directory.

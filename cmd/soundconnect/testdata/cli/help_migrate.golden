@@ -2,6 +2,5 @@ $ soundconnect migrate -h
 exit: 0
 --- stdout
 Usage of soundconnect migrate:
-  -from string
-    	directory containing the legacy .config state (default ".")
+      --from string   directory containing the legacy .config state (default ".")
 --- stderr

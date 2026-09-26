@@ -3,10 +3,11 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"flag"
 	"fmt"
 	"io"
 	"strings"
+
+	"github.com/spf13/cobra"
 
 	"github.com/soundadam/soundconnect/internal/app"
 )
@@ -24,36 +25,35 @@ commands:
 
 Every change refuses while a runtime is active.`
 
-func runAccount(deps app.Deps, arguments []string, stdout, stderr io.Writer) error {
-	if len(arguments) == 0 || strings.HasPrefix(arguments[0], "-") {
-		flags := flag.NewFlagSet("soundconnect account", flag.ContinueOnError)
-		flags.Usage = func() { fmt.Fprintln(flags.Output(), accountUsage) }
-		if err := parseCommand(flags, arguments, stdout, stderr); err != nil {
-			return err
-		}
-		return runAccountOverview(deps, stdout, stderr)
+func newAccountCommand(deps app.Deps) *cobra.Command {
+	account := &cobra.Command{
+		Use:  "account",
+		Long: accountUsage,
+		Args: func(_ *cobra.Command, arguments []string) error {
+			if len(arguments) > 0 {
+				return app.Usagef("unknown account command %q; run \"soundconnect account -h\"", arguments[0])
+			}
+			return nil
+		},
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			return runAccountOverview(cmd.Context(), deps, cmd.OutOrStdout(), cmd.ErrOrStderr())
+		},
 	}
-	command, rest := arguments[0], arguments[1:]
-	switch command {
-	case "show":
-		return runAccountShow(deps, rest, stdout, stderr)
-	case "set-password":
-		return runAccountSetPassword(deps, rest, stdout, stderr)
-	case "set-username":
-		return runAccountSetUsername(deps, rest, stdout, stderr)
-	case "forget":
-		return runAccountForget(deps, rest, stdout, stderr)
-	default:
-		return app.Usagef("unknown account command %q; run \"soundconnect account -h\"", command)
-	}
+	account.AddCommand(
+		newAccountShowCommand(deps),
+		newAccountSetPasswordCommand(deps),
+		newAccountSetUsernameCommand(deps),
+		newAccountForgetCommand(deps),
+	)
+	return account
 }
 
 // runAccountOverview opens the account menu on a terminal and shows the
 // saved account otherwise.
-func runAccountOverview(deps app.Deps, stdout, stderr io.Writer) error {
+func runAccountOverview(ctx context.Context, deps app.Deps, stdout, stderr io.Writer) error {
 	deps = withInteraction(deps, app.LineOptions{}, stderr)
 	if deps.Interactive {
-		return app.AccountMenu(context.Background(), deps, func(info app.AccountInfo) {
+		return app.AccountMenu(ctx, deps, func(info app.AccountInfo) {
 			fmt.Fprintln(stderr)
 			writeAccountInfo(stderr, info)
 		})
@@ -66,24 +66,27 @@ func runAccountOverview(deps app.Deps, stdout, stderr io.Writer) error {
 	return nil
 }
 
-func runAccountShow(deps app.Deps, arguments []string, stdout, stderr io.Writer) error {
-	flags := flag.NewFlagSet("soundconnect account show", flag.ContinueOnError)
-	asJSON := flags.Bool("json", false, "print JSON")
-	if err := parseCommand(flags, arguments, stdout, stderr); err != nil {
-		return err
+func newAccountShowCommand(deps app.Deps) *cobra.Command {
+	var asJSON bool
+	command := &cobra.Command{
+		Use: "show",
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			info, err := app.AccountShow(withInteraction(deps, app.LineOptions{}, cmd.ErrOrStderr()))
+			if err != nil {
+				return err
+			}
+			if asJSON {
+				if err := json.NewEncoder(cmd.OutOrStdout()).Encode(info); err != nil {
+					return fmt.Errorf("encode account: %w", err)
+				}
+				return nil
+			}
+			writeAccountInfo(cmd.OutOrStdout(), info)
+			return nil
+		},
 	}
-	info, err := app.AccountShow(withInteraction(deps, app.LineOptions{}, stderr))
-	if err != nil {
-		return err
-	}
-	if *asJSON {
-		if err := json.NewEncoder(stdout).Encode(info); err != nil {
-			return fmt.Errorf("encode account: %w", err)
-		}
-		return nil
-	}
-	writeAccountInfo(stdout, info)
-	return nil
+	command.Flags().BoolVar(&asJSON, "json", false, "print JSON")
+	return command
 }
 
 func writeAccountInfo(output io.Writer, info app.AccountInfo) {
@@ -98,57 +101,65 @@ func writeAccountInfo(output io.Writer, info app.AccountInfo) {
 		info.CredentialStore, info.Password, info.ATrustSession)
 }
 
-func runAccountSetPassword(deps app.Deps, arguments []string, stdout, stderr io.Writer) error {
-	flags := flag.NewFlagSet("soundconnect account set-password", flag.ContinueOnError)
-	passwordStdin := flags.Bool("password-stdin", false, "read the password from standard input without a terminal prompt")
-	if err := parseCommand(flags, arguments, stdout, stderr); err != nil {
-		return err
+func newAccountSetPasswordCommand(deps app.Deps) *cobra.Command {
+	var passwordStdin bool
+	command := &cobra.Command{
+		Use: "set-password",
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			deps := withInteraction(deps, app.LineOptions{PasswordFromStdin: passwordStdin}, cmd.ErrOrStderr())
+			if err := app.SetPassword(cmd.Context(), deps); err != nil {
+				return err
+			}
+			fmt.Fprintln(cmd.OutOrStdout(), "password: saved")
+			return nil
+		},
 	}
-	deps = withInteraction(deps, app.LineOptions{PasswordFromStdin: *passwordStdin}, stderr)
-	if err := app.SetPassword(context.Background(), deps); err != nil {
-		return err
-	}
-	fmt.Fprintln(stdout, "password: saved")
-	return nil
+	command.Flags().BoolVar(&passwordStdin, "password-stdin", false, "read the password from standard input without a terminal prompt")
+	return command
 }
 
-func runAccountSetUsername(deps app.Deps, arguments []string, stdout, stderr io.Writer) error {
-	flags := flag.NewFlagSet("soundconnect account set-username", flag.ContinueOnError)
-	flags.Usage = func() {
-		fmt.Fprintln(flags.Output(), "usage: soundconnect account set-username <name>")
+func newAccountSetUsernameCommand(deps app.Deps) *cobra.Command {
+	return &cobra.Command{
+		Use:  "set-username <name>",
+		Long: "usage: soundconnect account set-username <name>",
+		Args: func(_ *cobra.Command, arguments []string) error {
+			if len(arguments) != 1 {
+				return app.Usagef("set-username takes exactly one account name")
+			}
+			return nil
+		},
+		RunE: func(cmd *cobra.Command, arguments []string) error {
+			cleared, err := app.SetUsername(withInteraction(deps, app.LineOptions{}, cmd.ErrOrStderr()), arguments[0])
+			if err != nil {
+				return err
+			}
+			fmt.Fprintf(cmd.OutOrStdout(), "username: %s\natrust_session_cleared: %t\n", strings.TrimSpace(arguments[0]), cleared)
+			return nil
+		},
 	}
-	if code, ok := parseFlags(flags, arguments, stdout, stderr); !ok {
-		return exitCode(code)
-	}
-	if flags.NArg() != 1 {
-		return app.Usagef("set-username takes exactly one account name")
-	}
-	cleared, err := app.SetUsername(withInteraction(deps, app.LineOptions{}, stderr), flags.Arg(0))
-	if err != nil {
-		return err
-	}
-	fmt.Fprintf(stdout, "username: %s\natrust_session_cleared: %t\n", strings.TrimSpace(flags.Arg(0)), cleared)
-	return nil
 }
 
-func runAccountForget(deps app.Deps, arguments []string, stdout, stderr io.Writer) error {
-	flags := flag.NewFlagSet("soundconnect account forget", flag.ContinueOnError)
+func newAccountForgetCommand(deps app.Deps) *cobra.Command {
 	var request app.ForgetRequest
-	flags.BoolVar(&request.Password, "password", false, "forget the saved VPN password")
-	flags.BoolVar(&request.Session, "session", false, "forget the saved aTrust session and OAuth browser profile")
-	if err := parseCommand(flags, arguments, stdout, stderr); err != nil {
-		return err
+	command := &cobra.Command{
+		Use: "forget",
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			result, err := app.Forget(cmd.Context(), withInteraction(deps, app.LineOptions{}, cmd.ErrOrStderr()), request)
+			if err != nil {
+				return err
+			}
+			stdout := cmd.OutOrStdout()
+			if request.Password {
+				fmt.Fprintf(stdout, "password_forgotten: %t\n", result.PasswordForgotten)
+			}
+			if request.Session {
+				fmt.Fprintf(stdout, "atrust_session_forgotten: %t\noauth_profile_cleared: %t\n",
+					result.SessionForgotten, result.OAuthProfileCleared)
+			}
+			return nil
+		},
 	}
-	result, err := app.Forget(context.Background(), withInteraction(deps, app.LineOptions{}, stderr), request)
-	if err != nil {
-		return err
-	}
-	if request.Password {
-		fmt.Fprintf(stdout, "password_forgotten: %t\n", result.PasswordForgotten)
-	}
-	if request.Session {
-		fmt.Fprintf(stdout, "atrust_session_forgotten: %t\noauth_profile_cleared: %t\n",
-			result.SessionForgotten, result.OAuthProfileCleared)
-	}
-	return nil
+	command.Flags().BoolVar(&request.Password, "password", false, "forget the saved VPN password")
+	command.Flags().BoolVar(&request.Session, "session", false, "forget the saved aTrust session and OAuth browser profile")
+	return command
 }

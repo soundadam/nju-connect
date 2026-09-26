@@ -2,6 +2,5 @@ $ soundconnect speedtest last -h
 exit: 0
 --- stdout
 Usage of soundconnect speedtest last:
-  -json
-    	print JSON
+      --json   print JSON
 --- stderr

@@ -2,41 +2,45 @@ package main
 
 import (
 	"encoding/json"
-	"flag"
 	"fmt"
 	"io"
 	"time"
+
+	"github.com/spf13/cobra"
 
 	"github.com/soundadam/soundconnect/internal/app"
 	"github.com/soundadam/soundconnect/internal/runtimecontrol"
 )
 
-func runStatus(deps app.Deps, arguments []string, stdout, stderr io.Writer) error {
-	flags := flag.NewFlagSet("soundconnect status", flag.ContinueOnError)
-	asJSON := flags.Bool("json", false, "print JSON")
-	watch := flags.Bool("watch", false, "stream JSON status once per second")
-	if err := parseCommand(flags, arguments, stdout, stderr); err != nil {
-		return err
-	}
-	if *watch && !*asJSON {
-		return app.Usagef("status --watch requires --json")
-	}
-	for {
-		snapshot, err := app.Status(deps)
-		if err != nil {
-			return err
-		}
-		if err := writeRuntimeStatus(stdout, snapshot, *asJSON); err != nil {
-			return fmt.Errorf("encode runtime status: %w", err)
-		}
-		if !*watch {
-			if !snapshot.Running {
-				return exitCode(1)
+func newStatusCommand(deps app.Deps) *cobra.Command {
+	var asJSON, watch bool
+	command := &cobra.Command{
+		Use: "status",
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			if watch && !asJSON {
+				return app.Usagef("status --watch requires --json")
 			}
-			return nil
-		}
-		time.Sleep(time.Second)
+			for {
+				snapshot, err := app.Status(deps)
+				if err != nil {
+					return err
+				}
+				if err := writeRuntimeStatus(cmd.OutOrStdout(), snapshot, asJSON); err != nil {
+					return fmt.Errorf("encode runtime status: %w", err)
+				}
+				if !watch {
+					if !snapshot.Running {
+						return exitCode(1)
+					}
+					return nil
+				}
+				time.Sleep(time.Second)
+			}
+		},
 	}
+	command.Flags().BoolVar(&asJSON, "json", false, "print JSON")
+	command.Flags().BoolVar(&watch, "watch", false, "stream JSON status once per second")
+	return command
 }
 
 func writeRuntimeStatus(stdout io.Writer, snapshot runtimecontrol.Snapshot, asJSON bool) error {
@@ -70,19 +74,20 @@ func formatTotalBytes(bytes uint64) string {
 	return fmt.Sprintf("%.1f KB", float64(bytes)/1_000)
 }
 
-func runDisconnect(deps app.Deps, arguments []string, stdout, stderr io.Writer) error {
-	flags := flag.NewFlagSet("soundconnect disconnect", flag.ContinueOnError)
-	if err := parseCommand(flags, arguments, stdout, stderr); err != nil {
-		return err
+func newDisconnectCommand(deps app.Deps) *cobra.Command {
+	return &cobra.Command{
+		Use: "disconnect",
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			stopping, err := app.Disconnect(withInteraction(deps, app.LineOptions{}, cmd.ErrOrStderr()))
+			if err != nil {
+				return err
+			}
+			if stopping {
+				fmt.Fprintln(cmd.OutOrStdout(), "stopping: true")
+			} else {
+				fmt.Fprintln(cmd.OutOrStdout(), "running: false")
+			}
+			return nil
+		},
 	}
-	stopping, err := app.Disconnect(withInteraction(deps, app.LineOptions{}, stderr))
-	if err != nil {
-		return err
-	}
-	if stopping {
-		fmt.Fprintln(stdout, "stopping: true")
-	} else {
-		fmt.Fprintln(stdout, "running: false")
-	}
-	return nil
 }

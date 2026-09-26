@@ -27,6 +27,8 @@ func TestContractUsageAndDispatch(t *testing.T) {
 		{"usage_long_help", []string{"--help"}, 0},
 		{"usage_short_help", []string{"-h"}, 0},
 		{"usage_unknown_command", []string{"bogus"}, 2},
+		{"usage_help_command", []string{"help", "status"}, 0},
+		{"usage_help_unknown_command", []string{"help", "bogus"}, 2},
 		{"version", []string{"version"}, 0},
 		{"native_runtime_rejects_arguments", []string{"_native-runtime", "extra"}, 2},
 	} {
@@ -93,18 +95,29 @@ func TestContractUsageErrors(t *testing.T) {
 		{"speedtest_component_status_events", []string{"speedtest", "component", "status", "--json-events"}},
 		{"speedtest_component_install_json", []string{"speedtest", "component", "install", "--json"}},
 		{"connect_positional_argument", []string{"connect", "extra"}},
+		{"unknown_flag_before_command", []string{"--bogus"}},
+		{"account_show_positional_argument", []string{"account", "show", "extra"}},
+		{"speedtest_component_status_positional_argument", []string{"speedtest", "component", "status", "extra"}},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
-			harness.golden("usage_error_"+testCase.name, harness.run(testCase.args...).expect(t, 2))
+			result := harness.run(testCase.args...).expect(t, 2)
+			if result.stdout != "" {
+				t.Fatalf("usage error wrote to stdout: %q", result.stdout)
+			}
+			harness.golden("usage_error_"+testCase.name, result)
 		})
 	}
 }
 
-// Go's flag package accepts single-dash long flags today. Phase 2 (Cobra)
-// deliberately drops them; this golden records the behaviour being removed.
-func TestContractSingleDashLongFlagIsAcceptedBeforeCobra(t *testing.T) {
+// Long flags take two dashes. The single-dash spelling Go's flag package
+// accepted is a usage error that names the two-dash form.
+func TestContractSingleDashLongFlagIsRejected(t *testing.T) {
 	harness := newCLIHarness(t)
-	harness.golden("single_dash_long_flag", harness.run("backends", "-json").expect(t, 0))
+	result := harness.run("backends", "-json").expect(t, 2)
+	if result.stdout != "" {
+		t.Fatalf("stdout = %q", result.stdout)
+	}
+	harness.golden("single_dash_long_flag", result)
 }
 
 func TestContractBackends(t *testing.T) {

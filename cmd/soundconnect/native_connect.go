@@ -1,8 +1,6 @@
 package main
 
 import (
-	"context"
-	"flag"
 	"fmt"
 	"io"
 	"os"
@@ -10,54 +8,81 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/spf13/cobra"
+
 	"github.com/soundadam/soundconnect/internal/app"
 	"github.com/soundadam/soundconnect/internal/backend"
 	"github.com/soundadam/soundconnect/internal/backend/easyconnect/session"
 	"github.com/soundadam/soundconnect/internal/runtime"
 )
 
-func runConnect(deps app.Deps, arguments []string, stdout, stderr io.Writer) int {
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
-	return exitStatus(connect(ctx, deps, arguments, stdout, stderr), stderr)
+type connectOptions struct {
+	background            bool
+	verificationCodeStdin bool
 }
 
-func connect(ctx context.Context, deps app.Deps, arguments []string, stdout, stderr io.Writer) error {
-	flags := flag.NewFlagSet("soundconnect connect", flag.ContinueOnError)
-	background := flags.Bool("background", false, "continue the native runtime as a detached process after authentication")
-	verificationCodeStdin := flags.Bool("verification-code-stdin", false, "read the verification code from standard input without requiring a terminal")
-	if err := parseCommand(flags, arguments, stdout, stderr); err != nil {
-		return err
+func newConnectCommand(deps app.Deps) *cobra.Command {
+	var options connectOptions
+	command := &cobra.Command{
+		Use: "connect",
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			return runConnect(cmd, deps, options)
+		},
 	}
-	deps = withInteraction(deps, app.LineOptions{CodeFromStdin: *verificationCodeStdin}, stderr)
+	command.Flags().BoolVar(&options.background, "background", false, "continue the native runtime as a detached process after authentication")
+	command.Flags().BoolVar(&options.verificationCodeStdin, "verification-code-stdin", false, "read the verification code from standard input without requiring a terminal")
+	return command
+}
+
+func runConnect(cmd *cobra.Command, deps app.Deps, options connectOptions) error {
+	ctx, stop := signal.NotifyContext(cmd.Context(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	stdout := cmd.OutOrStdout()
+	deps = withInteraction(deps, app.LineOptions{CodeFromStdin: options.verificationCodeStdin}, cmd.ErrOrStderr())
 	result, err := app.Connect(ctx, deps, app.ConnectRequest{
-		Background: *background,
-		OfferSetup: !*verificationCodeStdin,
+		Background: options.background,
+		OfferSetup: !options.verificationCodeStdin,
 	}, connectEvents(stdout))
 	if err != nil {
 		return err
 	}
-	if *background {
+	if options.background {
 		fmt.Fprintf(stdout, "background: pid=%d log=%s\n", result.BackgroundPID, result.LogPath)
 	}
 	return nil
 }
 
-// runBackgroundRuntime is the hidden command a background connect starts.
-func runBackgroundRuntime(deps app.Deps, arguments []string, stdout, stderr io.Writer) int {
-	if len(arguments) != 0 {
-		return exitStatus(app.Usagef("background runtime accepts no arguments"), stderr)
+// newBackgroundRuntimeCommand is the hidden command a background connect
+// starts. It takes no flags or arguments; the handoff arrives on fd 3.
+func newBackgroundRuntimeCommand(deps app.Deps) *cobra.Command {
+	return &cobra.Command{
+		Use:                app.BackgroundRuntimeCommand,
+		Hidden:             true,
+		DisableFlagParsing: true,
+		Args: func(_ *cobra.Command, arguments []string) error {
+			if len(arguments) != 0 {
+				return app.Usagef("background runtime accepts no arguments")
+			}
+			return nil
+		},
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			handoff, ready, err := app.BackgroundFiles()
+			if err != nil {
+				return err
+			}
+			ctx, stop := signal.NotifyContext(cmd.Context(), os.Interrupt, syscall.SIGTERM)
+			defer stop()
+			deps.Diagnostics = cmd.ErrOrStderr()
+			err = app.RunBackground(ctx, deps, handoff, ready, connectEvents(cmd.OutOrStdout()))
+			// The parent stops waiting when ready closes, so log first.
+			code := exitStatus(err, cmd.ErrOrStderr())
+			_ = ready.Close()
+			if code != 0 {
+				return exitCode(code)
+			}
+			return nil
+		},
 	}
-	handoff, ready, err := app.BackgroundFiles()
-	if err != nil {
-		return exitStatus(err, stderr)
-	}
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
-	deps.Diagnostics = stderr
-	code := exitStatus(app.RunBackground(ctx, deps, handoff, ready, connectEvents(stdout)), stderr)
-	_ = ready.Close()
-	return code
 }
 
 // connectEvents renders connection progress as the line protocol the macOS

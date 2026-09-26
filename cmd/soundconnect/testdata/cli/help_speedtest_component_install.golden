@@ -2,10 +2,6 @@ $ soundconnect speedtest component install -h
 exit: 0
 --- stdout
 Usage of soundconnect speedtest component install:
-  -json
-    	print JSON
-  -json-events
-    	emit versioned NDJSON events
-  -yes
-    	install without a terminal prompt
+      --json-events   emit versioned NDJSON events
+      --yes           install without a terminal prompt
 --- stderr

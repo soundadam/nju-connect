@@ -1,4 +1,4 @@
-$ soundconnect status --help
+$ soundconnect help status
 exit: 0
 --- stdout
 Usage of soundconnect status:
