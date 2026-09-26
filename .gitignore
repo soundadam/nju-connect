@@ -1,10 +1,6 @@
 # Local development state and secrets
 /.config/
 
-# Local research inputs and generated observations
-/research/upstream/
-/research/work/
-
 # Build output
 /bin/
 /build/

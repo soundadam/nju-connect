@@ -145,8 +145,7 @@ The audit found these files in the exact pinned module roots:
 * github.com/spf13/pflag, github.com/inconshreveable/mousetrap: LICENSE
 
 The release packager should copy these files verbatim, preserving their
-copyright and disclaimer text. Do not place research/upstream or research/work
-vendor trees in the product or git history.
+copyright and disclaimer text.
 
 Separately installed campus speed-test component
 ------------------------------------------------

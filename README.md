@@ -63,7 +63,7 @@ command does not infer liveness from a PID file or `runtime.log`.
 soundconnect separates the application from the campus VPN protocol. The
 EasyConnect backend is the default. The aTrust backend uses the pinned
 AGPL-3.0 `mythologyli/zju-connect` client as its protocol core and runs in the
-foreground (see `docs/atrust-dual-backend.md`).
+foreground (see `docs/architecture.md`).
 
 ```sh
 soundconnect backends --json                 # presentation-safe backend catalog

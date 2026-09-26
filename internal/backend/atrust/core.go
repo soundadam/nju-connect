@@ -4,8 +4,7 @@
 // routing in resources.go and router.go, the lifecycle in runtime.go, and the
 // OAuth callback parser. The wire protocol lives behind Core; NewCore in
 // zjuconnect.go supplies it by adapting the pinned AGPL-3.0
-// github.com/mythologyli/zju-connect client. docs/protocol/atrust.md
-// describes the protocol for maintenance.
+// github.com/mythologyli/zju-connect client.
 package atrustbackend
 
 import (
