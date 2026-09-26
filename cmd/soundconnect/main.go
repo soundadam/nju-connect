@@ -8,28 +8,20 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"time"
 
 	"github.com/soundadam/soundconnect/internal/app"
-	"github.com/soundadam/soundconnect/internal/backend/easyconnect/auth"
-	"github.com/soundadam/soundconnect/internal/core"
-	"github.com/soundadam/soundconnect/internal/credential"
 )
 
 var version = "dev"
 
-var (
-	connectCommand = runNativeConnect
-	dryRunCommand  = runDryRun
-)
-
 func main() {
-	os.Exit(run(os.Args[1:], os.Stdout, os.Stderr))
+	os.Exit(run(productionDeps(), os.Args[1:], os.Stdout, os.Stderr))
 }
 
-func run(arguments []string, stdout, stderr io.Writer) int {
+// run dispatches one invocation and returns its exit status.
+func run(deps app.Deps, arguments []string, stdout, stderr io.Writer) int {
 	if len(arguments) == 0 {
-		return connectCommand(nil, stdout, stderr)
+		return runConnect(deps, nil, stdout, stderr)
 	}
 
 	switch arguments[0] {
@@ -40,33 +32,33 @@ func run(arguments []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stdout, "soundconnect %s\n", version)
 		return 0
 	case "setup":
-		return exitStatus(runSetup(arguments[1:], stdout, stderr), stderr)
+		return exitStatus(runSetup(deps, arguments[1:], stdout, stderr), stderr)
 	case "account":
-		return exitStatus(runAccount(arguments[1:], stdout, stderr), stderr)
+		return exitStatus(runAccount(deps, arguments[1:], stdout, stderr), stderr)
 	case "configure":
-		return exitStatus(runConfigure(arguments[1:], stdout, stderr), stderr)
+		return exitStatus(runConfigure(deps, arguments[1:], stdout, stderr), stderr)
 	case "backends":
-		return exitStatus(runBackends(arguments[1:], stdout, stderr), stderr)
+		return exitStatus(runBackends(deps, arguments[1:], stdout, stderr), stderr)
 	case "auth-info":
-		return exitStatus(runAuthInfo(arguments[1:], stdout, stderr), stderr)
+		return exitStatus(runAuthInfo(deps, arguments[1:], stdout, stderr), stderr)
 	case "migrate":
-		return exitStatus(runMigrate(arguments[1:], stdout, stderr), stderr)
+		return exitStatus(runMigrate(deps, arguments[1:], stdout, stderr), stderr)
 	case "doctor":
-		return exitStatus(runDoctor(arguments[1:], stdout, stderr), stderr)
+		return exitStatus(runDoctor(deps, arguments[1:], stdout, stderr), stderr)
 	case "connect":
-		return connectCommand(arguments[1:], stdout, stderr)
+		return runConnect(deps, arguments[1:], stdout, stderr)
 	case "disconnect":
-		return exitStatus(runDisconnect(arguments[1:], stdout, stderr), stderr)
+		return exitStatus(runDisconnect(deps, arguments[1:], stdout, stderr), stderr)
 	case "logout":
-		return exitStatus(runLogout(arguments[1:], stdout, stderr), stderr)
+		return exitStatus(runLogout(deps, arguments[1:], stdout, stderr), stderr)
 	case "dry-run":
-		return dryRunCommand(arguments[1:], stdout, stderr)
+		return exitStatus(runDryRun(deps, arguments[1:], stdout, stderr), stderr)
 	case "status":
-		return exitStatus(runStatus(arguments[1:], stdout, stderr), stderr)
+		return exitStatus(runStatus(deps, arguments[1:], stdout, stderr), stderr)
 	case "speedtest":
-		return runSpeedtest(arguments[1:], stdout, stderr)
-	case "_native-runtime":
-		return runNativeRuntimeChild(arguments[1:], stdout, stderr)
+		return runSpeedtest(deps, arguments[1:], stdout, stderr)
+	case app.BackgroundRuntimeCommand:
+		return runBackgroundRuntime(deps, arguments[1:], stdout, stderr)
 	default:
 		fmt.Fprintf(stderr, "unknown command %q\n", arguments[0])
 		writeUsage(stderr)
@@ -74,85 +66,24 @@ func run(arguments []string, stdout, stderr io.Writer) int {
 	}
 }
 
-func runDryRun(arguments []string, stdout, stderr io.Writer) int {
+func runDryRun(deps app.Deps, arguments []string, stdout, stderr io.Writer) error {
 	flags := flag.NewFlagSet("soundconnect dry-run", flag.ContinueOnError)
-	if code, ok := parseFlags(flags, arguments, stdout, stderr); !ok {
-		return code
+	if err := parseCommand(flags, arguments, stdout, stderr); err != nil {
+		return err
 	}
-	if flags.NArg() != 0 {
-		fmt.Fprintln(stderr, "dry-run accepts no positional arguments")
-		return 2
-	}
-	paths, err := commandPaths()
-	if err != nil {
-		fmt.Fprintf(stderr, "resolve local state: %v\n", err)
-		return 1
-	}
-	configured, err := loadProfile(context.Background(), paths, true, stderr)
-	if err != nil {
-		return exitStatus(err, stderr)
-	}
-	password, err := readSavedPassword(paths, configured)
-	if err != nil {
-		fmt.Fprintln(stderr, err)
-		return 1
-	}
-	defer credential.Clear(password)
-	client, err := gatewayauth.New(gatewayauth.Options{
-		Server:      configured.Server,
-		TLSInsecure: configured.TLSInsecure, UpstreamProxy: configured.UpstreamProxy,
-		Timeout: 30 * time.Second,
-	})
-	if err != nil {
-		fmt.Fprintf(stderr, "prepare gateway authentication: %v\n", err)
-		return 1
-	}
-	defer client.Close()
-	result, err := client.AuthenticatePassword(context.Background(), configured.Username, password)
-	if err != nil {
-		fmt.Fprintf(stderr, "authenticate password: %v\n", err)
-		return 1
-	}
-	if result.NeedsSMS() {
-		if err = client.PrepareSMS(context.Background()); err != nil {
-			fmt.Fprintf(stderr, "prepare verification code authentication: %v\n", err)
-			return 1
-		}
-		code, promptErr := app.NewLineInteraction(app.LineOptions{Input: os.Stdin, Output: stderr}).
-			VerificationCode(context.Background(), "")
-		if promptErr != nil {
-			if errors.Is(promptErr, context.Canceled) {
-				return 0
-			}
-			fmt.Fprintf(stderr, "read verification code: %v\n", promptErr)
-			return 1
-		}
-		defer credential.Clear(code)
-		result, err = client.AuthenticateSMS(context.Background(), code)
-		if err != nil {
-			fmt.Fprintf(stderr, "authenticate verification code: %v\n", err)
-			return 1
-		}
-	}
-	if result.Accepted() {
+	return dryRun(context.Background(), withInteraction(deps, app.LineOptions{}, stderr), stdout)
+}
+
+// dryRun renders as much of the dry-run report as the gateway allowed.
+func dryRun(ctx context.Context, deps app.Deps, stdout io.Writer) error {
+	report, err := app.DryRun(ctx, deps)
+	if report.Accepted {
 		fmt.Fprintln(stdout, "authentication: accepted")
-		session, sessionErr := client.TakeSession()
-		if sessionErr != nil {
-			fmt.Fprintf(stderr, "retain authenticated session: %v\n", sessionErr)
-			return 1
-		}
-		defer session.Close()
+	}
+	if report.SessionRetained {
 		fmt.Fprintln(stdout, "session: retained_in_memory")
-		bootstrap, probeErr := session.ProbeBootstrap(context.Background())
-		if probeErr != nil {
-			fmt.Fprintf(stderr, "probe gateway bootstrap: %v\n", probeErr)
-			return 1
-		}
-		if !bootstrap.ConfigurationAvailable || !bootstrap.ResourcesAvailable {
-			fmt.Fprintf(stderr, "probe gateway bootstrap: configuration_available=%t resources_available=%t\n",
-				bootstrap.ConfigurationAvailable, bootstrap.ResourcesAvailable)
-			return 1
-		}
+	}
+	if bootstrap := report.Bootstrap; bootstrap != nil {
 		fmt.Fprintln(stdout, "initialization: gateway_bootstrap_available")
 		fmt.Fprintf(stdout, "resources: web=%d tcp=%d l3vpn=%d unknown=%d\n",
 			bootstrap.Resources.Web, bootstrap.Resources.TCP, bootstrap.Resources.L3VPN, bootstrap.Resources.Unknown)
@@ -160,21 +91,12 @@ func runDryRun(arguments []string, stdout, stderr io.Writer) int {
 			bootstrap.Services.TCP, bootstrap.Services.L3VPN, bootstrap.Services.LocalAgentRequired())
 		fmt.Fprintf(stdout, "policies: internal_dns=%t dedicated_line=%t security_check=%t\n",
 			bootstrap.Services.InternalDNS, bootstrap.Services.DedicatedLine, bootstrap.Services.SecurityCheck)
-		plan, planErr := core.BuildDataplanePlan(session.State(), bootstrap)
-		if planErr != nil {
-			fmt.Fprintf(stderr, "model dataplane boundary: %v\n", planErr)
-			return 1
-		}
+	}
+	if plan := report.Plan; plan != nil {
 		fmt.Fprintf(stdout, "handoff: mode=%s ready=%t\n", plan.Mode, plan.BoundaryReady)
 		fmt.Fprintln(stdout, "dataplane: not_started")
-		return 0
 	}
-	if result.NextService != "" {
-		fmt.Fprintf(stderr, "authentication requires unsupported next step %q (gateway code %d)\n", result.NextService, result.Code)
-	} else {
-		fmt.Fprintf(stderr, "authentication rejected by gateway code %d\n", result.Code)
-	}
-	return 1
+	return err
 }
 
 func writeUsage(output io.Writer) {

@@ -37,6 +37,7 @@ type cliHarness struct {
 	root  string
 	paths config.Paths
 	core  *harnessATrustCore
+	deps  app.Deps
 }
 
 func newCLIHarness(t *testing.T) *cliHarness {
@@ -52,29 +53,13 @@ func newCLIHarness(t *testing.T) *cliHarness {
 		t.Fatalf("SOUNDCONNECT_CONFIG_DIR resolved to %q", paths.Root)
 	}
 	core := newHarnessATrustCore()
-
-	previousPassword := newSystemCredentialStore
-	previousClientData := newATrustClientDataStore
-	previousCore := newATrustCore
-	previousStdin := os.Stdin
-	newSystemCredentialStore = func(location credential.Location) (credential.Store, error) {
-		return credential.NewFileStore(location.File, true)
-	}
-	newATrustClientDataStore = func(location credential.Location) (credential.Store, error) {
-		return credential.NewFileStore(location.File, true)
-	}
-	newATrustCore = func() atrustbackend.Core { return core }
-	t.Cleanup(func() {
-		newSystemCredentialStore = previousPassword
-		newATrustClientDataStore = previousClientData
-		newATrustCore = previousCore
-		os.Stdin = previousStdin
-	})
-	return &cliHarness{t: t, root: root, paths: paths, core: core}
+	deps := testDeps(t, paths)
+	deps.ATrustCore = func() atrustbackend.Core { return core }
+	return &cliHarness{t: t, root: root, paths: paths, core: core, deps: deps}
 }
 
-// stdin replaces the process standard input with a non-terminal file holding
-// content, which is how the macOS app feeds --password-stdin and
+// stdin gives the commands a non-terminal standard input holding content,
+// which is how the macOS app feeds --password-stdin and
 // --verification-code-stdin.
 func (harness *cliHarness) stdin(content string) {
 	harness.t.Helper()
@@ -87,7 +72,7 @@ func (harness *cliHarness) stdin(content string) {
 		harness.t.Fatal(err)
 	}
 	harness.t.Cleanup(func() { _ = file.Close() })
-	os.Stdin = file
+	harness.deps.Stdin = file
 }
 
 func (harness *cliHarness) writeConfig(configured config.Config) {
@@ -182,7 +167,7 @@ type cliResult struct {
 func (harness *cliHarness) run(arguments ...string) cliResult {
 	harness.t.Helper()
 	var stdout, stderr bytes.Buffer
-	code := run(arguments, &stdout, &stderr)
+	code := run(harness.deps, arguments, &stdout, &stderr)
 	return cliResult{args: arguments, code: code, stdout: stdout.String(), stderr: stderr.String()}
 }
 
@@ -258,19 +243,21 @@ func compareGoldenFile(t *testing.T, path string, got []byte) {
 // listed in factors before succeeding, and Resume accepts exactly one saved
 // client-data value.
 type harnessATrustCore struct {
-	mu          sync.Mutex
-	methods     []backend.AuthenticationMethod
-	factors     []string
-	authErr     error
-	resumable   string
-	clientData  string
-	logins      int
-	resumes     int
-	passwords   []string
-	codes       []string
-	oauthCodes  []string
-	blockOnAuth bool
-	tunnel      *harnessTunnel
+	mu      sync.Mutex
+	methods []backend.AuthenticationMethod
+	factors []string
+	authErr error
+	// rejectPasswords makes this many password logins fail as rejected.
+	rejectPasswords int
+	resumable       string
+	clientData      string
+	logins          int
+	resumes         int
+	passwords       []string
+	codes           []string
+	oauthCodes      []string
+	blockOnAuth     bool
+	tunnel          *harnessTunnel
 }
 
 func newHarnessATrustCore() *harnessATrustCore {
@@ -308,8 +295,15 @@ func (core *harnessATrustCore) Authenticate(ctx context.Context, request atrustb
 			}
 			core.mu.Lock()
 			core.passwords = append(core.passwords, string(password))
+			rejected := core.rejectPasswords > 0
+			if rejected {
+				core.rejectPasswords--
+			}
 			core.mu.Unlock()
 			clear(password)
+			if rejected {
+				return nil, fmt.Errorf("%w (gateway code 10302)", backend.ErrCredentialRejected)
+			}
 		case "sms":
 			code, err := prompter.VerificationCode(ctx, atrustbackend.VerificationRequest{Channel: "sms"})
 			if err != nil {

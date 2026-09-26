@@ -6,11 +6,9 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"os"
 	"strings"
 
 	"github.com/soundadam/soundconnect/internal/app"
-	"github.com/soundadam/soundconnect/internal/tui"
 )
 
 const accountUsage = `usage: soundconnect account [command] [flags]
@@ -26,25 +24,25 @@ commands:
 
 Every change refuses while a runtime is active.`
 
-func runAccount(arguments []string, stdout, stderr io.Writer) error {
+func runAccount(deps app.Deps, arguments []string, stdout, stderr io.Writer) error {
 	if len(arguments) == 0 || strings.HasPrefix(arguments[0], "-") {
 		flags := flag.NewFlagSet("soundconnect account", flag.ContinueOnError)
 		flags.Usage = func() { fmt.Fprintln(flags.Output(), accountUsage) }
 		if err := parseCommand(flags, arguments, stdout, stderr); err != nil {
 			return err
 		}
-		return runAccountOverview(stdout, stderr)
+		return runAccountOverview(deps, stdout, stderr)
 	}
 	command, rest := arguments[0], arguments[1:]
 	switch command {
 	case "show":
-		return runAccountShow(rest, stdout, stderr)
+		return runAccountShow(deps, rest, stdout, stderr)
 	case "set-password":
-		return runAccountSetPassword(rest, stdout, stderr)
+		return runAccountSetPassword(deps, rest, stdout, stderr)
 	case "set-username":
-		return runAccountSetUsername(rest, stdout, stderr)
+		return runAccountSetUsername(deps, rest, stdout, stderr)
 	case "forget":
-		return runAccountForget(rest, stdout, stderr)
+		return runAccountForget(deps, rest, stdout, stderr)
 	default:
 		return app.Usagef("unknown account command %q; run \"soundconnect account -h\"", command)
 	}
@@ -52,15 +50,15 @@ func runAccount(arguments []string, stdout, stderr io.Writer) error {
 
 // runAccountOverview opens the account menu on a terminal and shows the
 // saved account otherwise.
-func runAccountOverview(stdout, stderr io.Writer) error {
-	interaction, interactive := tui.ForCommand(app.LineOptions{Input: os.Stdin}, stderr)
-	if interactive {
-		return app.AccountMenu(context.Background(), commandDeps(interaction, stderr), func(info app.AccountInfo) {
+func runAccountOverview(deps app.Deps, stdout, stderr io.Writer) error {
+	deps = withInteraction(deps, app.LineOptions{}, stderr)
+	if deps.Interactive {
+		return app.AccountMenu(context.Background(), deps, func(info app.AccountInfo) {
 			fmt.Fprintln(stderr)
 			writeAccountInfo(stderr, info)
 		})
 	}
-	info, err := app.AccountShow(commandDeps(nil, stderr))
+	info, err := app.AccountShow(deps)
 	if err != nil {
 		return err
 	}
@@ -68,13 +66,13 @@ func runAccountOverview(stdout, stderr io.Writer) error {
 	return nil
 }
 
-func runAccountShow(arguments []string, stdout, stderr io.Writer) error {
+func runAccountShow(deps app.Deps, arguments []string, stdout, stderr io.Writer) error {
 	flags := flag.NewFlagSet("soundconnect account show", flag.ContinueOnError)
 	asJSON := flags.Bool("json", false, "print JSON")
 	if err := parseCommand(flags, arguments, stdout, stderr); err != nil {
 		return err
 	}
-	info, err := app.AccountShow(commandDeps(nil, stderr))
+	info, err := app.AccountShow(withInteraction(deps, app.LineOptions{}, stderr))
 	if err != nil {
 		return err
 	}
@@ -100,21 +98,21 @@ func writeAccountInfo(output io.Writer, info app.AccountInfo) {
 		info.CredentialStore, info.Password, info.ATrustSession)
 }
 
-func runAccountSetPassword(arguments []string, stdout, stderr io.Writer) error {
+func runAccountSetPassword(deps app.Deps, arguments []string, stdout, stderr io.Writer) error {
 	flags := flag.NewFlagSet("soundconnect account set-password", flag.ContinueOnError)
 	passwordStdin := flags.Bool("password-stdin", false, "read the password from standard input without a terminal prompt")
 	if err := parseCommand(flags, arguments, stdout, stderr); err != nil {
 		return err
 	}
-	interaction, _ := tui.ForCommand(app.LineOptions{Input: os.Stdin, PasswordFromStdin: *passwordStdin}, stderr)
-	if err := app.SetPassword(context.Background(), commandDeps(interaction, stderr)); err != nil {
+	deps = withInteraction(deps, app.LineOptions{PasswordFromStdin: *passwordStdin}, stderr)
+	if err := app.SetPassword(context.Background(), deps); err != nil {
 		return err
 	}
 	fmt.Fprintln(stdout, "password: saved")
 	return nil
 }
 
-func runAccountSetUsername(arguments []string, stdout, stderr io.Writer) error {
+func runAccountSetUsername(deps app.Deps, arguments []string, stdout, stderr io.Writer) error {
 	flags := flag.NewFlagSet("soundconnect account set-username", flag.ContinueOnError)
 	flags.Usage = func() {
 		fmt.Fprintln(flags.Output(), "usage: soundconnect account set-username <name>")
@@ -125,7 +123,7 @@ func runAccountSetUsername(arguments []string, stdout, stderr io.Writer) error {
 	if flags.NArg() != 1 {
 		return app.Usagef("set-username takes exactly one account name")
 	}
-	cleared, err := app.SetUsername(commandDeps(nil, stderr), flags.Arg(0))
+	cleared, err := app.SetUsername(withInteraction(deps, app.LineOptions{}, stderr), flags.Arg(0))
 	if err != nil {
 		return err
 	}
@@ -133,7 +131,7 @@ func runAccountSetUsername(arguments []string, stdout, stderr io.Writer) error {
 	return nil
 }
 
-func runAccountForget(arguments []string, stdout, stderr io.Writer) error {
+func runAccountForget(deps app.Deps, arguments []string, stdout, stderr io.Writer) error {
 	flags := flag.NewFlagSet("soundconnect account forget", flag.ContinueOnError)
 	var request app.ForgetRequest
 	flags.BoolVar(&request.Password, "password", false, "forget the saved VPN password")
@@ -141,7 +139,7 @@ func runAccountForget(arguments []string, stdout, stderr io.Writer) error {
 	if err := parseCommand(flags, arguments, stdout, stderr); err != nil {
 		return err
 	}
-	result, err := app.Forget(context.Background(), commandDeps(nil, stderr), request)
+	result, err := app.Forget(context.Background(), withInteraction(deps, app.LineOptions{}, stderr), request)
 	if err != nil {
 		return err
 	}

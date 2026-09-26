@@ -1,45 +1,33 @@
 package main
 
 import (
-	"bufio"
 	"context"
 	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
 	"io"
-	"net/http"
 	"os"
 	"os/signal"
 	"strings"
 
-	"github.com/soundadam/soundconnect/internal/runtimecontrol"
+	"github.com/soundadam/soundconnect/internal/app"
 	"github.com/soundadam/soundconnect/internal/speedtest"
-	"golang.org/x/term"
-)
-
-var (
-	speedtestStdin        io.Reader = os.Stdin
-	speedtestIsTerminal             = func() bool { return term.IsTerminal(int(os.Stdin.Fd())) }
-	speedtestAsset                  = speedtest.DefaultComponentAsset
-	speedtestExternalPath           = externalSpeedtestHelperPath
-	speedtestHTTPClient             = func() *http.Client { return nil }
-	speedtestProbe                  = speedtest.ProbeReachability
 )
 
 func signalContext() (context.Context, context.CancelFunc) {
 	return signal.NotifyContext(context.Background(), os.Interrupt)
 }
 
-func runSpeedtest(arguments []string, stdout, stderr io.Writer) int {
+func runSpeedtest(deps app.Deps, arguments []string, stdout, stderr io.Writer) int {
 	if len(arguments) > 0 {
 		switch arguments[0] {
 		case "component":
-			return runSpeedtestComponent(arguments[1:], stdout, stderr)
+			return runSpeedtestComponent(deps, arguments[1:], stdout, stderr)
 		case "last":
-			return runSpeedtestLast(arguments[1:], stdout, stderr)
+			return runSpeedtestLast(deps, arguments[1:], stdout, stderr)
 		case "probe":
-			return runSpeedtestProbe(arguments[1:], stdout, stderr)
+			return runSpeedtestProbe(deps, arguments[1:], stdout, stderr)
 		case "campus":
 			arguments = arguments[1:]
 		default:
@@ -69,29 +57,29 @@ func runSpeedtest(arguments []string, stdout, stderr io.Writer) int {
 	if err != nil {
 		return writeSpeedtestError(*asJSON, *jsonEvents, stdout, stderr, "invalid_arguments", err, 1)
 	}
-	paths, err := commandPaths()
+	deps = withInteraction(deps, app.LineOptions{}, stderr)
+	campus, err := app.OpenSpeedtest(deps)
 	if err != nil {
 		return writeSpeedtestError(*asJSON, *jsonEvents, stdout, stderr, "local_state", err, 1)
 	}
-	manager := newSpeedtestComponentManager(paths.Root)
+	manager := campus.Component
 	if err := manager.Validate(); err != nil {
-		if *asJSON || *jsonEvents || !speedtestIsTerminal() {
+		if *asJSON || *jsonEvents || !deps.Interactive {
 			return writeSpeedtestError(*asJSON, *jsonEvents, stdout, stderr, "component_missing", err, 1)
 		}
 		status := manager.Status()
-		if status.DownloadReady {
-			fmt.Fprintf(stderr, "Campus speed testing requires the %s component (%d bytes). Download it now? [y/N] ", status.HelperVersion, status.DownloadSize)
-		} else {
+		if !status.DownloadReady {
 			fmt.Fprintln(stderr, "Campus speed testing requires the external librespeed-cli-soundconnect helper.")
 			fmt.Fprintln(stderr, "On macOS install it with: brew install soundadam/local/librespeed-cli-soundconnect")
 			return 1
 		}
-		answer, readErr := bufio.NewReader(speedtestStdin).ReadString('\n')
-		if readErr != nil && !errors.Is(readErr, io.EOF) {
-			fmt.Fprintf(stderr, "read component confirmation: %v\n", readErr)
+		install, err := deps.Interaction.Confirm(context.Background(), fmt.Sprintf(
+			"Campus speed testing requires the %s component (%d bytes). Download it now?", status.HelperVersion, status.DownloadSize), false)
+		if err != nil {
+			fmt.Fprintf(stderr, "read component confirmation: %v\n", err)
 			return 1
 		}
-		if strings.ToLower(strings.TrimSpace(answer)) != "y" && strings.ToLower(strings.TrimSpace(answer)) != "yes" {
+		if !install {
 			fmt.Fprintln(stderr, "Campus speed-test component was not installed.")
 			return 1
 		}
@@ -106,17 +94,7 @@ func runSpeedtest(arguments []string, stdout, stderr io.Writer) int {
 	} else if *asJSON {
 		sink = nil
 	}
-	service := speedtest.Service{
-		HelperPath: manager.ExecutablePath(), Store: speedtest.Store{Path: speedtest.LastResultPath(paths.Root)},
-		Probe: speedtestProbe,
-		RuntimeStatus: func() (speedtest.RuntimeState, error) {
-			snapshot, err := runtimecontrol.Query(runtimecontrol.Path(paths.Root))
-			if err != nil {
-				return speedtest.RuntimeState{}, err
-			}
-			return speedtest.RuntimeState{Connected: snapshot.State == "connected", SOCKSListen: snapshot.SOCKSListen}, nil
-		},
-	}
+	service := campus.Service
 	ctx, cancel := signalContext()
 	defer cancel()
 	result, err := service.Run(ctx, route, sink)
@@ -142,7 +120,7 @@ func runSpeedtest(arguments []string, stdout, stderr io.Writer) int {
 	return result.ExitCode()
 }
 
-func runSpeedtestProbe(arguments []string, stdout, stderr io.Writer) int {
+func runSpeedtestProbe(deps app.Deps, arguments []string, stdout, stderr io.Writer) int {
 	flags := flag.NewFlagSet("soundconnect speedtest probe", flag.ContinueOnError)
 	routeValue := flags.String("route", string(speedtest.RouteAuto), "auto, direct, or soundconnect")
 	asJSON := flags.Bool("json", false, "print JSON")
@@ -157,20 +135,11 @@ func runSpeedtestProbe(arguments []string, stdout, stderr io.Writer) int {
 	if err != nil {
 		return writeSpeedtestError(*asJSON, false, stdout, stderr, "invalid_arguments", err, 1)
 	}
-	paths, err := commandPaths()
+	campus, err := app.OpenSpeedtest(deps)
 	if err != nil {
 		return writeSpeedtestError(*asJSON, false, stdout, stderr, "local_state", err, 1)
 	}
-	service := speedtest.Service{
-		Probe: speedtestProbe,
-		RuntimeStatus: func() (speedtest.RuntimeState, error) {
-			snapshot, err := runtimecontrol.Query(runtimecontrol.Path(paths.Root))
-			if err != nil {
-				return speedtest.RuntimeState{}, err
-			}
-			return speedtest.RuntimeState{Connected: snapshot.State == "connected", SOCKSListen: snapshot.SOCKSListen}, nil
-		},
-	}
+	service := campus.Service
 	ctx, cancel := signalContext()
 	defer cancel()
 	result, err := service.ProbeRoute(ctx, route)
@@ -192,7 +161,7 @@ func runSpeedtestProbe(arguments []string, stdout, stderr io.Writer) int {
 	return 0
 }
 
-func runSpeedtestComponent(arguments []string, stdout, stderr io.Writer) int {
+func runSpeedtestComponent(deps app.Deps, arguments []string, stdout, stderr io.Writer) int {
 	if len(arguments) == 0 {
 		fmt.Fprintln(stderr, "speedtest component requires status or install")
 		return 2
@@ -213,11 +182,12 @@ func runSpeedtestComponent(arguments []string, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stderr, "--json and --json-events are mutually exclusive")
 		return 2
 	}
-	paths, err := commandPaths()
+	deps = withInteraction(deps, app.LineOptions{}, stderr)
+	campus, err := app.OpenSpeedtest(deps)
 	if err != nil {
 		return writeSpeedtestError(*asJSON, *jsonEvents, stdout, stderr, "local_state", err, 1)
 	}
-	manager := newSpeedtestComponentManager(paths.Root)
+	manager := campus.Component
 	switch command {
 	case "status":
 		if *yes || *jsonEvents {
@@ -241,12 +211,11 @@ func runSpeedtestComponent(arguments []string, stdout, stderr io.Writer) int {
 			return 2
 		}
 		if !*yes {
-			if !speedtestIsTerminal() {
+			if !deps.Interactive {
 				return writeSpeedtestError(false, *jsonEvents, stdout, stderr, "interaction_required", errors.New("component installation requires --yes outside a terminal"), 1)
 			}
-			fmt.Fprint(stderr, "Install the campus speed-test component? [y/N] ")
-			answer, _ := bufio.NewReader(speedtestStdin).ReadString('\n')
-			if value := strings.ToLower(strings.TrimSpace(answer)); value != "y" && value != "yes" {
+			install, err := deps.Interaction.Confirm(context.Background(), "Install the campus speed-test component?", false)
+			if err != nil || !install {
 				return 1
 			}
 		}
@@ -271,7 +240,7 @@ func runSpeedtestComponent(arguments []string, stdout, stderr io.Writer) int {
 	}
 }
 
-func runSpeedtestLast(arguments []string, stdout, stderr io.Writer) int {
+func runSpeedtestLast(deps app.Deps, arguments []string, stdout, stderr io.Writer) int {
 	flags := flag.NewFlagSet("soundconnect speedtest last", flag.ContinueOnError)
 	asJSON := flags.Bool("json", false, "print JSON")
 	if code, ok := parseFlags(flags, arguments, stdout, stderr); !ok {
@@ -281,11 +250,11 @@ func runSpeedtestLast(arguments []string, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stderr, "speedtest last accepts no positional arguments")
 		return 2
 	}
-	paths, err := commandPaths()
+	campus, err := app.OpenSpeedtest(deps)
 	if err != nil {
 		return writeSpeedtestError(*asJSON, false, stdout, stderr, "local_state", err, 1)
 	}
-	result, err := (speedtest.Store{Path: speedtest.LastResultPath(paths.Root)}).Load()
+	result, err := campus.Store.Load()
 	if err != nil {
 		return writeSpeedtestError(*asJSON, false, stdout, stderr, "no_speedtest_result", err, 1)
 	}
@@ -321,14 +290,6 @@ func plainSpeedtestSink(output io.Writer) speedtest.ProgressSink {
 				fmt.Fprintf(output, "\rCampus speed test %-8s %7.2f Mbps", event.Phase, *event.Mbps)
 			}
 		}
-	}
-}
-
-func newSpeedtestComponentManager(root string) speedtest.ComponentManager {
-	asset := speedtestAsset()
-	return speedtest.ComponentManager{
-		Root: speedtest.ComponentRoot(root), Asset: asset,
-		ExternalPath: speedtestExternalPath(), Client: speedtestHTTPClient(),
 	}
 }
 

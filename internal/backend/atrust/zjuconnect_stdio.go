@@ -7,6 +7,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"regexp"
 	"strings"
 	"sync"
 
@@ -21,6 +22,18 @@ const (
 	upstreamCaptchaPrompt  = "Please enter the graph check code JSON"
 	upstreamCallbackPrompt = "Please enter the callback url"
 )
+
+// The upstream password login does not fail when the gateway refuses the
+// password: it logs the gateway's answer and the next step fails for an
+// unrelated reason. The bridge recognizes that answer so the caller can
+// report a rejected credential instead.
+const (
+	upstreamRequestPrefix  = "Perform "
+	upstreamPasswordLogin  = "Perform POST /passport/v1/auth/psw"
+	maximumRejectionDetail = 200
+)
+
+var upstreamGatewayAnswer = regexp.MustCompile(`Code: (-?\d+), Message: (.*)$`)
 
 // stdioBridgeMu serializes bridges: os.Stdin and the standard logger are
 // process-wide, so only one upstream Setup may run at a time.
@@ -40,12 +53,16 @@ type stdioBridge struct {
 	originalStdin  *os.File
 	originalOutput io.Writer
 
-	mu        sync.Mutex
-	pending   []byte
-	err       error
-	closed    bool
-	closeOnce sync.Once
-	stop      func() bool
+	mu      sync.Mutex
+	pending []byte
+	err     error
+	// inPasswordLogin is set between the upstream password request and the
+	// next request; rejection holds the gateway's refusal of the password.
+	inPasswordLogin bool
+	rejection       string
+	closed          bool
+	closeOnce       sync.Once
+	stop            func() bool
 }
 
 // installStdioBridge takes the bridge lock and redirects standard input and
@@ -103,6 +120,7 @@ func (bridge *stdioBridge) Write(data []byte) (int, error) {
 // dispatch answers a prompt asynchronously so the logger lock is not held
 // while the user responds.
 func (bridge *stdioBridge) dispatch(line string) {
+	bridge.observe(line)
 	var answer func() ([]byte, error)
 	switch {
 	case strings.Contains(line, upstreamSMSPrompt):
@@ -141,6 +159,38 @@ func (bridge *stdioBridge) dispatch(line string) {
 			bridge.fail(errors.New("aTrust login ended before the factor was used"))
 		}
 	}()
+}
+
+// observe records a gateway refusal of the password login.
+func (bridge *stdioBridge) observe(line string) {
+	bridge.mu.Lock()
+	defer bridge.mu.Unlock()
+	switch {
+	case strings.Contains(line, upstreamPasswordLogin):
+		bridge.inPasswordLogin = true
+	case strings.Contains(line, upstreamRequestPrefix):
+		bridge.inPasswordLogin = false
+	case bridge.inPasswordLogin && bridge.rejection == "":
+		match := upstreamGatewayAnswer.FindStringSubmatch(line)
+		if match == nil || match[1] == "0" {
+			return
+		}
+		detail := "gateway code " + match[1]
+		if message := strings.TrimSpace(match[2]); message != "" {
+			detail += ": " + message
+		}
+		if len(detail) > maximumRejectionDetail {
+			detail = detail[:maximumRejectionDetail]
+		}
+		bridge.rejection = strings.ToValidUTF8(detail, "")
+	}
+}
+
+// Rejection reports the gateway's refusal of the password, if it refused.
+func (bridge *stdioBridge) Rejection() string {
+	bridge.mu.Lock()
+	defer bridge.mu.Unlock()
+	return bridge.rejection
 }
 
 func (bridge *stdioBridge) verificationCode() ([]byte, error) {

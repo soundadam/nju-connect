@@ -9,7 +9,7 @@ import (
 	"github.com/soundadam/soundconnect/internal/app"
 )
 
-func runBackends(arguments []string, stdout, stderr io.Writer) error {
+func runBackends(deps app.Deps, arguments []string, stdout, stderr io.Writer) error {
 	flags := flag.NewFlagSet("soundconnect backends", flag.ContinueOnError)
 	asJSON := flags.Bool("json", false, "write machine-readable backend metadata")
 	if err := parseCommand(flags, arguments, stdout, stderr); err != nil {

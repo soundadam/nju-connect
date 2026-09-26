@@ -6,28 +6,55 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"strings"
 
+	"github.com/soundadam/soundconnect/internal/backend/atrust"
+
 	"github.com/soundadam/soundconnect/internal/app"
+	"github.com/soundadam/soundconnect/internal/config"
+	"github.com/soundadam/soundconnect/internal/credential"
+	"github.com/soundadam/soundconnect/internal/speedtest"
+	"github.com/soundadam/soundconnect/internal/tui"
 )
 
-// commandDeps wires the production dependencies for one command. The
-// package-level factories stay swappable for tests until the connect
-// lifecycle moves into internal/app too.
-func commandDeps(interaction app.Interaction, stderr io.Writer) app.Deps {
-	if interaction == nil {
-		interaction = app.NewLineInteraction(app.LineOptions{Input: os.Stdin, Output: stderr})
-	}
+// productionDeps are the real side effects: the user's state directory,
+// the system keyring, the linked aTrust core, and this process's stdin.
+func productionDeps() app.Deps {
 	return app.Deps{
-		Paths:              resolveDefaultPaths,
-		PasswordStore:      newSystemCredentialStore,
-		ATrustSessionStore: newATrustClientDataStore,
-		ATrustCore:         newATrustCore,
-		OAuthHelper:        atrustOAuthHelperPath,
-		Interaction:        interaction,
-		Diagnostics:        stderr,
+		Paths:              config.DefaultPaths,
+		PasswordStore:      openCredentialStore,
+		ATrustSessionStore: openCredentialStore,
+		ATrustCore:         atrustbackend.NewCore,
+		OAuthHelper:        app.OAuthHelperPath,
+		EasyConnectSession: app.NewEasyConnectSession,
+		StartBackground:    app.StartBackground,
+		Speedtest: app.SpeedtestDeps{
+			Asset:        speedtest.DefaultComponentAsset,
+			ExternalPath: externalSpeedtestHelperPath,
+			HTTPClient:   func() *http.Client { return nil },
+			Probe:        speedtest.ProbeReachability,
+		},
+		Stdin: os.Stdin,
 	}
+}
+
+func openCredentialStore(location credential.Location) (credential.Store, error) {
+	return credential.Open(location)
+}
+
+// withInteraction picks how a command asks questions: forms for a person at
+// a terminal and line prompts otherwise, with prompts and helper output on
+// stderr. Tests that pin deps.Interaction keep it.
+func withInteraction(deps app.Deps, options app.LineOptions, stderr io.Writer) app.Deps {
+	deps.Diagnostics = stderr
+	if deps.Interaction != nil {
+		return deps
+	}
+	options.Input = deps.Stdin
+	deps.Interaction, deps.Interactive = tui.ForCommand(options, stderr)
+	return deps
 }
 
 // exitCode is an error that only carries an exit status: whatever the user

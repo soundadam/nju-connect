@@ -1,4 +1,4 @@
-package main
+package app
 
 import (
 	"bytes"
@@ -12,7 +12,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/soundadam/soundconnect/internal/app"
 	"github.com/soundadam/soundconnect/internal/backend"
 	"github.com/soundadam/soundconnect/internal/backend/atrust"
 	"github.com/soundadam/soundconnect/internal/backend/easyconnect/session"
@@ -25,174 +24,140 @@ import (
 
 const atrustGatewayDialTimeout = 15 * time.Second
 
-// newATrustCore is the protocol core linked into this build. Tests replace it.
-var newATrustCore = atrustbackend.NewCore
-
-// reportATrustError prints a user-facing aTrust failure and returns the exit
-// code.
-func reportATrustError(stderr io.Writer, action string, err error) int {
-	fmt.Fprintf(stderr, "%s: %v\n", action, err)
-	return 1
-}
-
-func runATrustConnectContext(
-	ctx context.Context,
-	paths config.Paths,
-	configured config.Config,
-	verificationCodeStdin bool,
-	stdout io.Writer,
-	stderr io.Writer,
-) int {
-	if err := app.ValidateATrustAuthenticationType(configured.AuthType); err != nil {
-		fmt.Fprintf(stderr, "connect aTrust backend: %v\n", err)
-		return 2
+func connectATrust(ctx context.Context, deps Deps, paths config.Paths, configured config.Config, events ConnectEvents) error {
+	if err := ValidateATrustAuthenticationType(configured.AuthType); err != nil {
+		return Usagef("connect aTrust backend: %w", err)
 	}
-	endpoint, err := app.ParseATrustEndpoint(configured.Server)
+	endpoint, err := ParseATrustEndpoint(configured.Server)
 	if err != nil {
-		fmt.Fprintf(stderr, "parse aTrust gateway: %v\n", err)
-		return 2
+		return Usagef("parse aTrust gateway: %w", err)
 	}
 	gatewayDial, err := dial.New(configured.UpstreamProxy, atrustGatewayDialTimeout)
 	if err != nil {
-		fmt.Fprintf(stderr, "prepare aTrust transport: %v\n", err)
-		return 1
+		return fmt.Errorf("prepare aTrust transport: %w", err)
 	}
-	core := newATrustCore()
+	core := deps.ATrustCore()
 
 	method := backend.AuthenticationMethod{Type: configured.AuthType, Domain: configured.LoginDomain}
-	if method.Domain == "" || method.Type == app.ATrustOAuthAuthType {
+	if method.Domain == "" || method.Type == ATrustOAuthAuthType {
 		// The tenant login domain and OAuth login URL are gateway-issued, so
 		// they are discovered rather than stored or hard-coded.
 		methods, discoverErr := (atrustbackend.Discovery{Core: core}).Discover(ctx, endpoint)
 		if discoverErr != nil {
-			return reportATrustError(stderr, "discover aTrust authentication", discoverErr)
+			return fmt.Errorf("discover aTrust authentication: %w", discoverErr)
 		}
-		method, err = app.SelectATrustAuthenticationMethod(methods, configured.AuthType, configured.LoginDomain)
+		method, err = SelectATrustAuthenticationMethod(methods, configured.AuthType, configured.LoginDomain)
 		if err != nil {
-			fmt.Fprintf(stderr, "select aTrust authentication: %v\n", err)
-			return 1
+			return fmt.Errorf("select aTrust authentication: %w", err)
 		}
 	}
 
-	clientDataStore, err := newATrustClientDataStore(app.ATrustSessionLocation(paths, configured.CredentialStore))
+	clientDataStore, err := deps.ATrustSessionStore(ATrustSessionLocation(paths, configured.CredentialStore))
 	if err != nil {
-		fmt.Fprintf(stderr, "prepare aTrust session store: %v\n", err)
-		return 1
+		return fmt.Errorf("prepare aTrust session store: %w", err)
 	}
-	savedClientData, err := clientDataStore.Get()
-	if err != nil {
-		if !errors.Is(err, os.ErrNotExist) && !errors.Is(err, credential.ErrEmptyCredential) {
-			fmt.Fprintf(stderr, "read aTrust session: %v\n", err)
-			return 1
+	var connection *atrustbackend.Connection
+	err = signIn(ctx, deps, &configured, func() error {
+		savedClientData, err := clientDataStore.Get()
+		if err != nil {
+			if !errors.Is(err, os.ErrNotExist) && !errors.Is(err, credential.ErrEmptyCredential) {
+				return fmt.Errorf("read aTrust session: %w", err)
+			}
+			savedClientData = nil
 		}
-		savedClientData = nil
-	}
-
-	connection, err := atrustbackend.Connect(ctx, atrustbackend.ConnectConfig{
-		Core: core,
-		Login: atrustbackend.LoginRequest{
-			Endpoint: endpoint,
-			Method:   method,
-			Username: configured.Username,
-			Dial:     gatewayDial,
-		},
-		SavedClientData: savedClientData,
-		Prompter: newATrustCLIPrompter(paths, configured, app.NewLineInteraction(app.LineOptions{
-			Input: os.Stdin, Output: stderr, CodeFromStdin: verificationCodeStdin,
-		}), stderr),
-		SOCKSListen: configured.SOCKSListen,
+		defer credential.Clear(savedClientData)
+		connection, err = atrustbackend.Connect(ctx, atrustbackend.ConnectConfig{
+			Core: core,
+			Login: atrustbackend.LoginRequest{
+				Endpoint: endpoint,
+				Method:   method,
+				Username: configured.Username,
+				Dial:     gatewayDial,
+			},
+			SavedClientData: savedClientData,
+			Prompter:        newATrustPrompter(deps, paths, configured),
+			SOCKSListen:     configured.SOCKSListen,
+		})
+		if err != nil && !errors.Is(err, backend.ErrCredentialRejected) {
+			return fmt.Errorf("connect aTrust backend: %w", err)
+		}
+		return err
 	})
-	credential.Clear(savedClientData)
 	if err != nil {
-		if errors.Is(err, context.Canceled) {
-			return 0
-		}
-		return reportATrustError(stderr, "connect aTrust backend", err)
+		return err
 	}
 	defer connection.Close()
 
 	if clientData, dataErr := connection.ClientData(); dataErr == nil && len(clientData) > 0 {
 		if storeErr := clientDataStore.Set(clientData); storeErr != nil {
-			fmt.Fprintf(stderr, "warning: save aTrust session: %v\n", storeErr)
+			fmt.Fprintf(deps.diagnostics(), "warning: save aTrust session: %v\n", storeErr)
 		}
 		credential.Clear(clientData)
 	}
 
-	statusTracker := newRuntimeStatusTracker(runtime.ProfileATrustTCP)
+	statusTracker := NewRuntimeStatusTracker(runtime.ProfileATrustTCP)
 	statusServer, err := runtimecontrol.Serve(runtimecontrol.Path(paths.Root), func() runtimecontrol.Snapshot {
 		statusTracker.UpdateIngressTraffic(connection.Traffic(), time.Now())
 		return statusTracker.Snapshot()
 	})
 	if err != nil {
-		fmt.Fprintf(stderr, "prepare runtime status: %v\n", err)
-		return 1
+		return fmt.Errorf("prepare runtime status: %w", err)
 	}
 	defer statusServer.Close()
 	runtimeContext, cancelRuntime := context.WithCancel(ctx)
 	defer cancelRuntime()
 	statusServer.SetStop(cancelRuntime)
 
-	listen := connection.SOCKSAddr().String()
-	statusObserver := runtimeStatusObserver(nativeCLIObserver(stdout), statusTracker)
-	fmt.Fprintln(stdout, "backend: atrust")
-	if connection.Resumed() {
-		fmt.Fprintln(stdout, "authentication: resumed")
-	} else {
-		fmt.Fprintln(stdout, "authentication: accepted")
-	}
-	statusObserver.SOCKSListening(listen)
+	statusObserver := RuntimeStatusObserver(events.Runtime, statusTracker)
+	events.authenticated(backend.ATrust, connection.Resumed())
+	statusObserver.SOCKSListening(connection.SOCKSAddr().String())
 	statusObserver.AccessEvidence(true)
 	statusObserver.StateChanged(nativeapp.StateConnected)
 	if err := connection.Run(runtimeContext); err != nil {
 		statusObserver.AccessEvidence(false)
-		fmt.Fprintf(stderr, "aTrust transport: %v\n", err)
-		return 1
+		return fmt.Errorf("aTrust transport: %w", err)
 	}
-	return 0
+	return nil
 }
 
-// newATrustCLIPrompter supplies interactive factors from the terminal, the
-// system keyring, and the bundled OAuth helper. The protocol core never reads
+// newATrustPrompter supplies interactive factors from the user, the saved
+// password, and the bundled OAuth helper. The protocol core never reads
 // standard input itself.
-func newATrustCLIPrompter(paths config.Paths, configured config.Config, interaction app.Interaction, output io.Writer) atrustbackend.Prompter {
+func newATrustPrompter(deps Deps, paths config.Paths, configured config.Config) atrustbackend.Prompter {
 	return atrustbackend.PrompterFuncs{
 		OnPassword: func(context.Context, atrustbackend.PasswordRequest) ([]byte, error) {
-			return readSavedPassword(paths, configured)
+			return readSavedPassword(deps, paths, configured)
 		},
 		OnVerificationCode: func(ctx context.Context, request atrustbackend.VerificationRequest) ([]byte, error) {
-			return interaction.VerificationCode(ctx, request.Destination)
+			return deps.Interaction.VerificationCode(ctx, request.Destination)
 		},
 		OnCaptcha: func(context.Context, atrustbackend.CaptchaChallenge) (string, error) {
 			return "", fmt.Errorf("graphical captcha is not supported by the CLI yet: %w", atrustbackend.ErrFactorUnavailable)
 		},
 		OnOAuthCode: func(ctx context.Context, request atrustbackend.OAuthRequest) (string, error) {
-			return promptATrustOAuthCode(ctx, request, interaction, output)
+			return promptATrustOAuthCode(ctx, deps, request)
 		},
 	}
 }
 
-func promptATrustOAuthCode(
-	ctx context.Context,
-	request atrustbackend.OAuthRequest,
-	interaction app.Interaction,
-	output io.Writer,
-) (string, error) {
+func promptATrustOAuthCode(ctx context.Context, deps Deps, request atrustbackend.OAuthRequest) (string, error) {
 	if request.LoginURL == "" {
 		return "", errors.New("aTrust OAuth login URL is unavailable")
 	}
-	if helperPath, available := atrustOAuthHelperPath(); available {
-		return runATrustOAuthHelper(ctx, helperPath, request.LoginURL, request.Endpoint, output)
+	if helperPath, available := deps.OAuthHelper(); available {
+		return runATrustOAuthHelper(ctx, helperPath, request.LoginURL, request.Endpoint, deps.diagnostics())
 	}
-	callback, err := interaction.OAuthCallback(ctx, request.LoginURL)
+	callback, err := deps.Interaction.OAuthCallback(ctx, request.LoginURL)
 	if err != nil {
 		return "", err
 	}
 	return atrustbackend.ParseOAuthCallbackCode(callback, request.Endpoint)
 }
 
-// atrustOAuthHelperPath locates the bundled WebKit OAuth helper next to the
-// CLI, or an absolute SOUNDCONNECT_ATRUST_OAUTH_HELPER override.
-func atrustOAuthHelperPath() (string, bool) {
+// OAuthHelperPath locates the bundled WebKit OAuth helper next to the CLI,
+// or an absolute SOUNDCONNECT_ATRUST_OAUTH_HELPER override. It is the
+// production Deps.OAuthHelper.
+func OAuthHelperPath() (string, bool) {
 	if configured := os.Getenv("SOUNDCONNECT_ATRUST_OAUTH_HELPER"); configured != "" {
 		if !filepath.IsAbs(configured) {
 			return "", false

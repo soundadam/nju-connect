@@ -5,13 +5,18 @@
 package app
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
+	"os"
 
 	"github.com/soundadam/soundconnect/internal/backend/atrust"
+	"github.com/soundadam/soundconnect/internal/backend/easyconnect/session"
 	"github.com/soundadam/soundconnect/internal/config"
 	"github.com/soundadam/soundconnect/internal/credential"
+	"github.com/soundadam/soundconnect/internal/speedtest"
 )
 
 // Deps are the side effects a service may use. Tests build their own.
@@ -29,11 +34,38 @@ type Deps struct {
 	ATrustCore func() atrustbackend.Core
 	// OAuthHelper locates the bundled aTrust OAuth helper, if any.
 	OAuthHelper func() (string, bool)
+	// EasyConnectSession builds the in-process EasyConnect runtime for an
+	// authenticated session.
+	EasyConnectSession func(nativeapp.SessionConfig) (NativeSession, error)
+	// StartBackground hands an authenticated EasyConnect session to a
+	// detached runtime process whose output goes to logPath, and returns its
+	// process ID once it is connected.
+	StartBackground func(sessionConfig nativeapp.SessionConfig, logPath string) (int, error)
+	// Speedtest locates and runs the campus speed-test helper.
+	Speedtest SpeedtestDeps
+	// Stdin is where the command layer reads answers and piped secrets.
+	Stdin *os.File
 	// Interaction asks the user for input.
 	Interaction Interaction
+	// Interactive reports whether a person answers Interaction, which
+	// enables guided flows such as offering setup or re-entering a rejected
+	// password. It is false when answers are piped in.
+	Interactive bool
 	// Diagnostics receives helper-process output meant for the user. The
 	// command layer points it at stderr so stdout stays machine-readable.
 	Diagnostics io.Writer
+}
+
+// SpeedtestDeps are the side effects of the campus speed test.
+type SpeedtestDeps struct {
+	// Asset describes the downloadable helper for this platform.
+	Asset func() speedtest.ComponentAsset
+	// ExternalPath locates an installed external helper, or returns "".
+	ExternalPath func() string
+	// HTTPClient downloads the helper; nil uses the default client.
+	HTTPClient func() *http.Client
+	// Probe checks that the campus target is reachable over a route.
+	Probe func(ctx context.Context, route speedtest.Route, socksListen string) error
 }
 
 // PasswordLocation is where the shared password lives. backend is the

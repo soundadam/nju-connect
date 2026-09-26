@@ -27,6 +27,11 @@ const (
 	legacyATrustGateway = "ztna.nju.edu.cn"
 )
 
+// ErrCredentialRejected reports that the gateway refused the saved username
+// or password. Callers can offer to change them and try again; retrying with
+// the same values cannot succeed.
+var ErrCredentialRejected = errors.New("gateway rejected the username or password")
+
 type AuthenticationCapability string
 
 const (

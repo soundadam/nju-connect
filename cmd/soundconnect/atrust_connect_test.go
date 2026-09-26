@@ -17,10 +17,9 @@ import (
 	"github.com/soundadam/soundconnect/internal/credential"
 )
 
-// useATrustTestState points the CLI at a private temporary root and replaces
-// every aTrust secret store with owner-only files so tests never touch the
-// user's Keychain.
-func useATrustTestState(t *testing.T) config.Paths {
+// useATrustTestState points the CLI at a private temporary root with
+// owner-only file secrets, so tests never touch the user's keyring.
+func useATrustTestState(t *testing.T) (config.Paths, app.Deps) {
 	t.Helper()
 	root := filepath.Join(t.TempDir(), "soundconnect")
 	paths := config.Paths{
@@ -29,22 +28,7 @@ func useATrustTestState(t *testing.T) config.Paths {
 		Credential:       filepath.Join(root, "credential"),
 		ATrustClientData: filepath.Join(root, "atrust-client-data"),
 	}
-	previousPaths := resolveDefaultPaths
-	previousPassword := newSystemCredentialStore
-	previousClientData := newATrustClientDataStore
-	resolveDefaultPaths = func() (config.Paths, error) { return paths, nil }
-	newSystemCredentialStore = func(location credential.Location) (credential.Store, error) {
-		return credential.NewFileStore(location.File, true)
-	}
-	newATrustClientDataStore = func(location credential.Location) (credential.Store, error) {
-		return credential.NewFileStore(location.File, true)
-	}
-	t.Cleanup(func() {
-		resolveDefaultPaths = previousPaths
-		newSystemCredentialStore = previousPassword
-		newATrustClientDataStore = previousClientData
-	})
-	return paths
+	return paths, testDeps(t, paths)
 }
 
 func writeATrustTestConfig(t *testing.T, paths config.Paths, authType, loginDomain string) {
@@ -81,15 +65,13 @@ func (core *cliTestCore) Resume(context.Context, atrustbackend.ResumeRequest) (a
 	return nil, atrustbackend.ErrSessionExpired
 }
 
-func useATrustTestCore(t *testing.T) *cliTestCore {
+func useATrustTestCore(t *testing.T, deps *app.Deps) *cliTestCore {
 	t.Helper()
 	core := &cliTestCore{methods: []backend.AuthenticationMethod{
 		{Domain: "openldap13924", Type: app.ATrustPasswordAuthType, Name: "Password"},
 		{Domain: "tenant-oauth", Type: app.ATrustOAuthAuthType, Name: "OAuth", LoginURL: "https://vpn.nju.edu.cn/login"},
 	}}
-	previous := newATrustCore
-	newATrustCore = func() atrustbackend.Core { return core }
-	t.Cleanup(func() { newATrustCore = previous })
+	deps.ATrustCore = func() atrustbackend.Core { return core }
 	return core
 }
 
@@ -103,11 +85,11 @@ func TestATrustConnectReportsLoginFailureOnce(t *testing.T) {
 		{name: "known-domain", authType: app.ATrustPasswordAuthType, loginDomain: "openldap13924"},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			paths := useATrustTestState(t)
-			core := useATrustTestCore(t)
+			paths, deps := useATrustTestState(t)
+			core := useATrustTestCore(t, &deps)
 			writeATrustTestConfig(t, paths, test.authType, test.loginDomain)
 			var stdout, stderr bytes.Buffer
-			code := runNativeConnectContext(context.Background(), nil, &stdout, &stderr, newProductionNativeSession, nil)
+			code := runConnectContext(context.Background(), deps, nil, &stdout, &stderr)
 			if code != 1 || strings.Count(stderr.String(), "synthetic login failure") != 1 || core.logins != 1 {
 				t.Fatalf("exit=%d logins=%d stdout=%q stderr=%q", code, core.logins, stdout.String(), stderr.String())
 			}
@@ -116,24 +98,24 @@ func TestATrustConnectReportsLoginFailureOnce(t *testing.T) {
 }
 
 func TestATrustConnectRejectsBackgroundRuntime(t *testing.T) {
-	paths := useATrustTestState(t)
+	paths, deps := useATrustTestState(t)
 	writeATrustTestConfig(t, paths, app.ATrustPasswordAuthType, "")
+	deps.StartBackground = func(nativeapp.SessionConfig, string) (int, error) {
+		t.Fatal("background starter called")
+		return 0, nil
+	}
 	var stdout, stderr bytes.Buffer
-	code := runNativeConnectContext(context.Background(), []string{"--background"}, &stdout, &stderr, nil,
-		func(nativeapp.SessionConfig, string) (int, error) {
-			t.Fatal("background starter called")
-			return 0, nil
-		})
+	code := runConnectContext(context.Background(), deps, []string{"--background"}, &stdout, &stderr)
 	if code != 2 || !strings.Contains(stderr.String(), "aTrust background runtime is not implemented yet") {
 		t.Fatalf("exit=%d stderr=%q", code, stderr.String())
 	}
 }
 
 func TestSetupATrustRecordsDiscoveredMethod(t *testing.T) {
-	paths := useATrustTestState(t)
-	useATrustTestCore(t)
+	paths, deps := useATrustTestState(t)
+	useATrustTestCore(t, &deps)
 	var stdout, stderr bytes.Buffer
-	code := run([]string{"setup", "--backend", "atrust", "--server", "vpn.nju.edu.cn", "--auth-type", app.ATrustOAuthAuthType}, &stdout, &stderr)
+	code := run(deps, []string{"setup", "--backend", "atrust", "--server", "vpn.nju.edu.cn", "--auth-type", app.ATrustOAuthAuthType}, &stdout, &stderr)
 	if code != 0 {
 		t.Fatalf("exit=%d stderr=%q", code, stderr.String())
 	}
@@ -153,25 +135,26 @@ func TestSetupATrustRecordsDiscoveredMethod(t *testing.T) {
 }
 
 func TestSetupRejectsATrustFlagsForEasyConnect(t *testing.T) {
-	useATrustTestState(t)
+	_, deps := useATrustTestState(t)
 	var stdout, stderr bytes.Buffer
-	if code := run([]string{"setup", "--auth-type", app.ATrustPasswordAuthType}, &stdout, &stderr); code != 2 {
+	if code := run(deps, []string{"setup", "--auth-type", app.ATrustPasswordAuthType}, &stdout, &stderr); code != 2 {
 		t.Fatalf("exit=%d stderr=%q", code, stderr.String())
 	}
 }
 
 func TestAuthInfoListsDiscoveredMethods(t *testing.T) {
-	useATrustTestCore(t)
+	_, deps := useATrustTestState(t)
+	useATrustTestCore(t, &deps)
 	var stdout, stderr bytes.Buffer
-	if code := run([]string{"auth-info"}, &stdout, &stderr); code != 0 ||
+	if code := run(deps, []string{"auth-info"}, &stdout, &stderr); code != 0 ||
 		!strings.Contains(stdout.String(), "openldap13924") || !strings.Contains(stdout.String(), "tenant-oauth") {
 		t.Fatalf("exit=%d stdout=%q stderr=%q", code, stdout.String(), stderr.String())
 	}
 }
 
 func TestLogoutClearsATrustClientDataAndOAuthProfile(t *testing.T) {
-	paths := useATrustTestState(t)
-	store, err := newATrustClientDataStore(credential.Location{File: paths.ATrustClientData})
+	paths, deps := useATrustTestState(t)
+	store, err := deps.ATrustSessionStore(credential.Location{File: paths.ATrustClientData})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -187,7 +170,7 @@ func TestLogoutClearsATrustClientDataAndOAuthProfile(t *testing.T) {
 	t.Setenv("SOUNDCONNECT_ATRUST_OAUTH_HELPER", helper)
 
 	var stdout, stderr bytes.Buffer
-	if code := run([]string{"logout"}, &stdout, &stderr); code != 0 {
+	if code := run(deps, []string{"logout"}, &stdout, &stderr); code != 0 {
 		t.Fatalf("exit=%d stderr=%q", code, stderr.String())
 	}
 	if stdout.String() != "atrust_session_cleared: true\noauth_profile_cleared: true\n" {

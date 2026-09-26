@@ -14,18 +14,18 @@ import (
 	"testing"
 	"time"
 
+	"github.com/soundadam/soundconnect/internal/app"
 	"github.com/soundadam/soundconnect/internal/config"
 	"github.com/soundadam/soundconnect/internal/speedtest"
 )
 
 func TestSpeedtestJSONFailsClosedWithoutPublishedComponent(t *testing.T) {
 	root := t.TempDir()
-	installSpeedtestTestDependencies(t, root)
-	speedtestIsTerminal = func() bool { return false }
+	deps := speedtestTestDeps(t, root)
 
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
-	if code := run([]string{"speedtest", "--json"}, &stdout, &stderr); code != 1 {
+	if code := run(deps, []string{"speedtest", "--json"}, &stdout, &stderr); code != 1 {
 		t.Fatalf("code = %d stderr=%q", code, stderr.String())
 	}
 	var payload struct {
@@ -47,7 +47,7 @@ func TestSpeedtestJSONFailsClosedWithoutPublishedComponent(t *testing.T) {
 
 func TestInteractiveSpeedtestDownloadsComponentAndRuns(t *testing.T) {
 	root := t.TempDir()
-	installSpeedtestTestDependencies(t, root)
+	deps := speedtestTestDeps(t, root)
 	helper := []byte(`#!/bin/sh
 if [ "${1:-}" = "--version" ]; then
   printf 'librespeed-cli v1.0.13-campus.1 (built on test)\n'
@@ -62,21 +62,20 @@ printf '%s\n' '[{"server":{"name":"NJU Campus IPv4","url":"http://speed.nju.edu.
 		_, _ = response.Write(helper)
 	}))
 	defer server.Close()
-	speedtestAsset = func() speedtest.ComponentAsset {
+	deps.Speedtest.Asset = func() speedtest.ComponentAsset {
 		return speedtest.ComponentAsset{
 			Version: "test", HelperVersion: speedtest.HelperVersion,
 			OS: runtime.GOOS, Architecture: runtime.GOARCH,
 			URL: server.URL, Size: int64(len(helper)), SHA256: hex.EncodeToString(digest[:]),
 		}
 	}
-	speedtestHTTPClient = func() *http.Client { return server.Client() }
-	speedtestIsTerminal = func() bool { return true }
-	speedtestStdin = strings.NewReader("yes\n")
-	speedtestProbe = func(context.Context, speedtest.Route, string) error { return nil }
+	deps.Speedtest.HTTPClient = func() *http.Client { return server.Client() }
+	deps.Speedtest.Probe = func(context.Context, speedtest.Route, string) error { return nil }
+	deps = answeredBy(t, deps, "yes\n")
 
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
-	if code := run([]string{"speedtest"}, &stdout, &stderr); code != 0 {
+	if code := run(deps, []string{"speedtest"}, &stdout, &stderr); code != 0 {
 		t.Fatalf("code = %d stdout=%q stderr=%q", code, stdout.String(), stderr.String())
 	}
 	if !strings.Contains(stdout.String(), "download_mbps: 50.00") || !strings.Contains(stdout.String(), "route: direct") {
@@ -88,7 +87,7 @@ printf '%s\n' '[{"server":{"name":"NJU Campus IPv4","url":"http://speed.nju.edu.
 	}
 	stdout.Reset()
 	stderr.Reset()
-	if code := run([]string{"speedtest", "--json-events"}, &stdout, &stderr); code != 0 {
+	if code := run(deps, []string{"speedtest", "--json-events"}, &stdout, &stderr); code != 0 {
 		t.Fatalf("events code=%d stdout=%q stderr=%q", code, stdout.String(), stderr.String())
 	}
 	if strings.Contains(stdout.String(), "\x1b") || !strings.Contains(stdout.String(), `"type":"result"`) {
@@ -105,7 +104,7 @@ printf '%s\n' '[{"server":{"name":"NJU Campus IPv4","url":"http://speed.nju.edu.
 func TestSpeedtestRejectsUnknownSubcommandWithGuidance(t *testing.T) {
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
-	if code := run([]string{"speedtest", "bogus"}, &stdout, &stderr); code != 2 {
+	if code := run(isolatedDeps(t), []string{"speedtest", "bogus"}, &stdout, &stderr); code != 2 {
 		t.Fatalf("code = %d stderr=%q", code, stderr.String())
 	}
 	if !strings.Contains(stderr.String(), `unknown speedtest command "bogus"`) ||
@@ -119,7 +118,7 @@ func TestSpeedtestRejectsUnknownSubcommandWithGuidance(t *testing.T) {
 
 func TestSpeedtestLastJSONReadsSavedResult(t *testing.T) {
 	root := t.TempDir()
-	installSpeedtestTestDependencies(t, root)
+	deps := speedtestTestDeps(t, root)
 	download, upload := 50.0, 10.0
 	result := speedtest.Result{
 		SchemaVersion: speedtest.SchemaVersion, Status: speedtest.StatusSuccess,
@@ -133,7 +132,7 @@ func TestSpeedtestLastJSONReadsSavedResult(t *testing.T) {
 	}
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
-	if code := run([]string{"speedtest", "last", "--json"}, &stdout, &stderr); code != 0 {
+	if code := run(deps, []string{"speedtest", "last", "--json"}, &stdout, &stderr); code != 0 {
 		t.Fatalf("code=%d stderr=%q", code, stderr.String())
 	}
 	if !strings.Contains(stdout.String(), `"download_mbps":50`) {
@@ -143,8 +142,8 @@ func TestSpeedtestLastJSONReadsSavedResult(t *testing.T) {
 
 func TestSpeedtestProbeDoesNotRequireMeasurementComponent(t *testing.T) {
 	root := t.TempDir()
-	installSpeedtestTestDependencies(t, root)
-	speedtestProbe = func(_ context.Context, route speedtest.Route, socks string) error {
+	deps := speedtestTestDeps(t, root)
+	deps.Speedtest.Probe = func(_ context.Context, route speedtest.Route, socks string) error {
 		if route != speedtest.RouteDirect || socks != "" {
 			t.Fatalf("route=%s socks=%q", route, socks)
 		}
@@ -153,7 +152,7 @@ func TestSpeedtestProbeDoesNotRequireMeasurementComponent(t *testing.T) {
 
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
-	if code := run([]string{"speedtest", "probe", "--json"}, &stdout, &stderr); code != 0 {
+	if code := run(deps, []string{"speedtest", "probe", "--json"}, &stdout, &stderr); code != 0 {
 		t.Fatalf("code=%d stderr=%q", code, stderr.String())
 	}
 	var result speedtest.ProbeResult
@@ -165,28 +164,9 @@ func TestSpeedtestProbeDoesNotRequireMeasurementComponent(t *testing.T) {
 	}
 }
 
-func installSpeedtestTestDependencies(t *testing.T, root string) {
+func speedtestTestDeps(t *testing.T, root string) app.Deps {
 	t.Helper()
-	previousPaths := resolveDefaultPaths
-	previousAsset := speedtestAsset
-	previousExternalPath := speedtestExternalPath
-	previousHTTP := speedtestHTTPClient
-	previousTerminal := speedtestIsTerminal
-	previousStdin := speedtestStdin
-	previousProbe := speedtestProbe
-	resolveDefaultPaths = func() (config.Paths, error) {
-		return config.Paths{Root: root, Config: filepath.Join(root, "config.toml"), Credential: filepath.Join(root, "credential")}, nil
-	}
-	speedtestExternalPath = func() string { return "" }
-	t.Cleanup(func() {
-		resolveDefaultPaths = previousPaths
-		speedtestAsset = previousAsset
-		speedtestExternalPath = previousExternalPath
-		speedtestHTTPClient = previousHTTP
-		speedtestIsTerminal = previousTerminal
-		speedtestStdin = previousStdin
-		speedtestProbe = previousProbe
-	})
+	return testDeps(t, config.Paths{Root: root, Config: filepath.Join(root, "config.toml"), Credential: filepath.Join(root, "credential")})
 }
 
 func parseTime(t *testing.T, value string) time.Time {

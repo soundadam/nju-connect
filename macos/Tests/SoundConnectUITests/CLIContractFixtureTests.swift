@@ -137,4 +137,13 @@ final class CLIContractFixtureTests: XCTestCase {
         XCTAssertEqual(result.route, "direct")
         XCTAssertEqual(result.pingMs, 6)
     }
+
+    func testRejectedCredentialIsRecognized() throws {
+        for name in ["connect_credential_rejected.stderr", "connect_credential_rejected_atrust.stderr"] {
+            let stderr = try XCTUnwrap(String(data: try fixture(name), encoding: .utf8))
+            XCTAssertTrue(DesignModel.isCredentialFailure(stderr), name)
+        }
+        XCTAssertFalse(DesignModel.isCredentialFailure("native transport: runtime_stopped"))
+        XCTAssertFalse(DesignModel.isCredentialFailure("open credential: keyring is locked"))
+    }
 }

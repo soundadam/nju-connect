@@ -20,7 +20,10 @@ what you answer or pass as flags; the listener, upstream proxy and TLS
 settings are kept. The first `connect` without a configuration offers the
 wizard too, and `soundconnect doctor` ends with the next command to run.
 
-To fix a wrong password or account without re-running setup:
+When the gateway rejects the saved username or password, `connect` in a
+terminal asks for the password again (or a new account too), saves it, and
+signs in again. Without a terminal it stops with a `credential_rejected:` line.
+To fix a wrong password or account without connecting:
 
 ```sh
 soundconnect account                  # show the saved account; a menu in a terminal
