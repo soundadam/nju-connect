@@ -63,9 +63,14 @@ name the retired `ztna.nju.edu.cn` gateway are redirected.
   the `Prompter` before calling the upstream `Setup`. The upstream client reads
   later factors (SMS code, captcha answer) with `fmt.Scanln` after logging a
   prompt; the adapter installs a scoped bridge that replaces `os.Stdin` with a
-  pipe and watches the standard logger, answering each prompt through the
+  pipe and watches the upstream log lines, answering each prompt through the
   `Prompter`. The bridge is process-wide, so upstream logins are serialized,
   and it stays installed until `Setup` returns even after cancellation.
+- The standard logger belongs to the adapter from `NewCore` on (`upstreamLog`),
+  because the upstream client also logs during discovery and for the whole
+  session. Its lines never reach the terminal; the host may route them to a
+  debug sink with `SetUpstreamDebugLog` (the CLI does so for
+  `SOUNDCONNECT_DEBUG=1`).
 - `Resume` runs `Setup` with the saved client data and no authentication type.
   Any rejection that is not a network or cancellation error is reported as
   `ErrSessionExpired`, and every prompt is refused.

@@ -53,6 +53,13 @@ Cobra) are checked against the same surface.
   show interactive forms on stderr (`internal/tui`). `TERM=dumb` or
   `SOUNDCONNECT_ACCESSIBLE=1` keeps plain line prompts. Anything piped or
   redirected gets the line prompts described below, byte for byte.
+- The linked aTrust core (zju-connect) narrates its requests, prompts and
+  node probes through Go's standard logger. None of that reaches stdout or
+  stderr: `internal/backend/atrust` captures it, answers its prompts through
+  SoundConnect's own, and discards the lines. `SOUNDCONNECT_DEBUG=1` copies
+  them raw to stderr for troubleshooting; that output is not contract, may
+  include gateway messages and masked phone numbers, and breaks the
+  one-line guarantees below, so the macOS app never sets it.
 
 ### Credential storage
 
@@ -125,15 +132,17 @@ stderr kept empty. The error codes are `invalid_arguments`, `local_state`,
   password fails with `no saved VPN password; run "soundconnect account
   set-password"`.
 - When the gateway rejects the saved username or password (EasyConnect's
-  password step, or aTrust `auth/psw`), a non-terminal `connect` exits 1 with
-  one stderr line starting with the stable token `credential_rejected:` and
-  ending with `run "soundconnect account set-password"`. On a terminal,
+  password step, or aTrust `auth/psw`), a non-terminal `connect` exits 1 and
+  its entire stderr is one line, starting with the stable token
+  `credential_rejected:` and ending with
+  `run "soundconnect account set-password"`. On a terminal,
   `connect` instead offers to re-enter the password, change the username and
   password (which also forgets the aTrust session), or stop (exit 0). The new
   values are saved before the next attempt, and at most three sign-ins are
   made before it gives up with the same token.
 - `connect --verification-code-stdin` prints `Verification code: ` on stderr
-  when the gateway asks for a code, then reads one line from stdin. Without
+  when the gateway asks for a code, then reads one line from stdin. The
+  aTrust core's own SMS prompt is never printed next to it. Without
   the flag the prompt needs a terminal and fails with
   `hidden prompt requires a terminal` on a pipe.
 - An aTrust OAuth login without the bundled helper prints the login URL and
