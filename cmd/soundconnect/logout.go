@@ -16,6 +16,9 @@ func newLogoutCommand(deps app.Deps) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			if result.OAuthHelperMissing {
+				fmt.Fprintln(cmd.ErrOrStderr(), "browser sign-in state was not cleared: soundconnect-atrust-oauth-helper is not next to this binary (use the app's bundled CLI, or set SOUNDCONNECT_ATRUST_OAUTH_HELPER)")
+			}
 			stdout := cmd.OutOrStdout()
 			fmt.Fprintln(stdout, "atrust_session_cleared: true")
 			fmt.Fprintf(stdout, "oauth_profile_cleared: %t\n", result.OAuthProfileCleared)

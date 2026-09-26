@@ -17,6 +17,10 @@ const atrustLogoutTimeout = 15 * time.Second
 // LogoutResult reports what Logout cleared.
 type LogoutResult struct {
 	OAuthProfileCleared bool
+	// OAuthHelperMissing is set on macOS, where the app bundles the OAuth
+	// helper, when this binary cannot find it: the aTrust session is gone
+	// but the helper's browser sign-in state was left alone.
+	OAuthHelperMissing bool
 }
 
 // Logout forgets only aTrust authentication state: the saved client data
@@ -40,7 +44,7 @@ func Logout(ctx context.Context, deps Deps) (LogoutResult, error) {
 	}
 
 	if _, available := deps.OAuthHelper(); !available && runtime.GOOS == "darwin" {
-		return LogoutResult{}, errors.New("clear OAuth profile: bundled aTrust OAuth helper is unavailable")
+		return LogoutResult{OAuthHelperMissing: true}, nil
 	}
 	cleared, err := clearOAuthProfile(ctx, deps)
 	return LogoutResult{OAuthProfileCleared: cleared}, err

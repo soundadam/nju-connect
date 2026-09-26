@@ -66,16 +66,15 @@ func TestLogoutReportsHelperFailure(t *testing.T) {
 func TestLogoutWithoutHelper(t *testing.T) {
 	t.Parallel()
 	env := newTestEnv(t)
+	env.setSecret(env.paths.ATrustClientData, "client-data")
 	result, err := Logout(context.Background(), env.deps)
-	if runtime.GOOS == "darwin" {
-		// The macOS build always bundles the helper, so its absence is an error.
-		if err == nil || err.Error() != "clear OAuth profile: bundled aTrust OAuth helper is unavailable" {
-			t.Fatalf("err = %v", err)
-		}
-		return
-	}
-	if err != nil || result.OAuthProfileCleared {
+	// The session is already gone, so a missing helper is reported rather
+	// than failing the logout; only macOS bundles one.
+	if err != nil || result.OAuthProfileCleared || result.OAuthHelperMissing != (runtime.GOOS == "darwin") {
 		t.Fatalf("result=%+v err=%v", result, err)
+	}
+	if _, err := env.secret(env.paths.ATrustClientData); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("aTrust session remains: %v", err)
 	}
 }
 
