@@ -188,6 +188,30 @@ func TestFlowLogout(t *testing.T) {
 	harness.golden("logout_helper_failure", harness.run("logout").expect(t, 1))
 }
 
+// A CLI built without the OAuth helper beside it (bare bin/soundconnect on
+// macOS) still logs out: the aTrust session is gone, so it succeeds and
+// says on stderr that the browser sign-in state was kept.
+func TestFlowLogoutWithoutOAuthHelper(t *testing.T) {
+	harness := newCLIHarness(t)
+	harness.writeSecret(harness.paths.ATrustClientData, "synthetic-client-data")
+	t.Setenv("SOUNDCONNECT_ATRUST_OAUTH_HELPER", filepath.Join(t.TempDir(), "missing-helper"))
+
+	result := harness.run("logout").expect(t, 0)
+	if result.stdout != "atrust_session_cleared: true\noauth_profile_cleared: false\n" {
+		t.Fatalf("stdout = %q", result.stdout)
+	}
+	wantStderr := ""
+	if goruntime.GOOS == "darwin" {
+		wantStderr = "browser sign-in state was not cleared: soundconnect-atrust-oauth-helper is not next to this binary (use the app's bundled CLI, or set SOUNDCONNECT_ATRUST_OAUTH_HELPER)\n"
+	}
+	if result.stderr != wantStderr {
+		t.Fatalf("stderr = %q, want %q", result.stderr, wantStderr)
+	}
+	if _, err := os.Lstat(harness.paths.ATrustClientData); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("aTrust session remains: %v", err)
+	}
+}
+
 // connectATrust starts the connect command in the background and returns a
 // function that waits for it to exit.
 func (harness *cliHarness) connectATrust(ctx context.Context, arguments ...string) func() cliResult {

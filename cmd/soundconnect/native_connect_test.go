@@ -206,7 +206,7 @@ func TestNativeConnectRejectsDevelopmentOnlyProfileFlag(t *testing.T) {
 		return nil, nil
 	}
 	code := runConnectContext(context.Background(), deps, []string{"--native-profile", "community-utls"}, &stdout, &stderr)
-	if code != 2 || called || !strings.Contains(stderr.String(), "flag provided but not defined: -native-profile") {
+	if code != 2 || called || !strings.Contains(stderr.String(), "unknown flag: --native-profile") {
 		t.Fatalf("exit=%d called=%t stderr=%q", code, called, stderr.String())
 	}
 }

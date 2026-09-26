@@ -124,7 +124,7 @@ func TestReleaseCommandsRejectWorktreeDevelopmentOverride(t *testing.T) {
 	if code := run(isolatedDeps(t), []string{"doctor", "--worktree", t.TempDir()}, &stdout, &stderr); code != 2 {
 		t.Fatalf("run(doctor --worktree) = %d", code)
 	}
-	if !strings.Contains(stderr.String(), "flag provided but not defined: -worktree") {
+	if !strings.Contains(stderr.String(), "unknown flag: --worktree") {
 		t.Fatalf("stderr = %q", stderr.String())
 	}
 }

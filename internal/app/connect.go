@@ -124,7 +124,7 @@ func Connect(ctx context.Context, deps Deps, request ConnectRequest, events Conn
 	}
 	if configured.BackendName() == backend.ATrust {
 		if request.Background {
-			return ConnectResult{}, Usagef("aTrust background runtime is not implemented yet")
+			return ConnectResult{}, Usagef(`--background is EasyConnect only; run "soundconnect connect" in the foreground for aTrust`)
 		}
 		return ConnectResult{}, connectATrust(ctx, deps, paths, configured, events)
 	}

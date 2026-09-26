@@ -81,6 +81,18 @@ go-keyring shells out to /usr/bin/security on macOS and talks to the Secret
 Service over D-Bus on Linux; neither is linked. mattn/go-localereader ships
 no license file; confirm its terms with upstream before a Windows release.
 
+Command-line parsing components
+-------------------------------
+
+Added when the CLI moved to Cobra. “windows” marks a module linked only
+into that platform's binary.
+
+Component                                      Version                                      Link-time use  License
+---------------------------------------------- -------------------------------------------- --------------  -------------------------------
+github.com/inconshreveable/mousetrap           v1.1.0                                       windows        Apache-2.0
+github.com/spf13/cobra                         v1.10.2                                      direct         Apache-2.0
+github.com/spf13/pflag                         v1.0.9                                       indirect       BSD-3-Clause
+
 Required release obligations
 ----------------------------
 
@@ -129,6 +141,8 @@ The audit found these files in the exact pinned module roots:
 * Every module in “Keyring and terminal UI components”: LICENSE (LICENSE.txt
   for rivo/uniseg), except mattn/go-localereader, which has none
 * golang.org/x/sync, x/text: LICENSE
+* github.com/spf13/cobra: LICENSE.txt
+* github.com/spf13/pflag, github.com/inconshreveable/mousetrap: LICENSE
 
 The release packager should copy these files verbatim, preserving their
 copyright and disclaimer text. Do not place research/upstream or research/work
@@ -169,6 +183,10 @@ Source and license references
 * x/term v0.45.0: https://github.com/golang/term/blob/v0.45.0/LICENSE
 * x/time v0.15.0: https://github.com/golang/time/blob/v0.15.0/LICENSE
 * inet.af/netaddr pinned license: https://github.com/inetaf/netaddr/blob/b8eac61e914a/LICENSE
+
+* cobra v1.10.2: https://github.com/spf13/cobra/blob/v1.10.2/LICENSE.txt
+* pflag v1.0.9: https://github.com/spf13/pflag/blob/v1.0.9/LICENSE
+* mousetrap v1.1.0: https://github.com/inconshreveable/mousetrap/blob/v1.1.0/LICENSE
 
 Keyring and terminal UI modules: the license of each is at
 https://pkg.go.dev/<module>@<version>?tab=licenses for the versions listed
