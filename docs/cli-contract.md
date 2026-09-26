@@ -22,6 +22,7 @@ Cobra) are checked against the same surface.
 
 - `soundconnect` with no arguments runs `connect` with no flags.
 - `help`, `-h` and `--help` print the top-level usage on **stdout** and exit 0.
+  `help <command>` prints that command's help.
 - An unknown command prints `unknown command "<name>"` and the usage on
   **stderr** and exits 2.
 - `<command> -h` / `--help` prints that command's flags on **stdout** and
@@ -29,11 +30,15 @@ Cobra) are checked against the same surface.
 - An unknown flag, an extra positional argument, or an invalid flag
   combination exits 2. The message goes to stderr (flag errors also print the
   command's flags there), and stdout stays empty.
-- Flags are parsed with Go's `flag` package. Long flags therefore accept
-  either one or two dashes (`-json` or `--json`), and flags must come before
-  positional arguments. Nothing in the app, scripts or docs uses the
-  single-dash form. It is scheduled to be dropped when the CLI moves to
-  Cobra; `single_dash_long_flag.golden` records it until then.
+- Commands are a Cobra tree (`cmd/soundconnect`), and flags are parsed by
+  pflag. Long flags take two dashes (`--json`); `-h` is the only short flag.
+  The single-dash long form that Go's `flag` package accepted (`-json`) was
+  dropped with the move to Cobra: it exits 2 with
+  `unknown flag: -json (long flags take two dashes: --json)`, as
+  `single_dash_long_flag.golden` records. Flags may come before or after
+  positional arguments. Cobra's own messages, `completion` command and
+  `Error:` prefix are switched off; `exitStatus` still owns every exit code
+  and error line.
 - Secrets never appear in argv, the environment, stdout or stderr. Passwords
   and verification codes arrive only through a hidden terminal prompt or an
   explicit `--*-stdin` pipe.
@@ -67,7 +72,7 @@ into the keyring the first time it is read, and the old copy is removed.
 |---|---|
 | 0 | Success; `-h`/`--help`; the user cancelled (Ctrl-C) a prompt or an attended connect. |
 | 1 | Runtime failure. Also used as an informational "no": `status` when nothing is running, `doctor` when not ready, `speedtest component status` when not installed, `speedtest last` with no saved result. |
-| 2 | Usage error: unknown command or flag, a positional argument, an invalid combination, an unknown backend, or `connect --background` on aTrust. |
+| 2 | Usage error: unknown command or flag (including a single-dash long flag such as `-json`), a positional argument, an invalid combination, an unknown backend, or `connect --background` on aTrust. |
 | 130 | `speedtest campus` cancelled by SIGINT. |
 
 Services in `internal/app` return an `app.UsageError` for exit 2 and
@@ -78,7 +83,7 @@ is the one place that turns errors into exit codes and stderr lines.
 
 | Command | Flags | stdout | Notes |
 |---|---|---|---|
-| *(none)*, `connect` | `--background`, `--verification-code-stdin` | Progress lines (`authentication: accepted`, `state: …`, `socks: …`); `background: pid=<n> log=<path>` | Foreground runs until Ctrl-C or `disconnect`. `--background` is EasyConnect only. |
+| *(none)*, `connect` | `--background`, `--verification-code-stdin` | Progress lines (`authentication: accepted`, `state: …`, `socks: …`); `background: pid=<n> log=<path>` | Foreground runs until Ctrl-C or `disconnect`. `--background` is EasyConnect only; on aTrust it exits 2 and points to a foreground `connect`. |
 | `setup` | `--backend` (`easyconnect`), `--server`, `--username`, `--auth-type`, `--login-domain`, `--socks-listen`, `--upstream-proxy`, `--tls-insecure`, `--native-tls-insecure`, `--password-stdin` | `configuration:`, `backend:`, `credential:` | Prompts on stderr for a missing gateway or account; on a terminal it runs the guided wizard. Merges into the saved configuration: flags left out keep their saved values. Stores the password before the configuration. Changing the account, gateway or backend forgets the aTrust session. Refuses (exit 1) while a runtime is active. |
 | `account` | — | Same as `account show` | On a terminal, opens a menu to change the account instead. |
 | `account show` | `--json` | `configuration:`, `backend:`, `server:`, `username:`, `auth_type:`, `credential_store:`, `password:`, `atrust_session:` | Never reads a secret; `password` and `atrust_session` are `saved`, `missing`, `not_required` or `unavailable`. |
@@ -91,13 +96,13 @@ is the one place that turns errors into exit codes and stderr lines.
 | `migrate` | `--from` (`.`) | `configuration_migrated:`, `credential_migrated:`, `source_preserved: true` | Idempotent; copies, never moves. |
 | `doctor` | `--json` | `ready`, `configuration`, `credential_store`, `upstream_proxy`, `next_step` (text: `next:`) | Exit 1 when not ready. `next_step` is the command to run next: `soundconnect setup`, `soundconnect account set-password`, `soundconnect configure --upstream-proxy` or `soundconnect connect`. Strong: `--json`. |
 | `disconnect` | — | `stopping: true`, or `running: false` | Exit 0 in both cases. |
-| `logout` | — | `atrust_session_cleared: true`, `oauth_profile_cleared: <bool>` | Clears only aTrust state; the shared password and the configuration stay. |
+| `logout` | — | `atrust_session_cleared: true`, `oauth_profile_cleared: <bool>` | Clears only aTrust state; the shared password and the configuration stay. On macOS without the OAuth helper next to the binary (a bare `bin/soundconnect`), it still exits 0 with `oauth_profile_cleared: false` and one stderr line saying the browser sign-in state was not cleared. A helper that fails exits 1. |
 | `dry-run` | — | Authentication and bootstrap summary | EasyConnect; never starts the dataplane. |
 | `status` | `--json`, `--watch` | Text, one JSON object, or (with `--watch`) one JSON object per line per second | `--watch` requires `--json`. Exit 1 when stopped. Strong: `--json`, `--watch`. |
 | `speedtest` / `speedtest campus` | `--route` (`auto`), `--json`, `--json-events` | Text result, one JSON result, or NDJSON events | `--json` and `--json-events` are mutually exclusive. |
 | `speedtest probe` | `--route`, `--json` | `target`, `route`, `latency_ms` | |
 | `speedtest last` | `--json` | Last saved result | |
-| `speedtest component status` | `--json` | Component status | Exit 1 when not installed. |
+| `speedtest component status` | `--json` | Component status | Exit 1 when not installed. `--yes` and `--json-events` are accepted by the parser but exit 2. |
 | `speedtest component install` | `--yes`, `--json-events` | NDJSON progress, or a final line | Needs `--yes` outside a terminal. `--json` exits 2. |
 | `version` | — | `soundconnect <version>` | |
 | `_native-runtime` | *(hidden)* | Runtime log | See below. |
@@ -200,7 +205,7 @@ directory (`0700`) and the socket (`0600`) must be owned by the current user.
   in-memory mock; `cmd/soundconnect` and `internal/app` tests install the
   mock too, so no test or re-executed runtime child reaches the real keyring.
 - `internal/tui`: huh forms driven by scripted key presses.
-- `cmd/soundconnect/clitest_test.go`: the harness. It runs the real dispatcher
+- `cmd/soundconnect/clitest_test.go`: the harness. It runs the real Cobra command tree
   with its own `app.Deps` (built by `testDeps` in `deps_test.go`) against an
   isolated `SOUNDCONNECT_CONFIG_DIR`, with file-backed secret stores, a fake
   aTrust core, and no EasyConnect runtime or network. `cmd/soundconnect` has
