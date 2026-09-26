@@ -1,5 +1,0 @@
-$ soundconnect _native-runtime extra
-exit: 2
---- stdout
---- stderr
-background runtime accepts no arguments

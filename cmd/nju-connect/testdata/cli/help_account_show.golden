@@ -1,0 +1,6 @@
+$ nju-connect account show -h
+exit: 0
+--- stdout
+Usage of nju-connect account show:
+      --json   print JSON
+--- stderr

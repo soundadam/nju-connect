@@ -1,4 +1,4 @@
-// Package credential stores long-lived soundconnect authentication material
+// Package credential stores long-lived nju-connect authentication material
 // without putting it in command arguments or configuration. SMS and TOTP codes
 // are deliberately outside this package because they are one-time
 // authentication inputs and must not be persisted.

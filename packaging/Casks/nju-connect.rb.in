@@ -1,0 +1,37 @@
+# frozen_string_literal: true
+
+cask "nju-connect" do
+  version "__VERSION__"
+  sha256 "__SHA256__"
+
+  url "__URL__"
+  name "nju-connect"
+  desc "Menu-bar controller and native campus-connectivity CLI"
+  homepage "__HOMEPAGE__"
+
+  depends_on macos: :ventura
+  depends_on formula: "librespeed-cli-soundconnect"
+
+  app "nju-connect.app"
+  binary "#{appdir}/nju-connect.app/Contents/Helpers/nju-connect"
+
+  uninstall quit: "io.github.soundadam.nju-connect.menu"
+
+  zap trash: [
+    "~/Library/Application Support/nju-connect",
+    "~/Library/Caches/io.github.soundadam.nju-connect.menu",
+    "~/Library/Preferences/io.github.soundadam.nju-connect.menu.plist",
+  ]
+
+  caveats <<~EOS
+    This cask is an ad-hoc signed, non-notarized release from the maintainer's
+    personal tap. Homebrew preserves quarantine and this cask does not bypass
+    Gatekeeper. VPN setup, connection control, runtime status, and campus speed
+    testing use the bundled native nju-connect CLI. Speed measurements also
+    require the separately installed librespeed-cli-soundconnect Homebrew Formula.
+
+    nju-connect is licensed under AGPL-3.0. Review the corresponding source,
+    immutable Release, SHA-256, build manifest, notices, and security state
+    before making a local macOS security decision.
+  EOS
+end

@@ -9,9 +9,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/soundadam/soundconnect/internal/backend"
-	"github.com/soundadam/soundconnect/internal/backend/atrust"
-	"github.com/soundadam/soundconnect/internal/dial"
+	"github.com/soundadam/nju-connect/internal/backend"
+	"github.com/soundadam/nju-connect/internal/backend/atrust"
+	"github.com/soundadam/nju-connect/internal/dial"
 )
 
 // aTrust authentication types the CLI supports.

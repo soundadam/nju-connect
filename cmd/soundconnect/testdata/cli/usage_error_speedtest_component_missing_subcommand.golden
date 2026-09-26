@@ -1,5 +1,0 @@
-$ soundconnect speedtest component
-exit: 2
---- stdout
---- stderr
-speedtest component requires status or install

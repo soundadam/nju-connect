@@ -1,0 +1,10 @@
+$ nju-connect configure --backend atrust --username student
+exit: 0
+--- stdout
+configuration: $CONFIG_DIR/config.toml
+backend: atrust
+server: vpn.nju.edu.cn
+socks_listen: 127.0.0.1:1081
+auth_type: auth/psw
+login_domain: 
+--- stderr

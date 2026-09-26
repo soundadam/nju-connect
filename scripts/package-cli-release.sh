@@ -29,7 +29,7 @@ cp "${project_root}/packaging/licenses/librespeed-cli-LGPL-3.0.txt" \
 typeset -A copied_license_paths
 while IFS='|' read -r module_path module_dir; do
   [[ -n ${module_path} && -d ${module_dir} ]] || continue
-  [[ ${module_path} != github.com/soundadam/soundconnect ]] || continue
+  [[ ${module_path} != github.com/soundadam/nju-connect ]] || continue
   while IFS= read -r license_path; do
     relative_path=${license_path#${module_dir}/}
     destination_name=${module_path//\//_}__${relative_path//\//_}
@@ -40,7 +40,7 @@ while IFS='|' read -r module_path module_dir; do
     \( -iname 'LICENSE*' -o -iname 'NOTICE*' \) -print | LC_ALL=C sort)
 done < <(
   cd "${project_root}"
-  go list -deps -f '{{with .Module}}{{.Path}}|{{.Dir}}{{end}}' ./cmd/soundconnect | \
+  go list -deps -f '{{with .Module}}{{.Path}}|{{.Dir}}{{end}}' ./cmd/nju-connect | \
     awk 'NF' | LC_ALL=C sort -u
 )
 if (( ${#copied_license_paths} == 0 )); then
@@ -49,7 +49,7 @@ if (( ${#copied_license_paths} == 0 )); then
 fi
 
 for arch in amd64 arm64; do
-  artifact="soundconnect_${release_version}_darwin_${arch}"
+  artifact="nju-connect_${release_version}_darwin_${arch}"
   stage_dir=${stage_root}/${artifact}
   mkdir -p "${stage_dir}"
   (
@@ -58,8 +58,8 @@ for arch in amd64 arm64; do
       -trimpath \
       -buildvcs=true \
       -ldflags "-s -w -X main.version=${release_version}" \
-      -o "${stage_dir}/soundconnect" \
-      ./cmd/soundconnect
+      -o "${stage_dir}/nju-connect" \
+      ./cmd/nju-connect
   )
   cp "${project_root}/LICENSE" "${project_root}/THIRD_PARTY_NOTICES" "${stage_dir}/"
   cp -R "${license_dir}" "${stage_dir}/"

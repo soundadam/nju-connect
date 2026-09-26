@@ -1,8 +1,8 @@
 package app
 
 import (
-	"github.com/soundadam/soundconnect/internal/runtimecontrol"
-	"github.com/soundadam/soundconnect/internal/speedtest"
+	"github.com/soundadam/nju-connect/internal/runtimecontrol"
+	"github.com/soundadam/nju-connect/internal/speedtest"
 )
 
 // Speedtest is the campus speed test wired to this state directory.

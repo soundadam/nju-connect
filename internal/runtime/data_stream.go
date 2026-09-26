@@ -7,7 +7,7 @@ import (
 	"net/netip"
 	"time"
 
-	"github.com/soundadam/soundconnect/internal/sessiontoken"
+	"github.com/soundadam/nju-connect/internal/sessiontoken"
 )
 
 const gatewayProtocolTimeout = 15 * time.Second

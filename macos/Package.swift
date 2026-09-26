@@ -3,23 +3,23 @@
 import PackageDescription
 
 let package = Package(
-    name: "soundconnect_macos",
+    name: "nju_connect_macos",
     platforms: [
         .macOS(.v13),
     ],
     products: [
-        .executable(name: "soundconnect-menu", targets: ["soundconnect_ui"]),
-        .executable(name: "soundconnect-atrust-oauth-helper", targets: ["atrust_oauth_helper"]),
+        .executable(name: "nju-connect-menu", targets: ["nju_connect_ui"]),
+        .executable(name: "nju-connect-atrust-oauth-helper", targets: ["atrust_oauth_helper"]),
     ],
     targets: [
         .executableTarget(
-            name: "soundconnect_ui",
-            path: "Sources/SoundConnectUI"
+            name: "nju_connect_ui",
+            path: "Sources/NJUConnectUI"
         ),
         .testTarget(
-            name: "SoundConnectUITests",
-            dependencies: ["soundconnect_ui"],
-            path: "Tests/SoundConnectUITests"
+            name: "NJUConnectUITests",
+            dependencies: ["nju_connect_ui"],
+            path: "Tests/NJUConnectUITests"
         ),
         .executableTarget(
             name: "atrust_oauth_helper",

@@ -20,18 +20,18 @@ import (
 // TestLiveSNICompatibility is an explicit, credential-free gateway probe. It
 // compares the legacy no-SNI baseline with the production SNI ClientHello, is
 // excluded from normal builds and tests by the liveprobe build tag, and does
-// nothing unless SOUNDCONNECT_LIVE_GATEWAY is provided.
+// nothing unless NJU_CONNECT_LIVE_GATEWAY is provided.
 func TestLiveSNICompatibility(t *testing.T) {
-	target := os.Getenv("SOUNDCONNECT_LIVE_GATEWAY")
+	target := os.Getenv("NJU_CONNECT_LIVE_GATEWAY")
 	if target == "" {
-		t.Skip("SOUNDCONNECT_LIVE_GATEWAY is required")
+		t.Skip("NJU_CONNECT_LIVE_GATEWAY is required")
 	}
 	serverName, _, err := net.SplitHostPort(target)
 	if err != nil || serverName == "" {
-		t.Fatal("SOUNDCONNECT_LIVE_GATEWAY must be host:port")
+		t.Fatal("NJU_CONNECT_LIVE_GATEWAY must be host:port")
 	}
 
-	rawDial, err := liveProbeDialer(target, os.Getenv("SOUNDCONNECT_LIVE_INTERFACE"))
+	rawDial, err := liveProbeDialer(target, os.Getenv("NJU_CONNECT_LIVE_INTERFACE"))
 	if err != nil {
 		t.Fatal(err)
 	}

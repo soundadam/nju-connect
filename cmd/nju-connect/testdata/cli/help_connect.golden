@@ -1,0 +1,7 @@
+$ nju-connect connect -h
+exit: 0
+--- stdout
+Usage of nju-connect connect:
+      --background                continue the native runtime as a detached process after authentication
+      --verification-code-stdin   read the verification code from standard input without requiring a terminal
+--- stderr

@@ -11,7 +11,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/soundadam/soundconnect/internal/sessiontoken"
+	"github.com/soundadam/nju-connect/internal/sessiontoken"
 )
 
 const (

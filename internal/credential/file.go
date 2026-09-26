@@ -134,7 +134,7 @@ func (s *FileStore) Set(secret []byte) error {
 		return ErrWrongOwner
 	}
 
-	temporary, err := os.CreateTemp(dir, ".soundconnect-credential-*")
+	temporary, err := os.CreateTemp(dir, ".nju-connect-credential-*")
 	if err != nil {
 		return fmt.Errorf("create temporary credential file: %w", err)
 	}

@@ -1,0 +1,6 @@
+$ nju-connect status
+exit: 1
+--- stdout
+running: false
+state: stopped
+--- stderr

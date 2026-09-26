@@ -1,0 +1,7 @@
+$ nju-connect speedtest component install -h
+exit: 0
+--- stdout
+Usage of nju-connect speedtest component install:
+      --json-events   emit versioned NDJSON events
+      --yes           install without a terminal prompt
+--- stderr

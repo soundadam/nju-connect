@@ -11,7 +11,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/soundadam/soundconnect/internal/credential"
+	"github.com/soundadam/nju-connect/internal/credential"
 )
 
 // The pinned upstream client asks for interactive factors by printing a

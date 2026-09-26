@@ -1,6 +1,0 @@
-$ soundconnect speedtest component status -h
-exit: 0
---- stdout
-Usage of soundconnect speedtest component status:
-      --json   print JSON
---- stderr

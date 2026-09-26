@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/soundadam/soundconnect/internal/backend"
+	"github.com/soundadam/nju-connect/internal/backend"
 )
 
 func TestSelectATrustAuthenticationMethodDefaultsToOAuth(t *testing.T) {

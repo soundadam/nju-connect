@@ -8,8 +8,8 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/soundadam/soundconnect/internal/credential"
-	"github.com/soundadam/soundconnect/internal/runtimecontrol"
+	"github.com/soundadam/nju-connect/internal/credential"
+	"github.com/soundadam/nju-connect/internal/runtimecontrol"
 )
 
 const atrustLogoutTimeout = 15 * time.Second

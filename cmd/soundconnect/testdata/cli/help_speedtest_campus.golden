@@ -1,8 +1,0 @@
-$ soundconnect speedtest campus -h
-exit: 0
---- stdout
-Usage of soundconnect speedtest campus:
-      --json           print one JSON result
-      --json-events    emit versioned NDJSON events
-      --route string   auto, direct, or soundconnect (default "auto")
---- stderr

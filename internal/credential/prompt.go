@@ -8,7 +8,7 @@ import (
 	"golang.org/x/term"
 )
 
-const defaultPrompt = "soundconnect credential: "
+const defaultPrompt = "nju-connect credential: "
 
 // PromptOptions supplies the terminal used for hidden input. Nil values use
 // standard input and standard error.

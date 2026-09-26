@@ -1,0 +1,7 @@
+$ nju-connect speedtest probe -h
+exit: 0
+--- stdout
+Usage of nju-connect speedtest probe:
+      --json           print JSON
+      --route string   auto, direct, or nju-connect (default "auto")
+--- stderr

@@ -8,12 +8,12 @@ package credential
 #include <Security/Security.h>
 #include <stdlib.h>
 
-static CFStringRef soundconnect_string(const void *bytes, CFIndex length) {
+static CFStringRef nju_connect_string(const void *bytes, CFIndex length) {
   return CFStringCreateWithBytes(
       kCFAllocatorDefault, bytes, length, kCFStringEncodingUTF8, false);
 }
 
-static CFDictionaryRef soundconnect_query(
+static CFDictionaryRef nju_connect_query(
     CFStringRef service, CFStringRef account, CFTypeRef return_value) {
   const void *keys[] = {
       kSecClass, kSecAttrService, kSecAttrAccount, kSecMatchLimit,
@@ -26,17 +26,17 @@ static CFDictionaryRef soundconnect_query(
       &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
 }
 
-static OSStatus soundconnect_keychain_inspect(
+static OSStatus nju_connect_keychain_inspect(
     const void *service_bytes, CFIndex service_len,
     const void *account_bytes, CFIndex account_len) {
-  CFStringRef service = soundconnect_string(service_bytes, service_len);
-  CFStringRef account = soundconnect_string(account_bytes, account_len);
+  CFStringRef service = nju_connect_string(service_bytes, service_len);
+  CFStringRef account = nju_connect_string(account_bytes, account_len);
   if (service == NULL || account == NULL) {
     if (service != NULL) CFRelease(service);
     if (account != NULL) CFRelease(account);
     return errSecAllocate;
   }
-  CFDictionaryRef query = soundconnect_query(service, account, kCFBooleanFalse);
+  CFDictionaryRef query = nju_connect_query(service, account, kCFBooleanFalse);
   CFTypeRef result = NULL;
   OSStatus status = SecItemCopyMatching(query, &result);
   if (result != NULL) CFRelease(result);
@@ -46,18 +46,18 @@ static OSStatus soundconnect_keychain_inspect(
   return status;
 }
 
-static OSStatus soundconnect_keychain_get(
+static OSStatus nju_connect_keychain_get(
     const void *service_bytes, CFIndex service_len,
     const void *account_bytes, CFIndex account_len,
     void **secret, CFIndex *secret_len) {
-  CFStringRef service = soundconnect_string(service_bytes, service_len);
-  CFStringRef account = soundconnect_string(account_bytes, account_len);
+  CFStringRef service = nju_connect_string(service_bytes, service_len);
+  CFStringRef account = nju_connect_string(account_bytes, account_len);
   if (service == NULL || account == NULL) {
     if (service != NULL) CFRelease(service);
     if (account != NULL) CFRelease(account);
     return errSecAllocate;
   }
-  CFDictionaryRef query = soundconnect_query(service, account, kCFBooleanTrue);
+  CFDictionaryRef query = nju_connect_query(service, account, kCFBooleanTrue);
   CFTypeRef result = NULL;
   OSStatus status = SecItemCopyMatching(query, &result);
   if (status == errSecSuccess) {
@@ -77,12 +77,12 @@ static OSStatus soundconnect_keychain_get(
   return status;
 }
 
-static OSStatus soundconnect_keychain_set(
+static OSStatus nju_connect_keychain_set(
     const void *service_bytes, CFIndex service_len,
     const void *account_bytes, CFIndex account_len,
     const void *secret_bytes, CFIndex secret_len) {
-  CFStringRef service = soundconnect_string(service_bytes, service_len);
-  CFStringRef account = soundconnect_string(account_bytes, account_len);
+  CFStringRef service = nju_connect_string(service_bytes, service_len);
+  CFStringRef account = nju_connect_string(account_bytes, account_len);
   CFDataRef secret = CFDataCreate(kCFAllocatorDefault, secret_bytes, secret_len);
   if (service == NULL || account == NULL || secret == NULL) {
     if (service != NULL) CFRelease(service);
@@ -123,11 +123,11 @@ static OSStatus soundconnect_keychain_set(
   return status;
 }
 
-static OSStatus soundconnect_keychain_delete(
+static OSStatus nju_connect_keychain_delete(
     const void *service_bytes, CFIndex service_len,
     const void *account_bytes, CFIndex account_len) {
-  CFStringRef service = soundconnect_string(service_bytes, service_len);
-  CFStringRef account = soundconnect_string(account_bytes, account_len);
+  CFStringRef service = nju_connect_string(service_bytes, service_len);
+  CFStringRef account = nju_connect_string(account_bytes, account_len);
   if (service == NULL || account == NULL) {
     if (service != NULL) CFRelease(service);
     if (account != NULL) CFRelease(account);
@@ -237,7 +237,7 @@ type systemKeychainBackend struct{}
 func (systemKeychainBackend) inspect(service, account string) error {
 	serviceBytes := []byte(service)
 	accountBytes := []byte(account)
-	status := C.soundconnect_keychain_inspect(
+	status := C.nju_connect_keychain_inspect(
 		unsafe.Pointer(&serviceBytes[0]), C.CFIndex(len(serviceBytes)),
 		unsafe.Pointer(&accountBytes[0]), C.CFIndex(len(accountBytes)),
 	)
@@ -249,7 +249,7 @@ func (systemKeychainBackend) get(service, account string) ([]byte, error) {
 	accountBytes := []byte(account)
 	var secretLength C.CFIndex
 	var secretPointer unsafe.Pointer
-	status := C.soundconnect_keychain_get(
+	status := C.nju_connect_keychain_get(
 		unsafe.Pointer(&serviceBytes[0]), C.CFIndex(len(serviceBytes)),
 		unsafe.Pointer(&accountBytes[0]), C.CFIndex(len(accountBytes)),
 		&secretPointer, &secretLength,
@@ -267,7 +267,7 @@ func (systemKeychainBackend) get(service, account string) ([]byte, error) {
 func (systemKeychainBackend) set(service, account string, secret []byte) error {
 	serviceBytes := []byte(service)
 	accountBytes := []byte(account)
-	status := C.soundconnect_keychain_set(
+	status := C.nju_connect_keychain_set(
 		unsafe.Pointer(&serviceBytes[0]), C.CFIndex(len(serviceBytes)),
 		unsafe.Pointer(&accountBytes[0]), C.CFIndex(len(accountBytes)),
 		unsafe.Pointer(&secret[0]), C.CFIndex(len(secret)),
@@ -278,7 +278,7 @@ func (systemKeychainBackend) set(service, account string, secret []byte) error {
 func (systemKeychainBackend) delete(service, account string) error {
 	serviceBytes := []byte(service)
 	accountBytes := []byte(account)
-	status := C.soundconnect_keychain_delete(
+	status := C.nju_connect_keychain_delete(
 		unsafe.Pointer(&serviceBytes[0]), C.CFIndex(len(serviceBytes)),
 		unsafe.Pointer(&accountBytes[0]), C.CFIndex(len(accountBytes)),
 	)

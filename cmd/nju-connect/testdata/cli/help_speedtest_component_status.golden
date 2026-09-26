@@ -1,0 +1,6 @@
+$ nju-connect speedtest component status -h
+exit: 0
+--- stdout
+Usage of nju-connect speedtest component status:
+      --json   print JSON
+--- stderr

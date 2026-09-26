@@ -1,0 +1,5 @@
+$ nju-connect setup --auth-type auth/psw
+exit: 2
+--- stdout
+--- stderr
+auth-type and login-domain are only available for the aTrust backend

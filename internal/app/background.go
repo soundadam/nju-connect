@@ -13,13 +13,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/soundadam/soundconnect/internal/backend/easyconnect/session"
-	"github.com/soundadam/soundconnect/internal/config"
-	"github.com/soundadam/soundconnect/internal/core"
-	"github.com/soundadam/soundconnect/internal/credential"
-	"github.com/soundadam/soundconnect/internal/runtime"
-	"github.com/soundadam/soundconnect/internal/runtimecontrol"
-	"github.com/soundadam/soundconnect/internal/sessiontoken"
+	"github.com/soundadam/nju-connect/internal/backend/easyconnect/session"
+	"github.com/soundadam/nju-connect/internal/config"
+	"github.com/soundadam/nju-connect/internal/core"
+	"github.com/soundadam/nju-connect/internal/credential"
+	"github.com/soundadam/nju-connect/internal/runtime"
+	"github.com/soundadam/nju-connect/internal/runtimecontrol"
+	"github.com/soundadam/nju-connect/internal/sessiontoken"
 )
 
 const (
@@ -48,7 +48,7 @@ const BackgroundRuntimeCommand = "_native-runtime"
 func StartBackground(sessionConfig nativeapp.SessionConfig, logPath string) (int, error) {
 	executable, err := os.Executable()
 	if err != nil {
-		return 0, errors.New("resolve soundconnect executable")
+		return 0, errors.New("resolve nju-connect executable")
 	}
 	logFile, err := openPrivateBackgroundLog(logPath)
 	if err != nil {
@@ -128,8 +128,8 @@ func BackgroundFiles() (handoff, ready *os.File, err error) {
 	if !inheritedPipe(backgroundHandoffFD) || !inheritedPipe(backgroundReadyFD) {
 		return nil, nil, errors.New("background runtime: private handoff is unavailable")
 	}
-	handoff = os.NewFile(backgroundHandoffFD, "soundconnect-background-handoff")
-	ready = os.NewFile(backgroundReadyFD, "soundconnect-background-ready")
+	handoff = os.NewFile(backgroundHandoffFD, "nju-connect-background-handoff")
+	ready = os.NewFile(backgroundReadyFD, "nju-connect-background-ready")
 	if handoff == nil || ready == nil {
 		if handoff != nil {
 			_ = handoff.Close()

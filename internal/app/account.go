@@ -9,9 +9,9 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/soundadam/soundconnect/internal/config"
-	"github.com/soundadam/soundconnect/internal/credential"
-	"github.com/soundadam/soundconnect/internal/runtimecontrol"
+	"github.com/soundadam/nju-connect/internal/config"
+	"github.com/soundadam/nju-connect/internal/credential"
+	"github.com/soundadam/nju-connect/internal/runtimecontrol"
 )
 
 // Saved-secret states reported by AccountShow.
@@ -138,7 +138,7 @@ func SetUsername(deps Deps, username string) (sessionCleared bool, err error) {
 		return false, err
 	}
 	if !found {
-		return false, errors.New(`no configuration to change; run "soundconnect setup" first`)
+		return false, errors.New(`no configuration to change; run "nju-connect setup" first`)
 	}
 	if configured.Username == username {
 		return false, nil

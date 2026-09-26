@@ -1,9 +1,9 @@
-# soundconnect CLI contract
+# nju-connect CLI contract
 
 This document is the inventory of everything outside code can observe about
-the `soundconnect` CLI: commands, flags, exit codes, the stdout/stderr split,
+the `nju-connect` CLI: commands, flags, exit codes, the stdout/stderr split,
 and the machine-readable output the macOS app parses. The golden tests in
-`cmd/soundconnect` enforce it, so the refactors that follow (service layer,
+`cmd/nju-connect` enforce it, so the refactors that follow (service layer,
 Cobra) are checked against the same surface.
 
 ## Contract strength
@@ -20,7 +20,7 @@ Cobra) are checked against the same surface.
 
 ## Global behaviour
 
-- `soundconnect` with no arguments runs `connect` with no flags.
+- `nju-connect` with no arguments runs `connect` with no flags.
 - `help`, `-h` and `--help` print the top-level usage on **stdout** and exit 0.
   `help <command>` prints that command's help.
 - An unknown command prints `unknown command "<name>"` and the usage on
@@ -30,7 +30,7 @@ Cobra) are checked against the same surface.
 - An unknown flag, an extra positional argument, or an invalid flag
   combination exits 2. The message goes to stderr (flag errors also print the
   command's flags there), and stdout stays empty.
-- Commands are a Cobra tree (`cmd/soundconnect`), and flags are parsed by
+- Commands are a Cobra tree (`cmd/nju-connect`), and flags are parsed by
   pflag. Long flags take two dashes (`--json`); `-h` is the only short flag.
   The single-dash long form that Go's `flag` package accepted (`-json`) was
   dropped with the move to Cobra: it exits 2 with
@@ -42,16 +42,16 @@ Cobra) are checked against the same surface.
 - Secrets never appear in argv, the environment, stdout or stderr. Passwords
   and verification codes arrive only through a hidden terminal prompt or an
   explicit `--*-stdin` pipe.
-- `SOUNDCONNECT_CONFIG_DIR` (an absolute path) replaces the default state
-  directory, which is `os.UserConfigDir()/soundconnect`. The runtime control
+- `NJU_CONNECT_CONFIG_DIR` (an absolute path) replaces the default state
+  directory, which is `os.UserConfigDir()/nju-connect`. The runtime control
   socket is derived from this directory, so an isolated directory also
   isolates `status`, `disconnect` and `connect`, and gets its own keyring
-  service (`com.soundadam.soundconnect.<hash>`) so it never touches the real
+  service (`com.soundadam.nju-connect.<hash>`) so it never touches the real
   saved password.
 - When standard input and standard error are both terminals and no
   `--*-stdin` flag is given, `setup`, `account` and a first-run `connect`
   show interactive forms on stderr (`internal/tui`). `TERM=dumb` or
-  `SOUNDCONNECT_ACCESSIBLE=1` keeps plain line prompts. Anything piped or
+  `NJU_CONNECT_ACCESSIBLE=1` keeps plain line prompts. Anything piped or
   redirected gets the line prompts described below, byte for byte.
 
 ### Credential storage
@@ -66,6 +66,25 @@ without a keyring. A secret left by an earlier release (the pre-keyring
 Keychain items `vpn-password` / `atrust-client-data`, or those files) is moved
 into the keyring the first time it is read, and the old copy is removed.
 
+### Upgrading from soundconnect
+
+nju-connect was called soundconnect before 1.1.0. On first use it adopts the
+earlier state:
+
+- The state directory `os.UserConfigDir()/soundconnect` is renamed to
+  `…/nju-connect`, but only while `nju-connect` does not exist yet.
+- Keyring items under `com.soundadam.soundconnect` (and the isolated
+  `com.soundadam.soundconnect.<hash>` services) move to
+  `com.soundadam.nju-connect` the first time each secret is read.
+- Environment variables are renamed from `SOUNDCONNECT_*` to `NJU_CONNECT_*`
+  (`NJU_CONNECT_CONFIG_DIR`, `NJU_CONNECT_ACCESSIBLE`, …); the old names are
+  not read.
+- The speed-test route and error code `soundconnect` / `soundconnect_required`
+  are now `nju-connect` / `nju_connect_required`.
+- The macOS app's bundle identifier changes, so its own preferences (speed
+  graph samples) start empty. Disconnect before upgrading: a runtime started
+  by soundconnect is not visible to nju-connect.
+
 ### Exit codes
 
 | Code | Meaning |
@@ -76,7 +95,7 @@ into the keyring the first time it is read, and the old copy is removed.
 | 130 | `speedtest campus` cancelled by SIGINT. |
 
 Services in `internal/app` return an `app.UsageError` for exit 2 and
-`context.Canceled` for a cancellation; `exitStatus` in `cmd/soundconnect`
+`context.Canceled` for a cancellation; `exitStatus` in `cmd/nju-connect`
 is the one place that turns errors into exit codes and stderr lines.
 
 ## Commands
@@ -94,9 +113,9 @@ is the one place that turns errors into exit codes and stderr lines.
 | `backends` | `--json` | Tab-separated catalog, or JSON | Strong: `--json`. |
 | `auth-info` | `--backend` (`atrust`), `--server`, `--json` | Discovered aTrust methods | aTrust only; EasyConnect exits 2. |
 | `migrate` | `--from` (`.`) | `configuration_migrated:`, `credential_migrated:`, `source_preserved: true` | Idempotent; copies, never moves. |
-| `doctor` | `--json` | `ready`, `configuration`, `credential_store`, `upstream_proxy`, `next_step` (text: `next:`) | Exit 1 when not ready. `next_step` is the command to run next: `soundconnect setup`, `soundconnect account set-password`, `soundconnect configure --upstream-proxy` or `soundconnect connect`. Strong: `--json`. |
+| `doctor` | `--json` | `ready`, `configuration`, `credential_store`, `upstream_proxy`, `next_step` (text: `next:`) | Exit 1 when not ready. `next_step` is the command to run next: `nju-connect setup`, `nju-connect account set-password`, `nju-connect configure --upstream-proxy` or `nju-connect connect`. Strong: `--json`. |
 | `disconnect` | — | `stopping: true`, or `running: false` | Exit 0 in both cases. |
-| `logout` | — | `atrust_session_cleared: true`, `oauth_profile_cleared: <bool>` | Clears only aTrust state; the shared password and the configuration stay. On macOS without the OAuth helper next to the binary (a bare `bin/soundconnect`), it still exits 0 with `oauth_profile_cleared: false` and one stderr line saying the browser sign-in state was not cleared. A helper that fails exits 1. |
+| `logout` | — | `atrust_session_cleared: true`, `oauth_profile_cleared: <bool>` | Clears only aTrust state; the shared password and the configuration stay. On macOS without the OAuth helper next to the binary (a bare `bin/nju-connect`), it still exits 0 with `oauth_profile_cleared: false` and one stderr line saying the browser sign-in state was not cleared. A helper that fails exits 1. |
 | `dry-run` | — | Authentication and bootstrap summary | EasyConnect; never starts the dataplane. |
 | `status` | `--json`, `--watch` | Text, one JSON object, or (with `--watch`) one JSON object per line per second | `--watch` requires `--json`. Exit 1 when stopped. Strong: `--json`, `--watch`. |
 | `speedtest` / `speedtest campus` | `--route` (`auto`), `--json`, `--json-events` | Text result, one JSON result, or NDJSON events | `--json` and `--json-events` are mutually exclusive. |
@@ -104,14 +123,14 @@ is the one place that turns errors into exit codes and stderr lines.
 | `speedtest last` | `--json` | Last saved result | |
 | `speedtest component status` | `--json` | Component status | Exit 1 when not installed. `--yes` and `--json-events` are accepted by the parser but exit 2. |
 | `speedtest component install` | `--yes`, `--json-events` | NDJSON progress, or a final line | Needs `--yes` outside a terminal. `--json` exits 2. |
-| `version` | — | `soundconnect <version>` | |
+| `version` | — | `nju-connect <version>` | |
 | `_native-runtime` | *(hidden)* | Runtime log | See below. |
 
 In JSON and NDJSON modes, speed-test failures are reported on **stdout** as
 `{"schema_version":1,"type":"error","error":{"code":…,"message":…}}`, with
 stderr kept empty. The error codes are `invalid_arguments`, `local_state`,
 `component_missing`, `interaction_required`, `component_install_failed`,
-`soundconnect_required`, `speedtest_unavailable`, `cancelled` and
+`nju_connect_required`, `speedtest_unavailable`, `cancelled` and
 `no_speedtest_result`.
 
 ## Stdin line protocols
@@ -120,14 +139,14 @@ stderr kept empty. The error codes are `invalid_arguments`, `local_state`,
   exactly one line, the password; `\n` or `\r\n` is stripped. An empty line
   exits 1 with `credential is empty`.
 - Without a configuration, `connect`, the default command and `dry-run`
-  fail with `load configuration: no configuration yet; run "soundconnect
+  fail with `load configuration: no configuration yet; run "nju-connect
   setup" first`; on a terminal they offer the guided setup instead. A missing
-  password fails with `no saved VPN password; run "soundconnect account
+  password fails with `no saved VPN password; run "nju-connect account
   set-password"`.
 - When the gateway rejects the saved username or password (EasyConnect's
   password step, or aTrust `auth/psw`), a non-terminal `connect` exits 1 with
   one stderr line starting with the stable token `credential_rejected:` and
-  ending with `run "soundconnect account set-password"`. On a terminal,
+  ending with `run "nju-connect account set-password"`. On a terminal,
   `connect` instead offers to re-enter the password, change the username and
   password (which also forgets the aTrust session), or stop (exit 0). The new
   values are saved before the next attempt, and at most three sign-ins are
@@ -143,13 +162,13 @@ stderr kept empty. The error codes are `invalid_arguments`, `local_state`,
 ## Invocations from the macOS app
 
 These command lines are strong contract. The app finds the CLI at
-`Contents/Helpers/soundconnect`, or at `$SOUNDCONNECT_HELPER`.
+`Contents/Helpers/nju-connect`, or at `$NJU_CONNECT_HELPER`.
 
 | App action | Command line | Parsed output |
 |---|---|---|
 | Detect running / configured | `status --json`, `doctor --json` | `RuntimeStatusPayload`, `DoctorPayload.ready` |
 | Live status | `status --json --watch` | One `RuntimeStatusPayload` per line |
-| Backend catalog | `backends --json` | `SoundConnectBackendCatalog` |
+| Backend catalog | `backends --json` | `NJUConnectBackendCatalog` |
 | Save account | `setup --backend <b> --server <s> --username <u> --password-stdin` | Exit code; the password is written to stdin |
 | Switch backend | `configure --backend <b>` | Exit code |
 | Forget aTrust session | `account forget --session` | Exit code |
@@ -167,7 +186,7 @@ substrings are strong contract; the shared fixtures
 ## Background runtime handoff
 
 `connect --background` authenticates in the foreground, then re-executes the
-same binary as `soundconnect _native-runtime` with:
+same binary as `nju-connect _native-runtime` with:
 
 - stdin set to `/dev/null`, and stdout/stderr appended to
   `<config dir>/runtime.log` (owner-only, `0600`);
@@ -187,7 +206,7 @@ arguments (exit 2 otherwise) and is omitted from the usage text.
 ## Runtime control socket
 
 A running runtime serves a Unix socket (`internal/runtimecontrol`) at
-`$TMPDIR/soundconnect-runtime-<euid>/<sha256(config dir)[:12]>.sock`. Both the
+`$TMPDIR/nju-connect-runtime-<euid>/<sha256(config dir)[:12]>.sock`. Both the
 directory (`0700`) and the socket (`0600`) must be owned by the current user.
 
 - A client that sends nothing receives one `status --json` snapshot.
@@ -202,20 +221,20 @@ directory (`0700`) and the socket (`0600`) must be owned by the current user.
   directory built into `app.Deps`, runnable in parallel. Guided flows run
   through `LineInteraction` with scripted answers.
 - `internal/credential`: the keyring store runs against go-keyring's
-  in-memory mock; `cmd/soundconnect` and `internal/app` tests install the
+  in-memory mock; `cmd/nju-connect` and `internal/app` tests install the
   mock too, so no test or re-executed runtime child reaches the real keyring.
 - `internal/tui`: huh forms driven by scripted key presses.
-- `cmd/soundconnect/clitest_test.go`: the harness. It runs the real Cobra command tree
+- `cmd/nju-connect/clitest_test.go`: the harness. It runs the real Cobra command tree
   with its own `app.Deps` (built by `testDeps` in `deps_test.go`) against an
-  isolated `SOUNDCONNECT_CONFIG_DIR`, with file-backed secret stores, a fake
-  aTrust core, and no EasyConnect runtime or network. `cmd/soundconnect` has
+  isolated `NJU_CONNECT_CONFIG_DIR`, with file-backed secret stores, a fake
+  aTrust core, and no EasyConnect runtime or network. `cmd/nju-connect` has
   no package-level dependency variables; `run` takes the `app.Deps` that
   `main` builds with `productionDeps`. Fake EasyConnect gateways and status
   sockets live next to the tests that use them.
-- `cmd/soundconnect/testdata/cli/*.golden`: the arguments, exit code, stdout
+- `cmd/nju-connect/testdata/cli/*.golden`: the arguments, exit code, stdout
   and stderr of each case. The config directory appears as `$CONFIG_DIR`.
 - `testdata/contract/*`: JSON, NDJSON and stderr produced by real CLI runs and read
-  by `macos/Tests/SoundConnectUITests/CLIContractFixtureTests.swift`.
+  by `macos/Tests/NJUConnectUITests/CLIContractFixtureTests.swift`.
   Wall-clock times, latency and the CPU architecture are normalized to fixed
   values of the same shape; timestamps keep Go's nanosecond digits.
 
@@ -228,5 +247,5 @@ To regenerate both after an intended change, run the command below, review
 `git diff`, and update the Swift decoders in the same PR if a fixture changed:
 
 ```bash
-go test ./cmd/soundconnect -update
+go test ./cmd/nju-connect -update
 ```

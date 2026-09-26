@@ -1,0 +1,6 @@
+$ nju-connect connect
+exit: 1
+--- stdout
+--- stderr
+Opening nju-connect OAuth login; complete NJU login there if the saved session has expired.
+connect aTrust backend: aTrust OAuth window closed before authentication completed

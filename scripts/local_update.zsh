@@ -4,14 +4,14 @@ set -euo pipefail
 readonly repo_root="${0:A:h:h}"
 source "${repo_root}/scripts/versioning.zsh"
 
-readonly tap_name="${SOUNDCONNECT_LOCAL_TAP:-soundadam/local}"
-readonly cask_name="${SOUNDCONNECT_CASK:-soundconnect}"
+readonly tap_name="${NJU_CONNECT_LOCAL_TAP:-soundadam/local}"
+readonly cask_name="${NJU_CONNECT_CASK:-nju-connect}"
 readonly channel="${CHANNEL:-alpha}"
 readonly requested_version="${VERSION:-}"
 readonly install_update="${INSTALL_UPDATE:-1}"
 readonly commit_tap="${COMMIT_TAP:-1}"
 readonly push_tap="${PUSH_TAP:-0}"
-readonly app_path="${SOUNDCONNECT_APP_PATH:-/Applications/soundconnect.app}"
+readonly app_path="${NJU_CONNECT_APP_PATH:-/Applications/nju-connect.app}"
 
 for tool in brew git make plutil shasum codesign xattr; do
   command -v "$tool" >/dev/null || {
@@ -35,10 +35,10 @@ fi
 
 typeset version
 if [[ -n "$requested_version" ]]; then
-  soundconnect_parse_version "$requested_version"
-  version="$SOUNDCONNECT_VERSION"
+  nju_connect_parse_version "$requested_version"
+  version="$NJU_CONNECT_VERSION"
 else
-  version="$(soundconnect_next_version "$current_version" "$channel")"
+  version="$(nju_connect_next_version "$current_version" "$channel")"
 fi
 
 print -- "current_version=${current_version}"
@@ -61,12 +61,12 @@ if [[ "$install_update" == 1 ]]; then
   xattr -dr com.apple.quarantine "$app_path"
 
   readonly installed_version="$(plutil -extract CFBundleShortVersionString raw "${app_path}/Contents/Info.plist")"
-  readonly helper_version="$("${app_path}/Contents/Helpers/soundconnect" version)"
-  readonly staged_helper="${repo_root}/.stage/macos-release-${version}/soundconnect.app/Contents/Helpers/soundconnect"
+  readonly helper_version="$("${app_path}/Contents/Helpers/nju-connect" version)"
+  readonly staged_helper="${repo_root}/.stage/macos-release-${version}/nju-connect.app/Contents/Helpers/nju-connect"
   [[ "$installed_version" == "$version" ]]
-  [[ "$helper_version" == "soundconnect ${version}" ]]
+  [[ "$helper_version" == "nju-connect ${version}" ]]
   [[ "$(shasum -a 256 "$staged_helper" | awk '{print $1}')" == \
-     "$(shasum -a 256 "${app_path}/Contents/Helpers/soundconnect" | awk '{print $1}')" ]]
+     "$(shasum -a 256 "${app_path}/Contents/Helpers/nju-connect" | awk '{print $1}')" ]]
   codesign --verify --deep --strict --verbose=2 "$app_path"
 fi
 

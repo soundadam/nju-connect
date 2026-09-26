@@ -1,24 +1,24 @@
-# soundconnect
+# nju-connect
 
-soundconnect is a native command-line client for secure campus connectivity.
+nju-connect is a native command-line client for secure campus connectivity.
 
 ## CLI setup and migration
 
-`soundconnect setup` stores non-secret configuration in the operating system's
+`nju-connect setup` stores non-secret configuration in the operating system's
 user configuration directory. The long-lived VPN password and the aTrust
 session are kept in the system keyring under service
-`com.soundadam.soundconnect`: the login Keychain on macOS, the Secret Service
+`com.soundadam.nju-connect`: the login Keychain on macOS, the Secret Service
 on Linux, or the Windows Credential Manager. They are never written to the
 TOML configuration. On a host without a keyring, such as a headless Linux box
 over SSH, add `credential_store = "file"` to `config.toml` to keep them in
 owner-only files instead.
 
-Run in a terminal, `soundconnect setup` is a guided wizard: it asks for the
+Run in a terminal, `nju-connect setup` is a guided wizard: it asks for the
 backend, the gateway, the aTrust sign-in method it discovers, the account and
 the password, with the saved values as defaults. Re-running it changes only
 what you answer or pass as flags; the listener, upstream proxy and TLS
 settings are kept. The first `connect` without a configuration offers the
-wizard too, and `soundconnect doctor` ends with the next command to run.
+wizard too, and `nju-connect doctor` ends with the next command to run.
 
 When the gateway rejects the saved username or password, `connect` in a
 terminal asks for the password again (or a new account too), saves it, and
@@ -26,78 +26,78 @@ signs in again. Without a terminal it stops with a `credential_rejected:` line.
 To fix a wrong password or account without connecting:
 
 ```sh
-soundconnect account                  # show the saved account; a menu in a terminal
-soundconnect account set-password     # replace only the password
-soundconnect account set-username NEW # change the account, forgetting its aTrust session
-soundconnect account forget --session # sign in to aTrust from scratch next time
+nju-connect account                  # show the saved account; a menu in a terminal
+nju-connect account set-password     # replace only the password
+nju-connect account set-username NEW # change the account, forgetting its aTrust session
+nju-connect account forget --session # sign in to aTrust from scratch next time
 ```
 
 Scripts can pipe the password with `setup --password-stdin` or
 `account set-password --password-stdin`; piped input always gets plain line
-prompts. `TERM=dumb` or `SOUNDCONNECT_ACCESSIBLE=1` does the same on a
+prompts. `TERM=dumb` or `NJU_CONNECT_ACCESSIBLE=1` does the same on a
 terminal.
 
 Pre-release worktree state can be imported explicitly without overwriting an
 existing destination:
 
 ```sh
-soundconnect migrate --from /path/to/old/soundconnect-worktree
+nju-connect migrate --from /path/to/old/nju-connect-worktree
 ```
 
 The migration verifies and copies the old state and preserves the source for
 manual rollback or deletion after verification.
 
-Running `soundconnect` with no command is equivalent to `soundconnect connect`
-and starts the native userspace runtime. Use `soundconnect dry-run` to validate
+Running `nju-connect` with no command is equivalent to `nju-connect connect`
+and starts the native userspace runtime. Use `nju-connect dry-run` to validate
 authentication and the gateway handoff without starting the dataplane.
 
-While a foreground or detached native runtime is active, `soundconnect status`
+While a foreground or detached native runtime is active, `nju-connect status`
 queries its owner-only local control socket and prints only sanitized state.
-Use `soundconnect status --json` for the versioned machine-readable form, and
+Use `nju-connect status --json` for the versioned machine-readable form, and
 add `--watch` to stream that snapshot once per second. A
 stopped runtime is reported explicitly and returns a nonzero status; the
 command does not infer liveness from a PID file or `runtime.log`.
 
 ## Protocol backends
 
-soundconnect separates the application from the campus VPN protocol. The
+nju-connect separates the application from the campus VPN protocol. The
 EasyConnect backend is the default. The aTrust backend uses the pinned
 AGPL-3.0 `mythologyli/zju-connect` client as its protocol core and runs in the
 foreground (see `docs/architecture.md`).
 
 ```sh
-soundconnect backends --json                 # presentation-safe backend catalog
-soundconnect configure --backend atrust      # switch non-secret settings only
-soundconnect setup --backend atrust --auth-type auth/psw
-soundconnect logout                          # forget saved aTrust session state
+nju-connect backends --json                 # presentation-safe backend catalog
+nju-connect configure --backend atrust      # switch non-secret settings only
+nju-connect setup --backend atrust --auth-type auth/psw
+nju-connect logout                          # forget saved aTrust session state
 ```
 
 Both backends share the one CLI-owned SOCKS5 listener (default
 `127.0.0.1:1081`) and the saved VPN password. `configure` refuses to change
 the profile while a runtime is active. Set an absolute
-`SOUNDCONNECT_CONFIG_DIR` to run against an isolated configuration directory.
+`NJU_CONNECT_CONFIG_DIR` to run against an isolated configuration directory.
 
 ## Campus speed test
 
-`soundconnect speedtest` measures the pinned NJU campus IPv4 LibreSpeed target.
+`nju-connect speedtest` measures the pinned NJU campus IPv4 LibreSpeed target.
 It first tries the system's direct path. If that path is unavailable, an active
-soundconnect runtime may provide its owner-only loopback SOCKS5 path; otherwise
-the command asks the user to connect soundconnect and retry. Results always
+nju-connect runtime may provide its owner-only loopback SOCKS5 path; otherwise
+the command asks the user to connect nju-connect and retry. Results always
 identify the selected path and never infer it from connection state alone.
 
 LibreSpeed remains a separate third-party executable. On macOS, the preview
 Cask depends on the `librespeed-cli-soundconnect` Formula, which builds the
 pinned upstream source with the explicit SOCKS and structured-progress patches
-required by soundconnect. The App neither embeds nor downloads this helper.
+required by nju-connect. The App neither embeds nor downloads this helper.
 Linux packaging remains a separate decision; developers may point to a
-compatible absolute helper path with `SOUNDCONNECT_LIBRESPEED_CLI`. JSON and
+compatible absolute helper path with `NJU_CONNECT_LIBRESPEED_CLI`. JSON and
 redirected modes fail closed instead of waiting for input. Useful machine
 interfaces are:
 
 ```sh
-soundconnect speedtest campus --route auto --json
-soundconnect speedtest component status --json
-soundconnect speedtest last --json
+nju-connect speedtest campus --route auto --json
+nju-connect speedtest component status --json
+nju-connect speedtest last --json
 ```
 
 The CLI retains only the latest compact result. The macOS UI separately keeps
@@ -114,7 +114,7 @@ an injected semantic version and checksums:
 make cli-release VERSION=v1.0.0
 ```
 
-soundconnect is licensed under AGPL-3.0; see `LICENSE`. The archives include
+nju-connect is licensed under AGPL-3.0; see `LICENSE`. The archives include
 `LICENSE`, `THIRD_PARTY_NOTICES`, and the linked modules' license texts. Signing, notarization, tag creation, upload, and publication
 remain separate release gates.
 
@@ -123,7 +123,7 @@ remain separate release gates.
 For an unsigned or quarantined development copy only:
 
 ```sh
-xattr -d com.apple.quarantine /path/to/soundconnect
+xattr -d com.apple.quarantine /path/to/nju-connect
 ```
 
 This is a local testing workaround, not a release installation step. Release
@@ -145,7 +145,7 @@ never publishes an artifact.
 
 ## Versioning and local iteration
 
-soundconnect follows the sing-box prerelease sequence. Git tags add a leading
+nju-connect follows the sing-box prerelease sequence. Git tags add a leading
 `v`, while the version embedded in the app and CLI does not:
 
 ```text

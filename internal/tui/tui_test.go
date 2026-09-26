@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/soundadam/soundconnect/internal/app"
+	"github.com/soundadam/nju-connect/internal/app"
 )
 
 // keys feeds scripted key presses to a form. Each press is a separate write

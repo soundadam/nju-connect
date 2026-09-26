@@ -3,7 +3,7 @@ package atrustbackend
 import (
 	"testing"
 
-	"github.com/soundadam/soundconnect/internal/backend"
+	"github.com/soundadam/nju-connect/internal/backend"
 )
 
 func TestParseOAuthCallbackCodeAcceptsExplicitDefaultPort(t *testing.T) {

@@ -15,9 +15,9 @@ import (
 	upstreamclient "github.com/mythologyli/zju-connect/client"
 	upstream "github.com/mythologyli/zju-connect/client/atrust"
 	upstreamresolve "github.com/mythologyli/zju-connect/resolve"
-	"github.com/soundadam/soundconnect/internal/backend"
-	"github.com/soundadam/soundconnect/internal/credential"
-	"github.com/soundadam/soundconnect/internal/runtime"
+	"github.com/soundadam/nju-connect/internal/backend"
+	"github.com/soundadam/nju-connect/internal/credential"
+	"github.com/soundadam/nju-connect/internal/runtime"
 )
 
 const (
@@ -208,7 +208,7 @@ func (core zjuCore) run(ctx context.Context, request setupRequest, prompter Prom
 	if setup == nil {
 		setup = setupUpstream
 	}
-	captchaDirectory, err := os.MkdirTemp("", "soundconnect-atrust-")
+	captchaDirectory, err := os.MkdirTemp("", "nju-connect-atrust-")
 	if err != nil {
 		return nil, errors.New("aTrust captcha workspace is unavailable")
 	}
@@ -391,8 +391,8 @@ func matchDomainResource(host string, port int, resources map[string]upstreamcli
 	return matched, matchedLength >= 0
 }
 
-// translateResources converts upstream resources into SoundConnect's model.
-// Entries SoundConnect cannot represent are dropped individually so one
+// translateResources converts upstream resources into nju-connect's model.
+// Entries nju-connect cannot represent are dropped individually so one
 // malformed gateway rule never disables routing for the rest.
 func translateResources(
 	ipResources []upstreamclient.IPResource,

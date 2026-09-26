@@ -1,7 +1,0 @@
-$ soundconnect connect
-exit: 1
---- stdout
---- stderr
-Visit https://vpn.nju.edu.cn/portal/oauth-login to sign in.
-Paste the resulting /passport/v1/auth/httpsOauth2 callback URL here; it stays local.
-Callback URL: connect aTrust backend: aTrust OAuth callback host does not match the gateway

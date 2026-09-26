@@ -115,7 +115,7 @@ type DNSOverride struct {
 }
 
 // Resources is the set of destinations an authenticated account may reach
-// through the tunnel. It is SoundConnect's model; a protocol core translates
+// through the tunnel. It is nju-connect's model; a protocol core translates
 // its wire format into these types.
 type Resources struct {
 	IPRules      []IPRule

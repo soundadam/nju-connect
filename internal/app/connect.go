@@ -8,16 +8,16 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/soundadam/soundconnect/internal/backend"
-	"github.com/soundadam/soundconnect/internal/backend/easyconnect/auth"
-	"github.com/soundadam/soundconnect/internal/backend/easyconnect/session"
-	"github.com/soundadam/soundconnect/internal/config"
-	"github.com/soundadam/soundconnect/internal/core"
-	"github.com/soundadam/soundconnect/internal/credential"
-	"github.com/soundadam/soundconnect/internal/dial"
-	"github.com/soundadam/soundconnect/internal/runtime"
-	"github.com/soundadam/soundconnect/internal/runtimecontrol"
-	"github.com/soundadam/soundconnect/internal/sessiontoken"
+	"github.com/soundadam/nju-connect/internal/backend"
+	"github.com/soundadam/nju-connect/internal/backend/easyconnect/auth"
+	"github.com/soundadam/nju-connect/internal/backend/easyconnect/session"
+	"github.com/soundadam/nju-connect/internal/config"
+	"github.com/soundadam/nju-connect/internal/core"
+	"github.com/soundadam/nju-connect/internal/credential"
+	"github.com/soundadam/nju-connect/internal/dial"
+	"github.com/soundadam/nju-connect/internal/runtime"
+	"github.com/soundadam/nju-connect/internal/runtimecontrol"
+	"github.com/soundadam/nju-connect/internal/sessiontoken"
 )
 
 const (
@@ -88,13 +88,13 @@ type CredentialRejectedError struct {
 }
 
 func (rejected *CredentialRejectedError) Error() string {
-	return fmt.Sprintf(`credential_rejected: %v; run "soundconnect account set-password"`, rejected.cause)
+	return fmt.Sprintf(`credential_rejected: %v; run "nju-connect account set-password"`, rejected.cause)
 }
 
 func (rejected *CredentialRejectedError) Unwrap() error { return rejected.cause }
 
 // errNoPassword tells the user how to save the missing password.
-var errNoPassword = errors.New(`no saved VPN password; run "soundconnect account set-password"`)
+var errNoPassword = errors.New(`no saved VPN password; run "nju-connect account set-password"`)
 
 // Connect signs in with the saved profile and runs the VPN until ctx ends or
 // `disconnect` stops it. When the gateway rejects the saved username or
@@ -107,7 +107,7 @@ func Connect(ctx context.Context, deps Deps, request ConnectRequest, events Conn
 	}
 	if err := runtimecontrol.EnsureNoActive(runtimecontrol.Path(paths.Root)); err != nil {
 		if errors.Is(err, runtimecontrol.ErrAlreadyActive) {
-			return ConnectResult{}, errors.New(`soundconnect is already running; run "soundconnect status" to inspect it or "soundconnect disconnect" to stop it`)
+			return ConnectResult{}, errors.New(`nju-connect is already running; run "nju-connect status" to inspect it or "nju-connect disconnect" to stop it`)
 		}
 		return ConnectResult{}, fmt.Errorf("prepare runtime status: %w", err)
 	}
@@ -124,7 +124,7 @@ func Connect(ctx context.Context, deps Deps, request ConnectRequest, events Conn
 	}
 	if configured.BackendName() == backend.ATrust {
 		if request.Background {
-			return ConnectResult{}, Usagef(`--background is EasyConnect only; run "soundconnect connect" in the foreground for aTrust`)
+			return ConnectResult{}, Usagef(`--background is EasyConnect only; run "nju-connect connect" in the foreground for aTrust`)
 		}
 		return ConnectResult{}, connectATrust(ctx, deps, paths, configured, events)
 	}
@@ -159,7 +159,7 @@ func LoadProfile(ctx context.Context, deps Deps, offerSetup bool) (config.Config
 			return result.Config, nil
 		}
 	}
-	return config.Config{}, errors.New(`load configuration: no configuration yet; run "soundconnect setup" first`)
+	return config.Config{}, errors.New(`load configuration: no configuration yet; run "nju-connect setup" first`)
 }
 
 // readSavedPassword reads the shared password, explaining how to save one
@@ -333,7 +333,7 @@ func runResult(ctx context.Context, err error) error {
 		return nil
 	}
 	if errors.Is(err, runtime.ErrRenewalRequired) {
-		return errors.New(`renewal_required: run "soundconnect connect" to sign in again`)
+		return errors.New(`renewal_required: run "nju-connect connect" to sign in again`)
 	}
 	var failure *runtime.TransportFailure
 	if errors.As(err, &failure) {

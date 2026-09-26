@@ -1,0 +1,6 @@
+$ nju-connect migrate -h
+exit: 0
+--- stdout
+Usage of nju-connect migrate:
+      --from string   directory containing the legacy .config state (default ".")
+--- stderr

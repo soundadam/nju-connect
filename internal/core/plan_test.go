@@ -3,7 +3,7 @@ package core
 import (
 	"testing"
 
-	"github.com/soundadam/soundconnect/internal/backend/easyconnect/auth"
+	"github.com/soundadam/nju-connect/internal/backend/easyconnect/auth"
 )
 
 func TestBuildDataplanePlan(t *testing.T) {

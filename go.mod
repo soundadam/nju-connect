@@ -1,4 +1,4 @@
-module github.com/soundadam/soundconnect
+module github.com/soundadam/nju-connect
 
 go 1.25.6
 

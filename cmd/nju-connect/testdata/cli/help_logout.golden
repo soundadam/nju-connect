@@ -1,0 +1,5 @@
+$ nju-connect logout -h
+exit: 0
+--- stdout
+Usage of nju-connect logout:
+--- stderr

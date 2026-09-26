@@ -1,0 +1,5 @@
+$ nju-connect speedtest probe --route auto --json
+exit: 0
+--- stdout
+{"schema_version":1,"target":"speed.nju.edu.cn","route":"direct","latency_ms":1.5}
+--- stderr

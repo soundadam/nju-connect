@@ -1,6 +1,6 @@
-// Package atrustbackend is SoundConnect's aTrust backend.
+// Package atrustbackend is nju-connect's aTrust backend.
 //
-// SoundConnect owns the interfaces in this file, the resource model and
+// nju-connect owns the interfaces in this file, the resource model and
 // routing in resources.go and router.go, the lifecycle in runtime.go, and the
 // OAuth callback parser. The wire protocol lives behind Core; NewCore in
 // zjuconnect.go supplies it by adapting the pinned AGPL-3.0
@@ -13,7 +13,7 @@ import (
 	"net"
 	"time"
 
-	"github.com/soundadam/soundconnect/internal/backend"
+	"github.com/soundadam/nju-connect/internal/backend"
 )
 
 // ErrFactorUnavailable is returned by a Prompter that cannot supply the
@@ -48,7 +48,7 @@ type Core interface {
 }
 
 // DialFunc opens the network connections a Core makes to the gateway and its
-// tunnel nodes. SoundConnect supplies one that honors the configured
+// tunnel nodes. nju-connect supplies one that honors the configured
 // upstream proxy; a nil DialFunc means a plain net.Dialer.
 type DialFunc func(ctx context.Context, network, address string) (net.Conn, error)
 
@@ -78,7 +78,7 @@ type Session interface {
 	ClientData() ([]byte, error)
 
 	// Resources returns the resources this account may reach through the
-	// tunnel, translated into SoundConnect's resource model.
+	// tunnel, translated into nju-connect's resource model.
 	Resources(ctx context.Context) (Resources, error)
 
 	// OpenTunnel selects a tunnel node and returns a TCP tunnel bound to this
