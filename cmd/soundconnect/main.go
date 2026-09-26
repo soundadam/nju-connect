@@ -9,12 +9,24 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/soundadam/soundconnect/internal/app"
+	"github.com/soundadam/soundconnect/internal/backend/atrust"
 )
 
 var version = "dev"
 
 func main() {
+	atrustbackend.SetUpstreamDebugLog(upstreamDebugLog(os.Getenv, os.Stderr))
 	os.Exit(run(productionDeps(), os.Args[1:], os.Stdout, os.Stderr))
+}
+
+// upstreamDebugLog is where the linked aTrust core's own log lines go:
+// stderr with SOUNDCONNECT_DEBUG=1, nowhere otherwise, so they never break
+// the stderr contract or interleave with a form.
+func upstreamDebugLog(getenv func(string) string, stderr io.Writer) io.Writer {
+	if getenv("SOUNDCONNECT_DEBUG") == "1" {
+		return stderr
+	}
+	return nil
 }
 
 // run dispatches one invocation and returns its exit status.
