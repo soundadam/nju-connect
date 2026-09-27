@@ -9,8 +9,8 @@ cask "nju-connect" do
   desc "Menu-bar controller and native campus-connectivity CLI"
   homepage "__HOMEPAGE__"
 
-  depends_on macos: :ventura
   depends_on formula: "librespeed-cli-nju-connect"
+  depends_on macos: :ventura
 
   app "nju-connect.app"
   binary "#{appdir}/nju-connect.app/Contents/Helpers/nju-connect"
