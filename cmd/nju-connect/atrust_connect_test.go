@@ -14,11 +14,10 @@ import (
 	"github.com/soundadam/nju-connect/internal/backend/atrust"
 	"github.com/soundadam/nju-connect/internal/backend/easyconnect/session"
 	"github.com/soundadam/nju-connect/internal/config"
-	"github.com/soundadam/nju-connect/internal/credential"
 )
 
-// useATrustTestState points the CLI at a private temporary root with
-// owner-only file secrets, so tests never touch the user's keyring.
+// useATrustTestState points the CLI at a private temporary root, so tests
+// never touch the user's saved secrets.
 func useATrustTestState(t *testing.T) (config.Paths, app.Deps) {
 	t.Helper()
 	root := filepath.Join(t.TempDir(), "nju-connect")
@@ -154,7 +153,7 @@ func TestAuthInfoListsDiscoveredMethods(t *testing.T) {
 
 func TestLogoutClearsATrustClientDataAndOAuthProfile(t *testing.T) {
 	paths, deps := useATrustTestState(t)
-	store, err := deps.ATrustSessionStore(credential.Location{File: paths.ATrustClientData})
+	store, err := deps.ATrustSessionStore(paths.ATrustClientData)
 	if err != nil {
 		t.Fatal(err)
 	}

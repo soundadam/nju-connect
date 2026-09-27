@@ -6,14 +6,17 @@ struct DashboardHeader: View {
     var body: some View {
         HStack(spacing: 8) {
             Circle()
-                .fill(statusColor)
-                .frame(width: 6, height: 6)
+                .fill(model.statusTint)
+                .frame(width: 8, height: 8)
+                .background(Circle().fill(model.statusTint.opacity(0.22)).padding(-3))
+                .padding(.leading, 2)
+                .animation(.easeOut(duration: 0.2), value: model.statusTint)
 
             VStack(alignment: .leading, spacing: 1) {
                 Text("nju-connect")
                     .font(.system(size: 13, weight: .semibold))
                 Text(model.statusTitle)
-                    .font(.caption2)
+                    .font(.caption)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
             }
@@ -22,24 +25,16 @@ struct DashboardHeader: View {
 
             if model.isPerformingAction {
                 ProgressView()
-                    .controlSize(.mini)
+                    .controlSize(.small)
+            } else if model.phase == .connected || model.phase == .reconnecting {
+                Text("SOCKS5 :\(model.socksPort)")
+                    .font(.system(size: 11, design: .monospaced))
+                    .foregroundStyle(.secondary)
+                    .help("Local SOCKS5 proxy \(model.socksEndpoint) → \(model.gatewayServer)")
             }
-
-            BackendSwitch(model: model)
         }
         .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-    }
-
-    private var statusColor: Color {
-        if model.showsCredentialSetup {
-            return .orange
-        }
-        switch model.phase {
-        case .connected: return .green
-        case .waitingMFA, .authenticating, .connecting, .reconnecting, .starting: return .orange
-        case .degraded: return .red
-        case .stopped: return .secondary
-        }
+        .padding(.top, 10)
+        .padding(.bottom, 8)
     }
 }

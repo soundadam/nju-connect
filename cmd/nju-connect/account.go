@@ -97,8 +97,7 @@ func writeAccountInfo(output io.Writer, info app.AccountInfo) {
 			fmt.Fprintf(output, "auth_type: %s\n", info.AuthType)
 		}
 	}
-	fmt.Fprintf(output, "credential_store: %s\npassword: %s\natrust_session: %s\n",
-		info.CredentialStore, info.Password, info.ATrustSession)
+	fmt.Fprintf(output, "password: %s\natrust_session: %s\n", info.Password, info.ATrustSession)
 }
 
 func newAccountSetPasswordCommand(deps app.Deps) *cobra.Command {

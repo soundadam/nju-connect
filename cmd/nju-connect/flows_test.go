@@ -501,22 +501,6 @@ func TestFlowSpeedtestNJUConnectRouteRequiresRuntime(t *testing.T) {
 		harness.run("speedtest", "probe", "--route", "nju-connect", "--json").expect(t, 1))
 }
 
-func TestFlowMigrate(t *testing.T) {
-	harness := newCLIHarness(t)
-	legacyRoot := t.TempDir()
-	legacy, err := config.LegacyPaths(legacyRoot)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := config.Replace(legacy.Config, config.Config{Server: "vpn.example.edu", Username: "student", SOCKSListen: config.DefaultSOCKSListen}); err != nil {
-		t.Fatal(err)
-	}
-	harness.writeSecret(legacy.Credential, "synthetic-password")
-	legacyPath := func(value string) string { return strings.ReplaceAll(value, legacyRoot, "$LEGACY_ROOT") }
-	harness.golden("migrate_first", harness.run("migrate", "--from", legacyRoot).expect(t, 0), legacyPath)
-	harness.golden("migrate_again", harness.run("migrate", "--from", legacyRoot).expect(t, 0), legacyPath)
-}
-
 // lockedBuffer is a bytes.Buffer safe for a command goroutine writing while
 // the test reads after it exits.
 type lockedBuffer struct {

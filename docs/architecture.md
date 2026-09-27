@@ -15,7 +15,7 @@ lines) is specified in [`cli-contract.md`](cli-contract.md).
 flowchart LR
     UI[SwiftUI menu-bar app]
     CLI[nju-connect CLI]
-    CONFIG[config.toml + system keyring]
+    CONFIG[config.toml + owner-only secret files]
     STATUS[private runtime status socket]
     EASY[EasyConnect backend]
     ATRUST[aTrust backend seam]
@@ -40,8 +40,8 @@ flowchart LR
 | `internal/app` | setup, account, connect lifecycle, background handoff, speed test; every dependency injected through `app.Deps` | terminal rendering |
 | `internal/tui` | huh forms on a terminal, line prompts otherwise | protocol state |
 | `internal/config` | backend, gateway, authentication selection, loopback listener | cookies, OAuth browser state, passwords |
-| `internal/credential` | the system keyring (go-keyring) or owner-only files | anything but opaque secret bytes |
-| `internal/backend` | backend vocabulary, catalog, endpoints, discovery and session contracts | UI state, keyring access |
+| `internal/credential` | owner-only secret files in the state directory | anything but opaque secret bytes |
+| `internal/backend` | backend vocabulary, catalog, endpoints | UI state, secret storage |
 | `internal/backend/easyconnect` | EasyConnect authentication and native session handoff | aTrust resources |
 | `internal/backend/atrust` | `Core`/`Session`/`Tunnel`/`Prompter`, the zju-connect adapter, resource model, SOCKS routing, OAuth callback validation | EasyConnect tokens |
 | `internal/runtime`, `internal/core` | the EasyConnect userspace dataplane | configuration, credentials |
@@ -125,7 +125,7 @@ sides clear the token. The child reports readiness on a second pipe before the
 parent returns, and appends sanitized output to the owner-only `runtime.log`.
 The wire details are in the contract document.
 
-Background hosting is Unix-only and EasyConnect-only for now.
+Background hosting is Unix-only and EasyConnect-only.
 
 ## aTrust backend
 
@@ -154,8 +154,8 @@ Background hosting is Unix-only and EasyConnect-only for now.
 - `Session.Resources` translates upstream IP, domain and DNS resources, and
   `Tunnel.DialTCP` passes the original SOCKS domain to the node.
 
-The saved client data is opaque outside the core and lives in its own keyring
-item. The OAuth helper keeps a separate WebKit profile.
+The saved client data is opaque outside the core and lives in its own
+owner-only file, `atrust-client-data`. The OAuth helper keeps a separate WebKit profile.
 
 Known gaps, inherited from the upstream client: it dials with its own dialer
 (a configured upstream proxy is ignored), does not verify gateway or node
@@ -177,16 +177,15 @@ in `soundadam/soundprobe`, and the app never embeds it.
 | Capability | Linux | macOS | Windows |
 | --- | --- | --- | --- |
 | Build (`CGO_ENABLED=0`) | amd64, arm64 | amd64, arm64 | amd64, arm64 |
-| Credentials | Secret Service, or `credential_store = "file"` | login Keychain | Credential Manager |
-| Config ownership checks | `euid` + mode | `euid` + mode | not implemented; fails closed |
+| Config and secret ownership checks | `euid` + mode | `euid` + mode | owner SID + DACL (only the user, SYSTEM, Administrators); new paths get a protected user-only DACL |
 | Background runtime | yes | yes | no |
 | App | — | menu-bar app | — |
 
-On macOS go-keyring stores items through `/usr/bin/security`, so any process
-running as the user can read the password without a Keychain prompt. The
-trade-off buys one credential path on every OS and no re-prompt after a
-rebuild. Pre-keyring Keychain items are imported once (a cgo build is needed
-for that import only).
+Secrets are owner-only files on every platform rather than the OS keyring:
+one code path, no keyring prompts or re-prompts after a rebuild, and moving
+the state directory moves everything. Any process running as the user can
+read them, which the macOS Keychain through `/usr/bin/security` allowed as
+well.
 
 ## Releases and dependencies
 

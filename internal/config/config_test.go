@@ -73,16 +73,6 @@ func TestATrustConfigDoesNotRequireUsername(t *testing.T) {
 	}
 }
 
-func TestCredentialStoreSetting(t *testing.T) {
-	configured, err := Parse([]byte("username='student'\ncredential_store='file'\n"))
-	if err != nil || configured.CredentialStore != "file" {
-		t.Fatalf("Parse() = %+v, %v", configured, err)
-	}
-	if _, err := Parse([]byte("username='student'\ncredential_store='vault'\n")); err == nil {
-		t.Fatal("Parse() accepted an unknown credential store")
-	}
-}
-
 func TestParseRejectsSecretsAndUnknownFields(t *testing.T) {
 	_, err := Parse([]byte("server='vpn.example.edu'\nusername='student'\npassword='secret'\n"))
 	if err == nil {

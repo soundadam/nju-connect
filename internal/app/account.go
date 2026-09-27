@@ -25,15 +25,14 @@ const (
 // AccountInfo is the `account show --json` contract. It never contains a
 // secret, only whether one is saved.
 type AccountInfo struct {
-	SchemaVersion   int    `json:"schema_version"`
-	Configuration   string `json:"configuration"`
-	Backend         string `json:"backend,omitempty"`
-	Server          string `json:"server,omitempty"`
-	Username        string `json:"username,omitempty"`
-	AuthType        string `json:"auth_type,omitempty"`
-	CredentialStore string `json:"credential_store"`
-	Password        string `json:"password"`
-	ATrustSession   string `json:"atrust_session"`
+	SchemaVersion int    `json:"schema_version"`
+	Configuration string `json:"configuration"`
+	Backend       string `json:"backend,omitempty"`
+	Server        string `json:"server,omitempty"`
+	Username      string `json:"username,omitempty"`
+	AuthType      string `json:"auth_type,omitempty"`
+	Password      string `json:"password"`
+	ATrustSession string `json:"atrust_session"`
 }
 
 // AccountShow reports the saved account and which secrets are saved,
@@ -43,7 +42,7 @@ func AccountShow(deps Deps) (AccountInfo, error) {
 	if err != nil {
 		return AccountInfo{}, fmt.Errorf("resolve local state: %w", err)
 	}
-	info := AccountInfo{SchemaVersion: 1, Configuration: "missing", CredentialStore: credential.BackendKeyring}
+	info := AccountInfo{SchemaVersion: 1, Configuration: "missing"}
 	configured, loadErr := config.Load(paths.Config)
 	switch {
 	case loadErr == nil:
@@ -52,23 +51,20 @@ func AccountShow(deps Deps) (AccountInfo, error) {
 		info.Server = configured.Server
 		info.Username = configured.Username
 		info.AuthType = configured.AuthType
-		if configured.CredentialStore != "" {
-			info.CredentialStore = configured.CredentialStore
-		}
 	case !errors.Is(loadErr, os.ErrNotExist):
 		info.Configuration = "invalid"
 	}
 
-	info.Password = secretState(deps.PasswordStore, PasswordLocation(paths, configured.CredentialStore))
+	info.Password = secretState(deps.PasswordStore, paths.Credential)
 	if loadErr == nil && !usesPassword(configured) && info.Password == SecretMissing {
 		info.Password = SecretNotRequired
 	}
-	info.ATrustSession = secretState(deps.ATrustSessionStore, ATrustSessionLocation(paths, configured.CredentialStore))
+	info.ATrustSession = secretState(deps.ATrustSessionStore, paths.ATrustClientData)
 	return info, nil
 }
 
-func secretState(open func(credential.Location) (credential.Store, error), location credential.Location) string {
-	store, err := open(location)
+func secretState(open func(string) (credential.Store, error), path string) string {
+	store, err := open(path)
 	if err != nil {
 		return SecretUnavailable
 	}
@@ -106,11 +102,11 @@ func accountState(deps Deps, operation string) (config.Paths, config.Config, boo
 // a script can store the password first. It refuses while a runtime is
 // active.
 func SetPassword(ctx context.Context, deps Deps) error {
-	paths, configured, _, err := accountState(deps, "set password")
+	paths, _, _, err := accountState(deps, "set password")
 	if err != nil {
 		return err
 	}
-	store, err := deps.PasswordStore(PasswordLocation(paths, configured.CredentialStore))
+	store, err := deps.PasswordStore(paths.Credential)
 	if err != nil {
 		return fmt.Errorf("prepare credential store: %w", err)
 	}
@@ -150,7 +146,7 @@ func SetUsername(deps Deps, username string) (sessionCleared bool, err error) {
 	if err := config.Replace(paths.Config, configured); err != nil {
 		return false, fmt.Errorf("write profile: %w", err)
 	}
-	return forgetATrustSession(deps, paths, configured.CredentialStore)
+	return forgetATrustSession(deps, paths)
 }
 
 // ForgetRequest selects the secrets Forget removes.
@@ -173,13 +169,13 @@ func Forget(ctx context.Context, deps Deps, request ForgetRequest) (ForgetResult
 	if !request.Password && !request.Session {
 		return ForgetResult{}, Usagef("choose --password, --session, or both")
 	}
-	paths, configured, _, err := accountState(deps, "forget credentials")
+	paths, _, _, err := accountState(deps, "forget credentials")
 	if err != nil {
 		return ForgetResult{}, err
 	}
 	var result ForgetResult
 	if request.Password {
-		store, err := deps.PasswordStore(PasswordLocation(paths, configured.CredentialStore))
+		store, err := deps.PasswordStore(paths.Credential)
 		if err != nil {
 			return result, fmt.Errorf("prepare credential store: %w", err)
 		}
@@ -193,7 +189,7 @@ func Forget(ctx context.Context, deps Deps, request ForgetRequest) (ForgetResult
 		}
 	}
 	if request.Session {
-		if result.SessionForgotten, err = forgetATrustSession(deps, paths, configured.CredentialStore); err != nil {
+		if result.SessionForgotten, err = forgetATrustSession(deps, paths); err != nil {
 			return result, err
 		}
 		if result.OAuthProfileCleared, err = clearOAuthProfile(ctx, deps); err != nil {

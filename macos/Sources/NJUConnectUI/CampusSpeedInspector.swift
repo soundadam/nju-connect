@@ -8,7 +8,7 @@ struct CampusSpeedInspector: View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .firstTextBaseline) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(uiText("Campus speed", "校园测速"))
+                    Text("Campus speed")
                         .font(.headline)
                     Text("speed.nju.edu.cn")
                         .font(.caption2)
@@ -39,7 +39,7 @@ private struct LatencySection: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 7) {
-                Text(uiText("Ping", "延迟"))
+                Text("Ping")
                     .font(.caption.weight(.semibold))
                 Text(speedTest.routeLabel)
                     .font(.caption2)
@@ -52,7 +52,7 @@ private struct LatencySection: View {
                 Text(compactLatency)
                     .font(.caption.weight(.semibold))
                     .monospacedDigit()
-                Button(uiText("Refresh", "刷新")) {
+                Button("Refresh") {
                     speedTest.beginLatencySampling(force: true)
                 }
                 .controlSize(.small)
@@ -61,7 +61,7 @@ private struct LatencySection: View {
 
             ZStack {
                 if speedTest.latencySamples.isEmpty {
-                    Text(uiText("No successful samples yet.", "尚无成功样本"))
+                    Text("No successful samples yet.")
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                 } else {
@@ -78,7 +78,7 @@ private struct LatencySection: View {
                     .foregroundStyle(.secondary)
                     .monospacedDigit()
                 Spacer()
-                Text(uiText("HTTP · last 10", "HTTP · 最近 10 次"))
+                Text("HTTP · last 10")
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
             }
@@ -95,13 +95,10 @@ private struct LatencySection: View {
               let maximum = speedTest.latencySamples.max(),
               let median = speedTest.latencyMs
         else {
-            return uiText("No samples", "暂无样本")
+            return "No samples"
         }
         return String(
-            format: uiText(
-                "min %.0f · median %.0f · max %.0f ms",
-                "最低 %.0f · 中位 %.0f · 最高 %.0f ms"
-            ),
+            format: "min %.0f · median %.0f · max %.0f ms",
             minimum,
             median,
             maximum
@@ -115,7 +112,7 @@ private struct BandwidthSection: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 7) {
-                Text(uiText("Bandwidth", "带宽"))
+                Text("Bandwidth")
                     .font(.caption.weight(.semibold))
                 Text(bandwidthStatus)
                     .font(.caption2)
@@ -134,7 +131,7 @@ private struct BandwidthSection: View {
             )
             ZStack {
                 if speedTest.downloadSamples.isEmpty && speedTest.uploadSamples.isEmpty {
-                    Text(uiText("No bandwidth samples yet.", "尚无带宽样本"))
+                    Text("No bandwidth samples yet.")
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                 } else {
@@ -162,13 +159,13 @@ private struct BandwidthSection: View {
 
             HStack(spacing: 12) {
                 MetricValue(
-                    label: uiText("Download", "下载"),
+                    label: "Download",
                     value: speedTest.downloadMbps ?? speedTest.lastResult?.downloadMbps,
                     color: .blue,
                     systemImage: "arrow.down"
                 )
                 MetricValue(
-                    label: uiText("Upload", "上传"),
+                    label: "Upload",
                     value: speedTest.uploadMbps ?? speedTest.lastResult?.uploadMbps,
                     color: .green,
                     systemImage: "arrow.up"
@@ -181,25 +178,25 @@ private struct BandwidthSection: View {
     @ViewBuilder
     private var bandwidthAction: some View {
         if speedTest.isRunning {
-            Button(uiText("Cancel", "取消"), action: speedTest.cancel)
+            Button("Cancel", action: speedTest.cancel)
                 .controlSize(.small)
         } else if speedTest.phase == .componentRequired {
-            Button(uiText("Set Up", "设置"), action: speedTest.confirmComponentDownload)
+            Button("Set Up", action: speedTest.confirmComponentDownload)
                 .controlSize(.small)
                 .disabled(speedTest.componentInstallSource.isEmpty)
                 .help(componentDownloadDescription)
         } else if speedTest.phase == .connectionRequired, speedTest.canRetryAfterConnection {
-            Button(uiText("Retry", "重试"), action: speedTest.retryAfterConnection)
+            Button("Retry", action: speedTest.retryAfterConnection)
                 .controlSize(.small)
         } else if speedTest.phase == .connectionRequired {
-            Text(uiText("Waiting for VPN", "等待 VPN"))
+            Text("Waiting for VPN")
                 .font(.caption2)
                 .foregroundStyle(.secondary)
         } else {
             Button(
                 campusSpeedResultText(for: speedTest) == nil
-                    ? uiText("Start", "开始")
-                    : uiText("Test Again", "再测一次"),
+                    ? "Start"
+                    : "Test Again",
                 action: speedTest.start
             )
             .controlSize(.small)
@@ -212,26 +209,23 @@ private struct BandwidthSection: View {
         }
         switch speedTest.phase {
         case .downloading:
-            return uiText("Installing helper", "安装测速依赖")
+            return "Installing helper"
         case .probing:
-            return uiText("Probing route", "探测线路")
+            return "Probing route"
         case .measuring:
-            return uiText("Measuring", "测量中")
+            return "Measuring"
         case .componentRequired, .connectionRequired, .failed:
             return speedTest.message
         case .idle:
-            return campusSpeedResultText(for: speedTest) ?? uiText("Not tested", "尚未测速")
+            return campusSpeedResultText(for: speedTest) ?? "Not tested"
         case .completed:
-            return campusSpeedResultText(for: speedTest) ?? uiText("Complete", "已完成")
+            return campusSpeedResultText(for: speedTest) ?? "Complete"
         }
     }
 
     private var componentDownloadDescription: String {
         guard !speedTest.componentInstallSource.isEmpty else {
-            return uiText(
-                "Install with: brew install soundadam/tap/librespeed-cli-nju-connect",
-                "请运行：brew install soundadam/tap/librespeed-cli-nju-connect"
-            )
+            return "Install with: brew install soundadam/tap/librespeed-cli-nju-connect"
         }
         return "\(speedTest.componentVersion) · Homebrew"
     }
@@ -258,9 +252,9 @@ private struct MetricValue: View {
 private extension SpeedTestController {
     var routeLabel: String {
         switch route {
-        case "direct": return uiText("→ Direct", "→ 直连")
-        case "nju-connect": return uiText("→ Via VPN", "→ 经 VPN")
-        default: return uiText("Route pending", "线路待定")
+        case "direct": return "→ Direct"
+        case "nju-connect": return "→ Via VPN"
+        default: return "Route pending"
         }
     }
 }

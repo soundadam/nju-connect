@@ -1,22 +1,22 @@
 import Foundation
 
 struct NJUConnectTrafficSnapshot: Equatable {
-	let uploadBytes: UInt64
-	let downloadBytes: UInt64
-	let activeConnections: Int
-	let sampledAtUnixMilli: Int64
+    let uploadBytes: UInt64
+    let downloadBytes: UInt64
+    let activeConnections: Int
+    let sampledAtUnixMilli: Int64
 
-	init(
-		uploadBytes: UInt64,
-		downloadBytes: UInt64,
-		activeConnections: Int,
-		sampledAtUnixMilli: Int64 = 0
-	) {
-		self.uploadBytes = uploadBytes
-		self.downloadBytes = downloadBytes
-		self.activeConnections = activeConnections
-		self.sampledAtUnixMilli = sampledAtUnixMilli
-	}
+    init(
+        uploadBytes: UInt64,
+        downloadBytes: UInt64,
+        activeConnections: Int,
+        sampledAtUnixMilli: Int64 = 0
+    ) {
+        self.uploadBytes = uploadBytes
+        self.downloadBytes = downloadBytes
+        self.activeConnections = activeConnections
+        self.sampledAtUnixMilli = sampledAtUnixMilli
+    }
 }
 
 struct NJUConnectRuntimeSnapshot: Equatable {
@@ -43,17 +43,6 @@ struct NJUConnectBackendError: LocalizedError, Sendable {
     let message: String
 
     var errorDescription: String? { message }
-
-    /// True when macOS reported that the user cancelled Keychain access to
-    /// the saved VPN password; retrying and choosing Allow resolves it.
-    var isKeychainAccessCancellation: Bool {
-        Self.isKeychainAccessCancellation(message)
-    }
-
-    static func isKeychainAccessCancellation(_ text: String) -> Bool {
-        text.localizedCaseInsensitiveContains("Keychain access was cancelled")
-            || text.localizedCaseInsensitiveContains("OSStatus -128")
-    }
 }
 
 typealias NJUConnectStatusCompletion = @MainActor @Sendable (Result<NJUConnectRuntimeSnapshot, NJUConnectBackendError>) -> Void
@@ -89,19 +78,16 @@ protocol NJUConnectControlling: AnyObject {
     func forgetSession(completion: @escaping NJUConnectActionCompletion)
 }
 
-let missingHelperMessage = uiText(
-    "The bundled nju-connect CLI is missing. Reinstall nju-connect to restore it.",
-    "找不到内置 nju-connect CLI，请重新安装应用以修复"
-)
+let missingHelperMessage = "The bundled nju-connect CLI is missing. Reinstall nju-connect to restore it."
 
 // CLI payloads are internal so tests can decode the shared fixtures in
 // testdata/contract, which the Go tests regenerate from real CLI output.
 struct RuntimeStatusPayload: Decodable {
-	struct Traffic: Decodable {
-		let uploadBytes: UInt64
-		let downloadBytes: UInt64
-		let activeConnections: Int
-		let sampledAtUnixMilli: Int64?
+    struct Traffic: Decodable {
+        let uploadBytes: UInt64
+        let downloadBytes: UInt64
+        let activeConnections: Int
+        let sampledAtUnixMilli: Int64?
     }
 
     let running: Bool

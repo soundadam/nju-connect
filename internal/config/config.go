@@ -13,7 +13,7 @@ import (
 
 	"github.com/pelletier/go-toml/v2"
 	"github.com/soundadam/nju-connect/internal/backend"
-	"github.com/soundadam/nju-connect/internal/credential"
+	"github.com/soundadam/nju-connect/internal/owneronly"
 )
 
 const (
@@ -37,9 +37,6 @@ type Config struct {
 	NativeTLSInsecure bool   `toml:"native_tls_insecure"`
 	AuthType          string `toml:"auth_type,omitempty"`
 	LoginDomain       string `toml:"login_domain,omitempty"`
-	// CredentialStore is "keyring" (the default when empty) or "file", for
-	// Linux hosts without a Secret Service.
-	CredentialStore string `toml:"credential_store,omitempty"`
 }
 
 func Default() Config {
@@ -58,9 +55,6 @@ func (configured Config) Validate() error {
 		return err
 	}
 	if err := validateLoopback(configured.SOCKSListen); err != nil {
-		return err
-	}
-	if err := credential.ValidateBackend(configured.CredentialStore); err != nil {
 		return err
 	}
 	if backendName == backend.ATrust {
@@ -102,10 +96,10 @@ func Load(path string) (Config, error) {
 	if !info.Mode().IsRegular() {
 		return Config{}, errors.New("config path must be a regular file")
 	}
-	if info.Mode().Perm()&0077 != 0 {
-		return Config{}, errors.New("config permissions must be 0600 or stricter")
+	if err := owneronly.Restricted(path, info, 0700); err != nil {
+		return Config{}, fmt.Errorf("config must be accessible only to its owner: %w", err)
 	}
-	if !ownedByCurrentUser(info) {
+	if !owneronly.Owned(path, info) {
 		return Config{}, errors.New("config must be owned by the current user")
 	}
 
@@ -147,7 +141,7 @@ func Replace(path string, configured Config) error {
 		return err
 	}
 	if info, inspectErr := os.Lstat(path); inspectErr == nil {
-		if !info.Mode().IsRegular() || info.Mode().Perm()&0077 != 0 || !ownedByCurrentUser(info) {
+		if !info.Mode().IsRegular() || owneronly.Restricted(path, info, 0700) != nil || !owneronly.Owned(path, info) {
 			return errors.New("existing config must be an owner-only regular file")
 		}
 	} else if !errors.Is(inspectErr, os.ErrNotExist) {
@@ -165,7 +159,7 @@ func Replace(path string, configured Config) error {
 			_ = os.Remove(temporaryPath)
 		}
 	}()
-	if err := temporary.Chmod(0600); err != nil {
+	if err := owneronly.Restrict(temporary, 0600); err != nil {
 		_ = temporary.Close()
 		return fmt.Errorf("secure temporary config: %w", err)
 	}
@@ -202,15 +196,15 @@ func writeAll(writer io.Writer, value []byte) error {
 }
 
 func ensurePrivateDirectory(path string) error {
-	if err := os.MkdirAll(path, 0700); err != nil {
+	if err := owneronly.MkdirAll(path); err != nil {
 		return fmt.Errorf("create config directory: %w", err)
 	}
 	info, err := os.Lstat(path)
 	if err != nil {
 		return fmt.Errorf("inspect config directory: %w", err)
 	}
-	if !info.IsDir() || info.Mode().Perm()&0077 != 0 || !ownedByCurrentUser(info) {
-		return errors.New("config directory must be current-user-owned and 0700 or stricter")
+	if !info.IsDir() || owneronly.Restricted(path, info, 0700) != nil || !owneronly.Owned(path, info) {
+		return errors.New("config directory must be owned by and accessible only to the current user")
 	}
 	return nil
 }

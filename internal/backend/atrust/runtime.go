@@ -7,7 +7,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/soundadam/nju-connect/internal/backend"
 	"github.com/soundadam/nju-connect/internal/runtime"
 	"github.com/soundadam/nju-connect/internal/traffic"
 )
@@ -29,7 +28,7 @@ type ConnectConfig struct {
 }
 
 // Connection is a running aTrust session exposed through the shared SOCKS
-// listener. It satisfies backend.Session.
+// listener.
 type Connection struct {
 	session  Session
 	tunnel   Tunnel
@@ -41,8 +40,6 @@ type Connection struct {
 	closeOnce sync.Once
 	closeErr  error
 }
-
-var _ backend.Session = (*Connection)(nil)
 
 // Connect resumes or authenticates a session, loads its resources, opens the
 // tunnel, and binds the SOCKS listener. It does not start serving; call Run.
@@ -163,11 +160,6 @@ func (connection *Connection) Run(ctx context.Context) error {
 		return errors.New("aTrust tunnel stopped unexpectedly")
 	}
 	return first
-}
-
-// Logout invalidates the session on the gateway (best effort).
-func (connection *Connection) Logout(ctx context.Context) error {
-	return connection.session.Logout(ctx)
 }
 
 // Close releases the tunnel and session. It is idempotent.

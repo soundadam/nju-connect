@@ -83,7 +83,7 @@ func TestSetupATrustPasswordSuppliedSelectsPasswordAuthentication(t *testing.T) 
 		Backend: "atrust", Server: "vpn.nju.edu.cn", Username: "student",
 		PasswordSupplied: true,
 	})
-	if err != nil || result.Credential != CredentialSystemStorePassword {
+	if err != nil || result.Credential != CredentialSavedPassword {
 		t.Fatalf("result=%+v err=%v", result, err)
 	}
 	got, err := config.Load(env.paths.Config)
@@ -99,7 +99,7 @@ func TestSetupATrustOAuthStoresNoPassword(t *testing.T) {
 	t.Parallel()
 	env := newTestEnv(t)
 	env.withDiscovery(njuMethods, nil)
-	env.deps.PasswordStore = func(credential.Location) (credential.Store, error) {
+	env.deps.PasswordStore = func(string) (credential.Store, error) {
 		t.Fatal("OAuth setup opened the password store")
 		return nil, nil
 	}
@@ -197,46 +197,13 @@ func TestSaveRequiresReaderAndStoreForPasswordProfiles(t *testing.T) {
 	}
 }
 
-func TestMigrateCopiesConfigAndImportsCredential(t *testing.T) {
-	t.Parallel()
-	legacyRoot := t.TempDir()
-	legacy, err := config.LegacyPaths(legacyRoot)
-	if err != nil {
-		t.Fatal(err)
-	}
-	want := config.Config{Server: "vpn.example.edu", Username: "student", SOCKSListen: config.DefaultSOCKSListen}
-	if err := config.Replace(legacy.Config, want); err != nil {
-		t.Fatal(err)
-	}
-	env := newTestEnv(t)
-	env.setSecret(legacy.Credential, "synthetic-password")
-
-	result, err := Migrate(env.deps, legacyRoot)
-	if err != nil || result != (MigrateResult{ConfigurationMigrated: true, CredentialMigrated: true}) {
-		t.Fatalf("result=%+v err=%v", result, err)
-	}
-	if got, err := config.Load(env.paths.Config); err != nil || got != want {
-		t.Fatalf("configuration = %+v, err = %v", got, err)
-	}
-	if secret, err := env.secret(env.paths.Credential); err != nil || secret != "synthetic-password" {
-		t.Fatalf("password = %q, err = %v", secret, err)
-	}
-	if secret, err := env.secret(legacy.Credential); err != nil || secret != "synthetic-password" {
-		t.Fatalf("legacy source was not preserved: %q, %v", secret, err)
-	}
-	result, err = Migrate(env.deps, legacyRoot)
-	if err != nil || result.ConfigurationMigrated {
-		t.Fatalf("second Migrate() = %+v, %v", result, err)
-	}
-}
-
 func TestSetupKeepsSavedSettingsThatTheRequestLeavesOut(t *testing.T) {
 	t.Parallel()
 	env := newTestEnv(t)
 	saved := config.Config{
 		Backend: backend.EasyConnect, Server: "vpn.example.edu", Username: "student",
 		SOCKSListen: "127.0.0.1:1090", UpstreamProxy: "socks5://127.0.0.1:7890",
-		TLSInsecure: true, NativeTLSInsecure: true, CredentialStore: credential.BackendFile,
+		TLSInsecure: true, NativeTLSInsecure: true,
 	}
 	env.writeConfig(saved)
 	env.answer("new-password\n", true)
@@ -273,8 +240,8 @@ func TestSetupStoresThePasswordBeforeTheConfiguration(t *testing.T) {
 	env := newTestEnv(t)
 	saved := config.Config{Backend: backend.EasyConnect, Server: "vpn.example.edu", Username: "student", SOCKSListen: config.DefaultSOCKSListen}
 	env.writeConfig(saved)
-	failure := errors.New("keyring locked")
-	env.deps.PasswordStore = func(credential.Location) (credential.Store, error) { return failingStore{err: failure}, nil }
+	failure := errors.New("disk full")
+	env.deps.PasswordStore = func(string) (credential.Store, error) { return failingStore{err: failure}, nil }
 	env.answer("new-password\n", true)
 	_, err := Setup(context.Background(), env.deps, SetupRequest{
 		Backend: "easyconnect", Server: "vpn.other.edu", Username: "other", PasswordSupplied: true,

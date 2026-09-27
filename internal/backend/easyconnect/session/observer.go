@@ -57,7 +57,7 @@ type TrafficSnapshot struct {
 	TotalConnections  uint64
 }
 
-// Observer is the minimal sanitized bridge used by CLI and future UI layers.
+// Observer is the minimal sanitized bridge the CLI reports runtime state through.
 // Implementations must tolerate callbacks from runtime-owned goroutines.
 type Observer interface {
 	StateChanged(State)

@@ -178,21 +178,33 @@ p { margin: 0; }
   font: 12px/1.45 -apple-system, BlinkMacSystemFont, "SF Pro Text", var(--sans);
   overflow: hidden;
 }
-.panel-row { padding: 10px 12px; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.panel-row { padding: 9px 12px; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .panel-row + .panel-row { border-top: 1px solid var(--line); }
-.panel-title { font-weight: 600; font-size: 13px; display: flex; align-items: center; gap: 7px; }
-.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--signal); box-shadow: 0 0 0 3px color-mix(in srgb, var(--signal) 22%, transparent); }
-.seg { display: grid; grid-template-columns: repeat(3, 1fr); background: var(--paper); border-radius: 7px; padding: 2px; width: 100%; }
-.seg span { text-align: center; padding: 4px 0; border-radius: 5px; color: var(--muted); }
-.seg span.on { background: var(--surface); color: var(--ink); font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,0.12); }
+.panel-head { display: grid; gap: 9px; padding: 10px 12px; }
+.panel-status { display: flex; align-items: center; gap: 9px; }
+.panel-status > span:last-child { margin-left: auto; }
+.panel-title { font-weight: 600; font-size: 13px; line-height: 1.25; }
+.panel-sub { display: block; font-weight: 400; font-size: 11.5px; color: var(--muted); }
+.dot { flex: none; width: 8px; height: 8px; margin: 0 1px 0 2px; border-radius: 50%; background: var(--signal); box-shadow: 0 0 0 3px color-mix(in srgb, var(--signal) 22%, transparent); }
+.dot.off { background: var(--muted); box-shadow: 0 0 0 3px color-mix(in srgb, var(--muted) 18%, transparent); }
+.dot.wait { background: #e0902a; box-shadow: 0 0 0 3px color-mix(in srgb, #e0902a 22%, transparent); }
+.seg { display: grid; grid-template-columns: repeat(3, 1fr); background: var(--paper); border: 1px solid var(--line); border-radius: 7px; padding: 2px; width: 100%; }
+.seg button, .seg span { font: inherit; text-align: center; padding: 3px 0; border: 0; border-radius: 5px; background: none; color: var(--ink); }
+.seg button { cursor: pointer; }
+.seg button:hover:not([aria-checked="true"]) { background: color-mix(in srgb, var(--line) 55%, transparent); }
+.seg [aria-checked="true"], .seg span.on { background: var(--surface); font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,0.14); }
 .muted { color: var(--muted); }
 .mono { font-family: var(--mono); }
 .traffic { display: block; }
 .traffic-head { display: flex; justify-content: space-between; margin-bottom: 6px; }
-.traffic svg { width: 100%; height: 42px; display: block; }
-.traffic-nums { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 6px; font-variant-numeric: tabular-nums; }
-.traffic-nums b { font-weight: 600; }
+.traffic svg { width: 100%; height: 42px; display: block; border-bottom: 1px solid var(--line); }
+.traffic-nums { display: grid; grid-template-columns: auto auto; justify-content: space-between; gap: 3px 8px; font-size: 11px; margin-top: 6px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.traffic-nums b { font-weight: 600; color: var(--ink); }
+.traffic-nums i { display: inline-block; width: 5px; height: 5px; border-radius: 50%; background: var(--plum); margin-right: 4px; vertical-align: middle; }
+.traffic-nums i.up { background: var(--muted); }
+.panel [hidden] { display: none; }
 .sample-note { font-size: 11.5px; color: var(--muted); margin-top: 8px; text-align: right; }
+.static { pointer-events: none; user-select: none; }
 
 /* Sections */
 section.block { padding-block: 72px; border-top: 1px solid var(--line); }
@@ -325,7 +337,7 @@ footer nav { display: flex; gap: 18px; flex-wrap: wrap; }
           <a class="btn" href="https://github.com/soundadam/nju-connect">在 GitHub 查看源码</a>
         </div>
         <ul class="facts">
-          <li>密码存进系统钥匙串</li>
+          <li>密码只存在本机，仅本人可读</li>
           <li>本地 SOCKS5 代理，不改系统路由</li>
           <li>macOS / Linux / Windows</li>
         </ul>
@@ -348,35 +360,41 @@ footer nav { display: flex; gap: 18px; flex-wrap: wrap; }
         <div>
           <div class="spec-label"><span>macOS 菜单栏</span><span>面板宽 292pt，与应用一致</span></div>
           <div class="panel-hang">
-            <div class="panel" role="img" aria-label="nju-connect 菜单栏面板示意：已通过 aTrust 连接，显示实时流量">
-              <div class="panel-row">
-                <span class="panel-title"><span class="dot"></span>nju-connect</span>
-                <span class="muted mono">SOCKS5</span>
-              </div>
-              <div class="panel-row">
-                <div class="seg"><span>Off</span><span>EasyConnect</span><span class="on">aTrust</span></div>
+            <div class="panel" id="demo" aria-label="nju-connect 菜单栏面板演示">
+              <div class="panel-head">
+                <div class="panel-status">
+                  <span class="dot" data-dot></span>
+                  <span class="panel-title">nju-connect<span class="panel-sub" data-status aria-live="polite">aTrust · Connected</span></span>
+                  <span class="muted mono" data-socks>SOCKS5 :1081</span>
+                </div>
+                <div class="seg" role="radiogroup" aria-label="VPN">
+                  <button type="button" role="radio" aria-checked="false" data-mode="off">Off</button>
+                  <button type="button" role="radio" aria-checked="false" data-mode="EasyConnect">EasyConnect</button>
+                  <button type="button" role="radio" aria-checked="true" data-mode="aTrust">aTrust</button>
+                </div>
               </div>
               <div class="panel-row">
                 <span>speed.nju.edu.cn</span>
                 <span class="muted">Ping 6 ms</span>
               </div>
-              <div class="panel-row traffic">
+              <div class="panel-row muted" data-off hidden>Choose EasyConnect or aTrust to connect.</div>
+              <div class="panel-row traffic" data-traffic>
                 <div class="traffic-head"><span>Live traffic</span><span class="muted">Last 30 sec</span></div>
                 <svg viewBox="0 0 268 42" preserveAspectRatio="none" aria-hidden="true">
-                  <polygon fill="var(--plum-soft)" points="0,42 0,34 14,31 28,33 42,24 56,27 70,18 84,22 98,12 112,16 126,20 140,9 154,14 168,11 182,19 196,15 210,23 224,17 238,21 252,13 268,16 268,42"/>
+                  <polygon fill="color-mix(in srgb, var(--plum) 16%, transparent)" points="0,42 0,34 14,31 28,33 42,24 56,27 70,18 84,22 98,12 112,16 126,20 140,9 154,14 168,11 182,19 196,15 210,23 224,17 238,21 252,13 268,16 268,42"/>
                   <polyline fill="none" stroke="var(--plum)" stroke-width="1.6" stroke-linejoin="round" points="0,34 14,31 28,33 42,24 56,27 70,18 84,22 98,12 112,16 126,20 140,9 154,14 168,11 182,19 196,15 210,23 224,17 238,21 252,13 268,16"/>
-                  <circle cx="268" cy="16" r="2.4" fill="var(--plum)"/>
+                  <polyline fill="none" stroke="var(--muted)" stroke-width="1.2" stroke-linejoin="round" points="0,40 28,39 56,40 84,38 112,39 140,37 168,39 196,38 224,39 252,38 268,39"/>
                 </svg>
-                <div class="traffic-nums">
-                  <span class="muted">Download <b>84 KB/s</b></span>
-                  <span class="muted">Upload <b>3 KB/s</b></span>
-                  <span class="muted">Session <b>↓ 678.9 KB ↑ 12.3 KB</b></span>
-                  <span class="muted">Conn. <b>2 active</b></span>
+                <div class="traffic-nums muted">
+                  <span><i></i>Download <b>84 kB/s</b></span>
+                  <span><i class="up"></i>Upload <b>3 kB/s</b></span>
+                  <span>Session <b>↓ 678.9 KB ↑ 12.3 KB</b></span>
+                  <span>Conn. <b>2 active</b></span>
                 </div>
               </div>
             </div>
           </div>
-          <p class="sample-note">示意图，数值为示例</p>
+          <p class="sample-note">点上面的开关试试 · 数值为示例</p>
         </div>
       </div>
     </div>
@@ -426,10 +444,10 @@ nju-connect
         </article>
 
         <article class="cmd">
-          <div class="sig">密码存进系统钥匙串</div>
-          <p>VPN 密码和 aTrust 会话保存在系统的凭据存储里：macOS 的登录钥匙串、Linux 的 Secret Service、Windows 凭据管理器。配置文件里只有账号和网关这类非敏感信息。没有钥匙串的服务器（比如通过 SSH 登录的 Linux）可以改用仅本人可读的文件。</p>
-<pre><span class="dim"># config.toml</span>
-credential_store = "file"</pre>
+          <div class="sig">密码只存在本机</div>
+          <p>VPN 密码和 aTrust 会话由 nju-connect 自己保存在配置目录里，每项一个仅本人可读（0600）的文件，所有平台都一样，不依赖系统钥匙串，也不会弹出钥匙串授权。配置文件里只有账号和网关这类非敏感信息。</p>
+<pre><span class="dim"># 清除保存的密码和会话</span>
+nju-connect account forget --password --session</pre>
         </article>
 
         <article class="cmd">
@@ -462,27 +480,28 @@ credential_store = "file"</pre>
             <p>面板里可以直接对 speed.nju.edu.cn 测速，显示延迟和带宽，并标出走的是校园网直连还是 VPN。展开详情可以看到最近几次的延迟和带宽曲线。</p>
           </li>
         </ul>
-        <p class="note">应用的所有操作都通过内置的 nju-connect 命令行完成，密码经由命令行存入钥匙串，验证码通过私有的本地管道传递，不会被保存。需要 macOS 13 Ventura 或更高版本。</p>
+        <p class="note">应用的所有操作都通过内置的 nju-connect 命令行完成，密码经由命令行保存到本机，验证码通过私有的本地管道传递，不会被保存。需要 macOS 13 Ventura 或更高版本。</p>
       </div>
 
       <div class="panel-hang" style="justify-content:center">
-        <div class="panel" role="img" aria-label="首次使用时的设置面板示意">
-          <div class="panel-row">
-            <span class="panel-title"><span class="dot" style="background:var(--muted);box-shadow:none"></span>nju-connect</span>
-            <span class="muted">Setup needed</span>
-          </div>
-          <div class="panel-row">
-            <div class="seg"><span>Off</span><span class="on">EasyConnect</span><span>aTrust</span></div>
-          </div>
-          <div class="panel-row" style="display:grid;gap:8px">
-            <span style="border:1px solid var(--line);border-radius:6px;padding:5px 8px" class="muted">NJU account</span>
-            <span style="border:1px solid var(--line);border-radius:6px;padding:5px 8px" class="muted">NJU password</span>
-            <span style="justify-self:end;background:var(--plum);color:var(--paper);border-radius:6px;padding:4px 12px;font-weight:600">Save &amp; Connect</span>
-            <span class="muted" style="font-size:11px">The account is saved in nju-connect's settings; the long-lived password stays in Keychain and is shared by both backends. Verification codes are never saved.</span>
+        <div class="panel static" role="img" aria-label="首次使用时的设置面板示意">
+          <div class="panel-head">
+            <div class="panel-status">
+              <span class="dot wait"></span>
+              <span class="panel-title">nju-connect<span class="panel-sub">Setup required</span></span>
+              <span></span>
+            </div>
+            <div class="seg"><span class="on">Off</span><span>EasyConnect</span><span>aTrust</span></div>
           </div>
           <div class="panel-row">
             <span>speed.nju.edu.cn</span>
             <span class="muted">Not tested</span>
+          </div>
+          <div class="panel-row muted" style="font-size:11.5px">Enter the NJU account and password shared by both backends. A verification code may be requested next.</div>
+          <div class="panel-row" style="display:grid;gap:7px">
+            <span style="border:1px solid var(--line);border-radius:6px;padding:4px 8px" class="muted">NJU account</span>
+            <span style="border:1px solid var(--line);border-radius:6px;padding:4px 8px" class="muted">NJU password</span>
+            <span style="justify-self:end;background:var(--plum);color:var(--paper);border-radius:6px;padding:3px 12px;font-weight:600">Save &amp; Connect</span>
           </div>
         </div>
       </div>
@@ -555,7 +574,7 @@ go build -o nju-connect ./cmd/nju-connect</pre><button class="copy" type="button
             <div class="body">
               <div class="code"><pre>./nju-connect setup
 ./nju-connect connect</pre><button class="copy" type="button">复制</button></div>
-              <p>在没有 Secret Service 的 Linux 主机上，在 <code>config.toml</code> 里加入 <code>credential_store = "file"</code>。aTrust 的浏览器登录助手只在 macOS 上提供；其他平台使用 OAuth 登录时，命令行会打印登录链接，请把浏览器跳转后的回调地址粘贴回终端。</p>
+              <p>aTrust 的浏览器登录助手只在 macOS 上提供；其他平台使用 OAuth 登录时，命令行会打印登录链接，请把浏览器跳转后的回调地址粘贴回终端。</p>
             </div>
           </li>
           <li>
@@ -619,6 +638,35 @@ go build -o nju-connect ./cmd/nju-connect</pre><button class="copy" type="button
       select(next); next.focus();
     });
   });
+
+  var demo = document.getElementById('demo');
+  if (demo) {
+    var modes = Array.prototype.slice.call(demo.querySelectorAll('[data-mode]'));
+    var q = function (name) { return demo.querySelector('[data-' + name + ']'); };
+    var timer;
+    function show(mode, connecting) {
+      var off = mode === 'off';
+      modes.forEach(function (b) { b.setAttribute('aria-checked', b.dataset.mode === mode ? 'true' : 'false'); });
+      q('dot').className = 'dot' + (off ? ' off' : connecting ? ' wait' : '');
+      q('status').textContent = off ? 'Disconnected' : mode + (connecting ? ' · Connecting…' : ' · Connected');
+      q('socks').hidden = off || connecting;
+      q('traffic').hidden = off || connecting;
+      q('off').hidden = !off;
+    }
+    modes.forEach(function (button, i) {
+      button.addEventListener('click', function () {
+        var mode = button.dataset.mode;
+        clearTimeout(timer);
+        show(mode, mode !== 'off');
+        if (mode !== 'off') timer = setTimeout(function () { show(mode, false); }, 900);
+      });
+      button.addEventListener('keydown', function (e) {
+        if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+        var next = modes[(i + (e.key === 'ArrowRight' ? 1 : modes.length - 1)) % modes.length];
+        next.focus(); next.click();
+      });
+    });
+  }
 
   document.querySelectorAll('.copy').forEach(function (btn) {
     btn.addEventListener('click', function () {

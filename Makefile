@@ -6,7 +6,6 @@ BENCHTIME ?= 250ms
 BENCHCOUNT ?= 5
 LEAKCOUNT ?= 10
 VERSION ?=
-UI_LANGUAGE ?= en
 
 # Target groups
 include make/build.mk

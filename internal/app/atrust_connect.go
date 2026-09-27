@@ -52,7 +52,7 @@ func connectATrust(ctx context.Context, deps Deps, paths config.Paths, configure
 		}
 	}
 
-	clientDataStore, err := deps.ATrustSessionStore(ATrustSessionLocation(paths, configured.CredentialStore))
+	clientDataStore, err := deps.ATrustSessionStore(paths.ATrustClientData)
 	if err != nil {
 		return fmt.Errorf("prepare aTrust session store: %w", err)
 	}

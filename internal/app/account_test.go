@@ -16,28 +16,22 @@ func TestAccountShowReportsSavedSecretsWithoutReadingThem(t *testing.T) {
 	t.Parallel()
 	env := newTestEnv(t)
 	info, err := AccountShow(env.deps)
-	want := AccountInfo{SchemaVersion: 1, Configuration: "missing", CredentialStore: "keyring", Password: SecretMissing, ATrustSession: SecretMissing}
+	want := AccountInfo{SchemaVersion: 1, Configuration: "missing", Password: SecretMissing, ATrustSession: SecretMissing}
 	if err != nil || info != want {
 		t.Fatalf("AccountShow() = %+v, %v", info, err)
 	}
 
 	env.writeConfig(config.Config{
 		Backend: backend.ATrust, Server: "vpn.nju.edu.cn", SOCKSListen: config.DefaultSOCKSListen,
-		AuthType: ATrustOAuthAuthType, CredentialStore: credential.BackendFile,
+		AuthType: ATrustOAuthAuthType,
 	})
 	env.setSecret(env.paths.ATrustClientData, "client-data")
-	env.deps.PasswordStore = func(location credential.Location) (credential.Store, error) {
-		if location.Backend != credential.BackendFile || location.Account != credential.PasswordAccount {
-			t.Errorf("password location = %+v", location)
-		}
-		return credential.NewFileStore(location.File, true)
-	}
 	info, err = AccountShow(env.deps)
-	if err != nil || info.Password != SecretNotRequired || info.ATrustSession != SecretSaved || info.CredentialStore != "file" {
+	if err != nil || info.Password != SecretNotRequired || info.ATrustSession != SecretSaved {
 		t.Fatalf("AccountShow() = %+v, %v", info, err)
 	}
 
-	env.deps.ATrustSessionStore = func(credential.Location) (credential.Store, error) { return nil, errors.New("locked") }
+	env.deps.ATrustSessionStore = func(string) (credential.Store, error) { return nil, errors.New("locked") }
 	if info, _ = AccountShow(env.deps); info.ATrustSession != SecretUnavailable {
 		t.Fatalf("ATrustSession = %q", info.ATrustSession)
 	}

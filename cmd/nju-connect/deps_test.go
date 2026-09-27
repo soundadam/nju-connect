@@ -11,7 +11,6 @@ import (
 	"github.com/soundadam/nju-connect/internal/app"
 	"github.com/soundadam/nju-connect/internal/backend/easyconnect/session"
 	"github.com/soundadam/nju-connect/internal/config"
-	"github.com/soundadam/nju-connect/internal/credential"
 	"github.com/soundadam/nju-connect/internal/speedtest"
 )
 
@@ -22,8 +21,6 @@ func testDeps(t *testing.T, paths config.Paths) app.Deps {
 	t.Helper()
 	deps := productionDeps()
 	deps.Paths = func() (config.Paths, error) { return paths, nil }
-	deps.PasswordStore = fileCredentialStore
-	deps.ATrustSessionStore = fileCredentialStore
 	deps.EasyConnectSession = func(nativeapp.SessionConfig) (app.NativeSession, error) {
 		return nil, errors.New("the test has no EasyConnect runtime")
 	}
@@ -36,12 +33,6 @@ func testDeps(t *testing.T, paths config.Paths) app.Deps {
 	}
 	deps.Stdin = emptyStdin(t)
 	return deps
-}
-
-// fileCredentialStore keeps secrets in owner-only files, so tests never
-// touch the user's keyring.
-func fileCredentialStore(location credential.Location) (credential.Store, error) {
-	return credential.NewFileStore(location.File, true)
 }
 
 // emptyStdin is a non-terminal standard input with nothing to read.

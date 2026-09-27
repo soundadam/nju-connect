@@ -9,29 +9,25 @@ enum DesignScenario: String, CaseIterable, Identifiable, Hashable {
     case connected
     case reconnecting
     case credentialRejected
-    case credentialAccessCancelled
     case transportFailed
 
     var id: String { rawValue }
 
     var title: String {
         switch self {
-        case .setup: return uiText("Setup", "首次设置")
-        case .stopped: return uiText("Offline", "服务离线")
-        case .connecting: return uiText("Connecting", "连接中")
-        case .waitingMFA: return uiText("Verification", "等待验证码")
-        case .connected: return uiText("Connected", "已连接")
-        case .reconnecting: return uiText("Reconnecting", "重连中")
-        case .credentialRejected: return uiText("Authentication failed", "认证失败")
-        case .credentialAccessCancelled: return uiText("Keychain cancelled", "钥匙串访问已取消")
-        case .transportFailed: return uiText("Transport failed", "传输失败")
+        case .setup: return "Setup"
+        case .stopped: return "Disconnected"
+        case .connecting: return "Connecting"
+        case .waitingMFA: return "Verification"
+        case .connected: return "Connected"
+        case .reconnecting: return "Reconnecting"
+        case .credentialRejected: return "Authentication failed"
+        case .transportFailed: return "Transport failed"
         }
     }
 }
 
 enum DesignPhase: Equatable {
-    case starting
-    case authenticating
     case waitingMFA
     case connecting
     case connected
@@ -40,12 +36,11 @@ enum DesignPhase: Equatable {
     case stopped
 }
 
-enum MenuBarIconState {
+enum MenuBarIconState: CaseIterable {
     case connected
     case inProgress
     case needsAttention
     case inactive
-    case unknown
 }
 
 struct TrafficRates {
@@ -61,8 +56,8 @@ final class DesignModel: ObservableObject {
     private var pendingBackendStart = false
     private var pollingTask: Task<Void, Never>?
     private var isRefreshingStatus = false
-	private var lastTrafficSample: (sampledAtUnixMilli: Int64, upload: UInt64, download: UInt64)?
-	private var isTrafficMonitoringActive = false
+    private var lastTrafficSample: (sampledAtUnixMilli: Int64, upload: UInt64, download: UInt64)?
+    private var isTrafficMonitoringActive = false
     private var runtimeSOCKSEndpoint = "127.0.0.1:1081"
     private var runtimeRates = TrafficRates(uploadBytesPerSecond: 0, downloadBytesPerSecond: 0)
     private var runtimeUploadBytes: UInt64 = 0
@@ -114,6 +109,13 @@ final class DesignModel: ObservableObject {
             }
             refreshRuntimeStatus()
             startPolling()
+        } else {
+            // A deterministic curve so the design preview shows a live chart.
+            downloadRateSamples = (0..<Self.maximumTrafficRateSamples).map { index in
+                let x = Double(index)
+                return 1_000_000 * (0.55 + 0.3 * sin(x * 0.7) + 0.1 * sin(x * 2.3))
+            }
+            uploadRateSamples = downloadRateSamples.map { $0 / 8 }
         }
     }
 
@@ -126,20 +128,6 @@ final class DesignModel: ObservableObject {
             ?? "vpn.nju.edu.cn"
     }
 
-    var menuBarGatewayLabel: String {
-        let serverURL = gatewayServer.contains("://")
-            ? URL(string: gatewayServer)
-            : URL(string: "https://\(gatewayServer)")
-        let labels = (serverURL?.host ?? gatewayServer).split(separator: ".")
-
-        guard let vpnIndex = labels.firstIndex(where: { $0.caseInsensitiveCompare("vpn") == .orderedSame }),
-              labels.indices.contains(vpnIndex + 1)
-        else {
-            return "VPN"
-        }
-        return labels[vpnIndex + 1].uppercased()
-    }
-
     var phase: DesignPhase {
         switch scenario {
         case .setup, .stopped: return .stopped
@@ -147,68 +135,43 @@ final class DesignModel: ObservableObject {
         case .waitingMFA: return .waitingMFA
         case .connected: return .connected
         case .reconnecting: return .reconnecting
-        case .credentialRejected, .credentialAccessCancelled, .transportFailed: return .degraded
+        case .credentialRejected, .transportFailed: return .degraded
         }
     }
 
     var statusTitle: String {
-        if scenario == .setup {
-            return uiText("Setup required", "需要完成初始设置")
-        }
         if isReconfiguringCredentials {
-            return uiText("Reset credentials", "重置账号与密码")
+            return "Reset credentials"
         }
         switch scenario {
-        case .setup: return uiText("Setup required", "需要完成初始设置")
-        case .stopped: return uiText("Service offline", "服务离线")
-        case .connecting: return uiText("\(backend.title) · Connecting…", "\(backend.title) · 正在连接")
-        case .waitingMFA: return uiText("Waiting for verification code", "等待短信验证码")
-        case .connected: return uiText("\(backend.title) · Connected", "\(backend.title) · 已连接")
-        case .reconnecting: return uiText("\(backend.title) · Reconnecting…", "\(backend.title) · 正在重连")
-        case .credentialRejected: return uiText("Authentication failed", "认证失败")
-        case .credentialAccessCancelled: return uiText("Keychain access cancelled", "钥匙串访问已取消")
-        case .transportFailed: return uiText("VPN transport failed", "VPN 传输失败")
+        case .setup: return "Setup required"
+        case .stopped: return "Disconnected"
+        case .connecting: return "\(backend.title) · Connecting…"
+        case .waitingMFA: return "Waiting for verification code"
+        case .connected: return "\(backend.title) · Connected"
+        case .reconnecting: return "\(backend.title) · Reconnecting…"
+        case .credentialRejected: return "Authentication failed"
+        case .transportFailed: return "VPN transport failed"
         }
     }
 
     var statusDetail: String {
-        if scenario == .setup {
-            return uiText(
-                "Enter the NJU account and password shared by both backends. A verification code may be requested next.",
-                "请输入两个后端共用的南大账号和密码；短信或动态口令将在网关随后要求时单独输入"
-            )
-        }
         if isReconfiguringCredentials {
-            return uiText("Saving will start a new sign-in.", "更新账号与长期密码后，会显式重新发起登录")
+            return "Saving will start a new sign-in."
         }
         switch scenario {
         case .setup:
-            return ""
-        case .stopped:
+            return "Enter the NJU account and password shared by both backends. A verification code may be requested next."
+        case .stopped, .connected, .credentialRejected:
             return ""
         case .connecting:
-            return uiText(
-                "Opening the \(backend.title) data stream and local proxy.",
-                "正在打开 \(backend.title) 数据流和本机代理"
-            )
+            return "Opening the \(backend.title) data stream and local proxy."
         case .waitingMFA:
-            return uiText("The verification code is not saved or logged.", "验证码不会被保存或写入日志")
-        case .connected:
-            return ""
+            return "The verification code is not saved or logged."
         case .reconnecting:
-            return uiText(
-                "Restoring the VPN session. Sign-in will restart if recovery takes over two minutes.",
-                "后台服务仍在运行，正在恢复原 VPN 会话；连续两分钟未恢复会要求重新登录"
-            )
-        case .credentialRejected:
-            return ""
-        case .credentialAccessCancelled:
-            return uiText(
-                "Retry, then choose Allow when macOS asks to access the saved VPN password.",
-                "请点击重试，并在 macOS 请求读取已保存 VPN 密码时选择“允许”"
-            )
+            return "Restoring the VPN session. Sign-in will restart if recovery takes over two minutes."
         case .transportFailed:
-            return uiText("The proxy or VPN transport failed. Fix the issue and retry.", "账号、前置代理或 VPN 传输未能完成；修复后点击重试")
+            return "The proxy or VPN transport failed. Fix the issue and retry."
         }
     }
 
@@ -221,51 +184,35 @@ final class DesignModel: ObservableObject {
     }
 
     var authenticationPlaceholder: String {
-        uiText("Verification code", "短信验证码")
+        "Verification code"
     }
 
     var serviceControlNotice: String? {
-        if scenario == .setup || isReconfiguringCredentials {
-            return nil
-        }
-        if scenario == .stopped {
-            return uiText("Turn on to start the VPN service.", "开启后会启动后台 VPN 服务")
-        }
-        return nil
+        guard scenario == .stopped, !isReconfiguringCredentials else { return nil }
+        return "Choose EasyConnect or aTrust to connect."
     }
 
     var canControlService: Bool {
         !showsCredentialSetup
     }
 
-    var requiresServiceApproval: Bool {
-        false
-    }
-
     var socksEndpoint: String {
         controller == nil ? "127.0.0.1:1081" : runtimeSOCKSEndpoint
     }
 
-    /// Listener port and the gateway it leads to, for example "1081 → vpn.nju.edu.cn".
-    var socksRouteSummary: String {
-        guard let port = socksEndpoint.split(separator: ":").last, !port.isEmpty else {
-            return "— → \(gatewayServer)"
-        }
-        return "\(port) → \(gatewayServer)"
+    /// The listener port, for example "1081" from "127.0.0.1:1081".
+    var socksPort: String {
+        guard let port = socksEndpoint.split(separator: ":").last, !port.isEmpty else { return "—" }
+        return String(port)
     }
 
     var rates: TrafficRates {
         if controller != nil {
             return runtimeRates
         }
-        switch scenario {
-        case .connected:
-            return TrafficRates(uploadBytesPerSecond: 128 * 1024, downloadBytesPerSecond: 1.2 * 1024 * 1024)
-        case .reconnecting:
-            return TrafficRates(uploadBytesPerSecond: 0, downloadBytesPerSecond: 0)
-        default:
-            return TrafficRates(uploadBytesPerSecond: 0, downloadBytesPerSecond: 0)
-        }
+        return scenario == .connected
+            ? TrafficRates(uploadBytesPerSecond: 128 * 1024, downloadBytesPerSecond: 1.2 * 1024 * 1024)
+            : TrafficRates(uploadBytesPerSecond: 0, downloadBytesPerSecond: 0)
     }
 
     var uploadBytes: UInt64 {
@@ -285,7 +232,7 @@ final class DesignModel: ObservableObject {
 
     var menuBarIconState: MenuBarIconState {
         switch scenario {
-        case .setup, .credentialRejected, .credentialAccessCancelled, .transportFailed:
+        case .setup, .credentialRejected, .transportFailed:
             return .needsAttention
         case .connecting, .waitingMFA, .reconnecting:
             return .inProgress
@@ -297,19 +244,15 @@ final class DesignModel: ObservableObject {
     }
 
     var retryTitle: String {
-        scenario == .credentialRejected ? uiText("Reset", "重置") : uiText("Retry", "重试")
+        scenario == .credentialRejected ? "Reset" : "Retry"
     }
 
     var retryDetail: String {
         switch scenario {
         case .credentialRejected:
-            return uiText("Gateway rejected the account or password.", "VPN 网关未接受账号或长期密码")
-        case .credentialAccessCancelled:
-            return uiText("Allow Keychain access on the next attempt.", "下次重试时请允许访问钥匙串")
-        case .transportFailed:
-            return uiText("Reconnect after fixing the issue.", "问题修复后可重新连接")
+            return "Gateway rejected the account or password."
         default:
-            return uiText("Reconnect after fixing the issue.", "问题修复后可重新连接")
+            return "Reconnect after fixing the issue."
         }
     }
 
@@ -332,7 +275,7 @@ final class DesignModel: ObservableObject {
         pendingBackendStart = true
         isPerformingAction = true
         scenario = .connecting
-        actionMessage = uiText("Switching to \(selection.title)…", "正在切换到 \(selection.title)")
+        actionMessage = "Switching to \(selection.title)…"
         controller.disconnect { [weak self] result in
             guard let self else { return }
             guard self.pendingBackendStart else { return }
@@ -342,7 +285,7 @@ final class DesignModel: ObservableObject {
                 self.clearRuntimeTraffic()
                 self.isServiceEnabled = true
                 self.scenario = .connecting
-                self.actionMessage = uiText("Starting \(selection.title)…", "正在启动 \(selection.title)")
+                self.actionMessage = "Starting \(selection.title)…"
                 self.startConnection(using: controller)
             case .failure(let error):
                 self.isPerformingAction = false
@@ -360,17 +303,17 @@ final class DesignModel: ObservableObject {
         guard let controller else {
             scenario = enabled ? .connecting : .stopped
             actionMessage = enabled
-                ? uiText("Starting service…", "已请求启动服务")
-                : uiText("Stopping service…", "已请求停止服务")
+                ? "Starting service…"
+                : "Stopping service…"
             return
         }
         isPerformingAction = true
         if enabled {
             scenario = .connecting
-            actionMessage = uiText("Starting service…", "正在启动服务")
+            actionMessage = "Starting service…"
             startConnection(using: controller)
         } else {
-            actionMessage = uiText("Stopping service…", "正在停止服务")
+            actionMessage = "Stopping service…"
             controller.disconnect { [weak self] result in
                 guard let self else { return }
                 self.isPerformingAction = false
@@ -390,11 +333,11 @@ final class DesignModel: ObservableObject {
     func submitAuthenticationCode(_ code: String) {
         guard !code.isEmpty, canSubmitAuthenticationCode else { return }
         guard controller?.submitVerificationCode(code) ?? true else {
-            actionMessage = uiText("No active verification request.", "当前没有等待中的验证码请求")
+            actionMessage = "No active verification request."
             return
         }
         scenario = .connecting
-        actionMessage = uiText("Code submitted. Waiting for the gateway.", "验证码已提交，等待网关确认")
+        actionMessage = "Code submitted. Waiting for the gateway."
     }
 
     func completeSetup(schoolAccount: String, vpnPassword: String) {
@@ -403,13 +346,13 @@ final class DesignModel: ObservableObject {
             isReconfiguringCredentials = false
             isServiceEnabled = true
             scenario = .connecting
-            actionMessage = uiText("Credentials saved. Starting connection.", "账号与密码已保存，正在启动连接")
+            actionMessage = "Credentials saved. Starting connection."
             return
         }
         isPerformingAction = true
         isReconfiguringCredentials = false
         scenario = .connecting
-        actionMessage = uiText("Saving credentials…", "正在保存账号与密码")
+        actionMessage = "Saving credentials…"
         controller.saveConfiguration(
             backend: backend,
             server: gatewayServer,
@@ -420,7 +363,7 @@ final class DesignModel: ObservableObject {
             switch result {
             case .success:
                 self.isServiceEnabled = true
-                self.actionMessage = uiText("Credentials saved. Starting connection.", "账号与密码已保存，正在启动连接")
+                self.actionMessage = "Credentials saved. Starting connection."
                 self.startConnection(using: controller)
             case .failure(let error):
                 self.isPerformingAction = false
@@ -451,10 +394,7 @@ final class DesignModel: ObservableObject {
             self.isPerformingAction = false
             switch result {
             case .success:
-                self.actionMessage = uiText(
-                    "Saved aTrust session forgotten. The next connection signs in again.",
-                    "已清除保存的 aTrust 会话，下次连接将重新登录"
-                )
+                self.actionMessage = "Saved aTrust session forgotten. The next connection signs in again."
             case .failure(let error):
                 self.actionMessage = error.localizedDescription
             }
@@ -470,14 +410,14 @@ final class DesignModel: ObservableObject {
     func retry() {
         scenario = .connecting
         isServiceEnabled = true
-        actionMessage = uiText("Reconnecting…", "已请求重新连接")
+        actionMessage = "Reconnecting…"
         if let controller {
             isPerformingAction = true
             startConnection(using: controller)
         }
     }
 
-	func refreshRuntimeStatus() {
+    func refreshRuntimeStatus() {
         guard let controller, !isRefreshingStatus else { return }
         isRefreshingStatus = true
         controller.readStatus { [weak self] result in
@@ -493,47 +433,48 @@ final class DesignModel: ObservableObject {
                 self.actionMessage = error.localizedDescription
             }
         }
-	}
+    }
 
-	func setTrafficMonitoringActive(_ active: Bool) {
-		guard isTrafficMonitoringActive != active else {
-			if active { refreshRuntimeStatus() }
-			return
-		}
-		isTrafficMonitoringActive = active
-		lastTrafficSample = nil
-		runtimeRates = TrafficRates(uploadBytesPerSecond: 0, downloadBytesPerSecond: 0)
-		clearTrafficRateSamples()
-		if active {
-			pollingTask?.cancel()
-			pollingTask = nil
-			controller?.startStatusMonitoring { [weak self] result in
-				guard let self else { return }
-				switch result {
-				case .success(let snapshot):
-					self.apply(snapshot)
-				case .failure(let error):
-					guard !self.isPerformingAction else { return }
-					self.isServiceEnabled = false
-					self.scenario = .transportFailed
-					self.actionMessage = error.localizedDescription
-				}
-			}
-		} else {
-			controller?.stopStatusMonitoring()
-			startPolling()
-			refreshRuntimeStatus()
-		}
-	}
+    func setTrafficMonitoringActive(_ active: Bool) {
+        guard let controller else { return }
+        guard isTrafficMonitoringActive != active else {
+            if active { refreshRuntimeStatus() }
+            return
+        }
+        isTrafficMonitoringActive = active
+        lastTrafficSample = nil
+        runtimeRates = TrafficRates(uploadBytesPerSecond: 0, downloadBytesPerSecond: 0)
+        clearTrafficRateSamples()
+        if active {
+            pollingTask?.cancel()
+            pollingTask = nil
+            controller.startStatusMonitoring { [weak self] result in
+                guard let self else { return }
+                switch result {
+                case .success(let snapshot):
+                    self.apply(snapshot)
+                case .failure(let error):
+                    guard !self.isPerformingAction else { return }
+                    self.isServiceEnabled = false
+                    self.scenario = .transportFailed
+                    self.actionMessage = error.localizedDescription
+                }
+            }
+        } else {
+            controller.stopStatusMonitoring()
+            startPolling()
+            refreshRuntimeStatus()
+        }
+    }
 
-	private func startPolling() {
-		pollingTask?.cancel()
-		pollingTask = Task { [weak self] in
-			while !Task.isCancelled {
-				guard let self else { return }
-				try? await Task.sleep(for: .seconds(5))
-				guard !Task.isCancelled else { return }
-				self.refreshRuntimeStatus()
+    private func startPolling() {
+        pollingTask?.cancel()
+        pollingTask = Task { [weak self] in
+            while !Task.isCancelled {
+                guard let self else { return }
+                try? await Task.sleep(for: .seconds(5))
+                guard !Task.isCancelled else { return }
+                self.refreshRuntimeStatus()
             }
         }
     }
@@ -544,25 +485,17 @@ final class DesignModel: ObservableObject {
             verificationRequested: { [weak self] in
                 guard let self else { return }
                 self.scenario = .waitingMFA
-                self.actionMessage = uiText("Enter the verification code from the gateway.", "请输入网关发送的验证码")
+                self.actionMessage = "Enter the verification code from the gateway."
             },
             completion: { [weak self] result in
                 guard let self else { return }
                 self.isPerformingAction = false
                 switch result {
                 case .success:
-                    self.actionMessage = uiText("Connected", "已连接")
+                    self.actionMessage = "Connected"
                     self.refreshRuntimeStatus()
                 case .failure(let error):
                     self.isServiceEnabled = false
-                    if error.isKeychainAccessCancellation {
-                        self.scenario = .credentialAccessCancelled
-                        self.actionMessage = uiText(
-                            "Keychain access was cancelled. Retry and choose Allow.",
-                            "钥匙串访问已取消；请重试并选择“允许”"
-                        )
-                        return
-                    }
                     self.scenario = Self.isCredentialFailure(error.localizedDescription)
                         ? .credentialRejected
                         : .transportFailed
@@ -599,33 +532,33 @@ final class DesignModel: ObservableObject {
         clearRuntimeTraffic()
     }
 
-	private func updateTraffic(_ traffic: NJUConnectTrafficSnapshot?) {
+    private func updateTraffic(_ traffic: NJUConnectTrafficSnapshot?) {
         guard let traffic else {
             clearRuntimeTraffic()
             return
         }
-		runtimeUploadBytes = traffic.uploadBytes
-		runtimeDownloadBytes = traffic.downloadBytes
-		runtimeActiveConnections = traffic.activeConnections
-		guard isTrafficMonitoringActive else {
-			lastTrafficSample = nil
-			runtimeRates = TrafficRates(uploadBytesPerSecond: 0, downloadBytesPerSecond: 0)
-			return
-		}
-		let sampledAtUnixMilli = traffic.sampledAtUnixMilli > 0
-			? traffic.sampledAtUnixMilli
-			: Int64(Date().timeIntervalSince1970 * 1_000)
-		if let previous = lastTrafficSample {
-			let elapsed = Double(sampledAtUnixMilli - previous.sampledAtUnixMilli) / 1_000
-			if elapsed > 0, traffic.uploadBytes >= previous.upload, traffic.downloadBytes >= previous.download {
-				runtimeRates = TrafficRates(
+        runtimeUploadBytes = traffic.uploadBytes
+        runtimeDownloadBytes = traffic.downloadBytes
+        runtimeActiveConnections = traffic.activeConnections
+        guard isTrafficMonitoringActive else {
+            lastTrafficSample = nil
+            runtimeRates = TrafficRates(uploadBytesPerSecond: 0, downloadBytesPerSecond: 0)
+            return
+        }
+        let sampledAtUnixMilli = traffic.sampledAtUnixMilli > 0
+            ? traffic.sampledAtUnixMilli
+            : Int64(Date().timeIntervalSince1970 * 1_000)
+        if let previous = lastTrafficSample {
+            let elapsed = Double(sampledAtUnixMilli - previous.sampledAtUnixMilli) / 1_000
+            if elapsed > 0, traffic.uploadBytes >= previous.upload, traffic.downloadBytes >= previous.download {
+                runtimeRates = TrafficRates(
                     uploadBytesPerSecond: Double(traffic.uploadBytes - previous.upload) / elapsed,
                     downloadBytesPerSecond: Double(traffic.downloadBytes - previous.download) / elapsed
-			)
-			appendTrafficRateSamples(runtimeRates)
-			}
-		}
-		lastTrafficSample = (sampledAtUnixMilli, traffic.uploadBytes, traffic.downloadBytes)
+            )
+            appendTrafficRateSamples(runtimeRates)
+            }
+        }
+        lastTrafficSample = (sampledAtUnixMilli, traffic.uploadBytes, traffic.downloadBytes)
     }
 
     private func clearRuntimeTraffic() {

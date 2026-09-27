@@ -11,15 +11,13 @@ import (
 const maxCredentialBytes = 1 << 20
 
 var (
-	ErrPlaintextOptIn         = errors.New("plaintext credential file requires explicit opt-in")
-	ErrNotRegular             = errors.New("credential path is not a regular file")
-	ErrInsecurePermissions    = errors.New("credential file permissions are broader than 0600")
-	ErrWrongOwner             = errors.New("credential path is not owned by the current user")
-	ErrInsecureDirectory      = errors.New("credential directory must be private")
-	ErrEmptyCredential        = errors.New("credential is empty")
-	ErrCredentialTooLarge     = errors.New("credential exceeds the size limit")
-	ErrNoTerminal             = errors.New("hidden prompt requires a terminal")
-	ErrKeychainAccessCanceled = errors.New("Keychain access was cancelled; retry and allow access to the saved VPN password")
+	ErrNotRegular          = errors.New("credential path is not a regular file")
+	ErrInsecurePermissions = errors.New("credential file permissions are broader than 0600")
+	ErrWrongOwner          = errors.New("credential path is not owned by the current user")
+	ErrInsecureDirectory   = errors.New("credential directory must be private")
+	ErrEmptyCredential     = errors.New("credential is empty")
+	ErrCredentialTooLarge  = errors.New("credential exceeds the size limit")
+	ErrNoTerminal          = errors.New("hidden prompt requires a terminal")
 )
 
 // Store is the narrow contract required by setup, authentication, and

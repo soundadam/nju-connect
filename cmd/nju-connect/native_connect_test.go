@@ -277,7 +277,7 @@ func writeNativeCommandState(t *testing.T, paths config.Paths, configured config
 	if err := config.Replace(paths.Config, configured); err != nil {
 		t.Fatal(err)
 	}
-	store, err := credential.NewFileStore(paths.Credential, true)
+	store, err := credential.NewFileStore(paths.Credential)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -43,9 +43,9 @@ type SetupRequest struct {
 
 // Credential kinds reported by Setup.
 const (
-	CredentialSystemStore         = "system_store"
-	CredentialBrowserOAuth        = "browser_oauth"
-	CredentialSystemStorePassword = "system_store_password"
+	CredentialSystemStore   = "system_store"
+	CredentialBrowserOAuth  = "browser_oauth"
+	CredentialSavedPassword = "saved_password"
 )
 
 // SetupResult describes the saved profile.
@@ -151,7 +151,7 @@ func Setup(ctx context.Context, deps Deps, request SetupRequest) (SetupResult, e
 
 	var passwordStore credential.Store
 	if usesPassword(configured) {
-		passwordStore, err = deps.PasswordStore(PasswordLocation(paths, configured.CredentialStore))
+		passwordStore, err = deps.PasswordStore(paths.Credential)
 		if err != nil {
 			return SetupResult{}, fmt.Errorf("prepare credential store: %w", err)
 		}
@@ -174,12 +174,12 @@ func Setup(ctx context.Context, deps Deps, request SetupRequest) (SetupResult, e
 	if backendName == backend.ATrust {
 		result.Credential = CredentialBrowserOAuth
 		if configured.AuthType == ATrustPasswordAuthType {
-			result.Credential = CredentialSystemStorePassword
+			result.Credential = CredentialSavedPassword
 		}
 	}
 	// The aTrust session belongs to one account on one gateway.
 	if hasSaved && (saved.Username != configured.Username || saved.Server != configured.Server || saved.BackendName() != backendName) {
-		cleared, err := forgetATrustSession(deps, paths, configured.CredentialStore)
+		cleared, err := forgetATrustSession(deps, paths)
 		if err != nil {
 			return SetupResult{}, err
 		}
@@ -297,8 +297,8 @@ func askATrustMethod(ctx context.Context, deps Deps, methods []backend.Authentic
 
 // forgetATrustSession clears the saved aTrust client data and reports
 // whether there was any.
-func forgetATrustSession(deps Deps, paths config.Paths, credentialBackend string) (bool, error) {
-	store, err := deps.ATrustSessionStore(ATrustSessionLocation(paths, credentialBackend))
+func forgetATrustSession(deps Deps, paths config.Paths) (bool, error) {
+	store, err := deps.ATrustSessionStore(paths.ATrustClientData)
 	if err != nil {
 		return false, fmt.Errorf("prepare aTrust session store: %w", err)
 	}
@@ -343,32 +343,4 @@ func save(paths config.Paths, configured config.Config, store credential.Store, 
 		return fmt.Errorf("store password: %w", err)
 	}
 	return config.Replace(paths.Config, configured)
-}
-
-// MigrateResult reports what Migrate imported.
-type MigrateResult struct {
-	ConfigurationMigrated bool
-	CredentialMigrated    bool
-}
-
-// Migrate copies pre-release worktree state from legacyRoot into the user
-// state directory. It is idempotent and never moves or deletes the source.
-func Migrate(deps Deps, legacyRoot string) (MigrateResult, error) {
-	paths, err := deps.Paths()
-	if err != nil {
-		return MigrateResult{}, fmt.Errorf("resolve user configuration: %w", err)
-	}
-	legacy, configMigrated, err := config.MigrateLegacyConfig(legacyRoot, paths)
-	if err != nil {
-		return MigrateResult{}, fmt.Errorf("migrate configuration: %w", err)
-	}
-	store, err := deps.PasswordStore(PasswordLocation(paths, savedCredentialBackend(paths)))
-	if err != nil {
-		return MigrateResult{}, fmt.Errorf("prepare credential store: %w", err)
-	}
-	credentialMigrated, err := credential.MigrateFile(store, legacy.Credential)
-	if err != nil {
-		return MigrateResult{}, fmt.Errorf("migrate credential: %w", err)
-	}
-	return MigrateResult{ConfigurationMigrated: configMigrated, CredentialMigrated: credentialMigrated}, nil
 }

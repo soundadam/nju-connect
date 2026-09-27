@@ -324,20 +324,6 @@ func (manager ComponentManager) openInstallSource(ctx context.Context) (io.Reade
 	return response.Body, closeResponse, "downloading", nil
 }
 
-type contextReader struct {
-	Context context.Context
-	Reader  io.Reader
-}
-
-func (reader *contextReader) Read(buffer []byte) (int, error) {
-	select {
-	case <-reader.Context.Done():
-		return 0, reader.Context.Err()
-	default:
-		return reader.Reader.Read(buffer)
-	}
-}
-
 type componentProgressReader struct {
 	io.Reader
 	Total     int64

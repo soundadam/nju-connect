@@ -333,10 +333,6 @@ func (session *zjuSession) OpenTunnel(context.Context) (Tunnel, error) {
 	return &zjuTunnel{session: session, done: make(chan struct{})}, nil
 }
 
-// Logout is local only: the pinned upstream client has no gateway logout,
-// and the caller clears the saved client data.
-func (session *zjuSession) Logout(context.Context) error { return nil }
-
 func (session *zjuSession) Close() error {
 	session.closeOnce.Do(func() {
 		session.mu.Lock()

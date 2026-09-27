@@ -9,15 +9,9 @@ import (
 	"testing"
 )
 
-func TestNewFileStoreRequiresExplicitOptIn(t *testing.T) {
-	if _, err := NewFileStore("credential", false); !errors.Is(err, ErrPlaintextOptIn) {
-		t.Fatalf("NewFileStore() error = %v", err)
-	}
-}
-
 func TestFileStoreAtomicallyWrites0600AndReadsExactBytes(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "nested", "login.credential")
-	store, err := NewFileStore(path, true)
+	store, err := NewFileStore(path)
 	if err != nil {
 		t.Fatalf("NewFileStore() error = %v", err)
 	}
@@ -93,7 +87,7 @@ func TestFileStoreRejectsPermissionsBroaderThan0600(t *testing.T) {
 	if err := os.Chmod(path, 0644); err != nil {
 		t.Fatalf("Chmod() error = %v", err)
 	}
-	store, err := NewFileStore(path, true)
+	store, err := NewFileStore(path)
 	if err != nil {
 		t.Fatalf("NewFileStore() error = %v", err)
 	}
@@ -120,7 +114,7 @@ func TestFileStoreRejectsSharedCredentialDirectory(t *testing.T) {
 	if err := os.Chmod(directory, 0777); err != nil {
 		t.Fatal(err)
 	}
-	store, err := NewFileStore(filepath.Join(directory, "credential"), true)
+	store, err := NewFileStore(filepath.Join(directory, "credential"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -131,7 +125,7 @@ func TestFileStoreRejectsSharedCredentialDirectory(t *testing.T) {
 
 func TestFileStoreRejectsNonRegularPaths(t *testing.T) {
 	dir := t.TempDir()
-	store, err := NewFileStore(dir, true)
+	store, err := NewFileStore(dir)
 	if err != nil {
 		t.Fatalf("NewFileStore(directory) error = %v", err)
 	}
@@ -153,7 +147,7 @@ func TestFileStoreRejectsNonRegularPaths(t *testing.T) {
 	if err := os.Symlink(target, link); err != nil {
 		t.Skipf("Symlink() unavailable: %v", err)
 	}
-	linkStore, err := NewFileStore(link, true)
+	linkStore, err := NewFileStore(link)
 	if err != nil {
 		t.Fatalf("NewFileStore(link) error = %v", err)
 	}
@@ -166,7 +160,7 @@ func TestFileStoreRejectsNonRegularPaths(t *testing.T) {
 }
 
 func TestFileStoreRejectsEmptyAndOversizedCredentials(t *testing.T) {
-	store, err := NewFileStore(filepath.Join(t.TempDir(), "credential"), true)
+	store, err := NewFileStore(filepath.Join(t.TempDir(), "credential"))
 	if err != nil {
 		t.Fatalf("NewFileStore() error = %v", err)
 	}
@@ -184,7 +178,7 @@ func TestFileStoreRejectsEmptyAndOversizedCredentials(t *testing.T) {
 
 func TestFileStoreClearRemovesCredentialAndIsIdempotent(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "nested", "credential")
-	store, err := NewFileStore(path, true)
+	store, err := NewFileStore(path)
 	if err != nil {
 		t.Fatal(err)
 	}

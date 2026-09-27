@@ -165,7 +165,7 @@ func LoadProfile(ctx context.Context, deps Deps, offerSetup bool) (config.Config
 // readSavedPassword reads the shared password, explaining how to save one
 // when there is none.
 func readSavedPassword(deps Deps, paths config.Paths, configured config.Config) ([]byte, error) {
-	store, err := deps.PasswordStore(PasswordLocation(paths, configured.CredentialStore))
+	store, err := deps.PasswordStore(paths.Credential)
 	if err != nil {
 		return nil, fmt.Errorf("open credential: %w", err)
 	}

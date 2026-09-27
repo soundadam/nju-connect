@@ -45,9 +45,8 @@ Cobra) are checked against the same surface.
 - `NJU_CONNECT_CONFIG_DIR` (an absolute path) replaces the default state
   directory, which is `os.UserConfigDir()/nju-connect`. The runtime control
   socket is derived from this directory, so an isolated directory also
-  isolates `status`, `disconnect` and `connect`, and gets its own keyring
-  service (`com.soundadam.nju-connect.<hash>`) so it never touches the real
-  saved password.
+  isolates `status`, `disconnect` and `connect`, and holds its own secret
+  files, so it never touches the real saved password.
 - When standard input and standard error are both terminals and no
   `--*-stdin` flag is given, `setup`, `account` and a first-run `connect`
   show interactive forms on stderr (`internal/tui`). `TERM=dumb` or
@@ -71,34 +70,14 @@ Cobra) are checked against the same surface.
 
 ### Credential storage
 
-The password (keyring account `password`) and the aTrust session
-(`atrust-session`) live in the system keyring through go-keyring: the macOS
-login Keychain, the Secret Service on Linux, or the Windows Credential
-Manager. Secrets too large for one item are split into chunk items behind a
-header item. `credential_store = "file"` in `config.toml` keeps them in
-owner-only files (`credential`, `atrust-client-data`) instead, for hosts
-without a keyring. A secret left by an earlier release (the pre-keyring
-Keychain items `vpn-password` / `atrust-client-data`, or those files) is moved
-into the keyring the first time it is read, and the old copy is removed.
-
-### Upgrading from soundconnect
-
-nju-connect was called soundconnect before 1.1.0. On first use it adopts the
-earlier state:
-
-- The state directory `os.UserConfigDir()/soundconnect` is renamed to
-  `…/nju-connect`, but only while `nju-connect` does not exist yet.
-- Keyring items under `com.soundadam.soundconnect` (and the isolated
-  `com.soundadam.soundconnect.<hash>` services) move to
-  `com.soundadam.nju-connect` the first time each secret is read.
-- Environment variables are renamed from `NJU_CONNECT_*` to `NJU_CONNECT_*`
-  (`NJU_CONNECT_CONFIG_DIR`, `NJU_CONNECT_ACCESSIBLE`, …); the old names are
-  not read.
-- The speed-test route and error code `soundconnect` / `soundconnect_required`
-  are now `nju-connect` / `nju_connect_required`.
-- The macOS app's bundle identifier changes, so its own preferences (speed
-  graph samples) start empty. Disconnect before upgrading: a runtime started
-  by soundconnect is not visible to nju-connect.
+nju-connect keeps its secrets itself, the same way on every platform, and
+never uses the operating-system keyring. The password is the file
+`credential` and the aTrust session is `atrust-client-data`, both in the
+state directory. Every read and write requires an owner-only (`0600`)
+regular file in an owner-only directory, rejects symbolic links, and
+replaces the file atomically. The files are not encrypted: any process
+running as the same user can read them, as with `~/.ssh` keys.
+`nju-connect account forget --password --session` deletes them.
 
 ### Exit codes
 
@@ -127,7 +106,6 @@ is the one place that turns errors into exit codes and stderr lines.
 | `configure` | `--backend`, `--server`, `--username`, `--auth-type`, `--login-domain`, `--socks-listen`, `--upstream-proxy` | `configuration:`, `backend:`, `server:`, `socks_listen:` (and `auth_type:`, `login_domain:` for aTrust) | Merges into the existing configuration and never touches secrets. Refuses (exit 1) while a runtime is active. |
 | `backends` | `--json` | Tab-separated catalog, or JSON | Strong: `--json`. |
 | `auth-info` | `--backend` (`atrust`), `--server`, `--json` | Discovered aTrust methods | aTrust only; EasyConnect exits 2. |
-| `migrate` | `--from` (`.`) | `configuration_migrated:`, `credential_migrated:`, `source_preserved: true` | Idempotent; copies, never moves. |
 | `doctor` | `--json` | `ready`, `configuration`, `credential_store`, `upstream_proxy`, `next_step` (text: `next:`) | Exit 1 when not ready. `next_step` is the command to run next: `nju-connect setup`, `nju-connect account set-password`, `nju-connect configure --upstream-proxy` or `nju-connect connect`. Strong: `--json`. |
 | `disconnect` | — | `stopping: true`, or `running: false` | Exit 0 in both cases. |
 | `logout` | — | `atrust_session_cleared: true`, `oauth_profile_cleared: <bool>` | Clears only aTrust state; the shared password and the configuration stay. On macOS without the OAuth helper next to the binary (a bare `bin/nju-connect`), it still exits 0 with `oauth_profile_cleared: false` and one stderr line saying the browser sign-in state was not cleared. A helper that fails exits 1. |
@@ -195,9 +173,8 @@ These command lines are strong contract. The app finds the CLI at
 | Speed test | `speedtest component status --json`, `speedtest component install --yes --json-events`, `speedtest probe --route auto --json`, `speedtest last --json`, `speedtest campus --route auto --json-events` | `ComponentStatus`, `CampusSpeedTestEvent`, `CampusProbeResult`, `CampusSpeedTestResult` |
 
 The app classifies a failed connect as a credential problem when stderr
-contains `credential_rejected:` or `no saved VPN password`, and a cancelled
-Keychain prompt by `Keychain access was cancelled` or `OSStatus -128`. These
-substrings are strong contract; the shared fixtures
+contains `credential_rejected:` or `no saved VPN password`. These substrings
+are strong contract; the shared fixtures
 `testdata/contract/connect_credential_rejected*.stderr` pin the first one.
 
 ## Background runtime handoff
@@ -237,13 +214,11 @@ directory (`0700`) and the socket (`0600`) must be owned by the current user.
 - `internal/app`: unit tests for each service over an isolated state
   directory built into `app.Deps`, runnable in parallel. Guided flows run
   through `LineInteraction` with scripted answers.
-- `internal/credential`: the keyring store runs against go-keyring's
-  in-memory mock; `cmd/nju-connect` and `internal/app` tests install the
-  mock too, so no test or re-executed runtime child reaches the real keyring.
+- `internal/credential`: the file store against temporary directories.
 - `internal/tui`: huh forms driven by scripted key presses.
 - `cmd/nju-connect/clitest_test.go`: the harness. It runs the real Cobra command tree
   with its own `app.Deps` (built by `testDeps` in `deps_test.go`) against an
-  isolated `NJU_CONNECT_CONFIG_DIR`, with file-backed secret stores, a fake
+  isolated `NJU_CONNECT_CONFIG_DIR`, a fake
   aTrust core, and no EasyConnect runtime or network. `cmd/nju-connect` has
   no package-level dependency variables; `run` takes the `app.Deps` that
   `main` builds with `productionDeps`. Fake EasyConnect gateways and status

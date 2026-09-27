@@ -89,10 +89,6 @@ func (store Store) Load() (Result, error) {
 	if err := decoder.Decode(&result); err != nil {
 		return Result{}, fmt.Errorf("decode speed-test result: %w", err)
 	}
-	// Releases named soundconnect saved the tunnel route under that name.
-	if result.Route == legacyRouteSoundconnect {
-		result.Route = RouteNJUConnect
-	}
 	if err := result.Validate(); err != nil {
 		return Result{}, err
 	}

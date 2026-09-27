@@ -1,6 +1,4 @@
-# Local preview and release preparation targets.
-# Public signing, notarization, upload, and tap publication are disabled until a
-# Developer ID Application identity and notary profile are intentionally added.
+# Packaging, local install, and release-check targets.
 
 .PHONY: cli-release
 cli-release:
@@ -13,15 +11,15 @@ package-macos:
 
 .PHONY: macos-preview
 macos-preview: build
-	NJU_CONNECT_HELPER="$(CURDIR)/$(BINARY)" NJU_CONNECT_UI_LANGUAGE="$(UI_LANGUAGE)" swift run --package-path macos -Xswiftc -DUI_DESIGN_PREVIEW nju-connect-menu
+	NJU_CONNECT_HELPER="$(CURDIR)/$(BINARY)" swift run --package-path macos -Xswiftc -DUI_DESIGN_PREVIEW nju-connect-menu
 
 .PHONY: macos-dev-build
 macos-dev-build:
-	NJU_CONNECT_UI_LANGUAGE="$(UI_LANGUAGE)" ./scripts/run_macos_development.zsh --build-only
+	./scripts/run_macos_development.zsh --build-only
 
 .PHONY: macos-dev
 macos-dev:
-	NJU_CONNECT_UI_LANGUAGE="$(UI_LANGUAGE)" ./scripts/run_macos_development.zsh
+	./scripts/run_macos_development.zsh
 
 .PHONY: package-macos-local
 package-macos-local:
@@ -49,15 +47,3 @@ release-check: fmt-check versioning-test test vet
 
 .PHONY: release-preview
 release-preview: release-check package-macos-local
-
-.PHONY: release-sign release-publish release-tap
-release-sign release-publish release-tap:
-	@echo "disabled: Developer ID signing, notarization, and public release are not configured" >&2
-	@echo "use make release-preview VERSION=X.Y.Z for a local-only build" >&2
-	@exit 78
-
-# Future production flow, intentionally inactive:
-# release-sign:       sign nested executables and App with Developer ID Application
-#                     then submit, staple, and verify notarization.
-# release-publish:    upload immutable assets only after anonymous SHA-256 checks.
-# release-tap:        render and audit the public Cask from downloaded Release assets.
