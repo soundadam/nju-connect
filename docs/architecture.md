@@ -177,7 +177,7 @@ in `soundadam/soundprobe`, and the app never embeds it.
 | Capability | Linux | macOS | Windows |
 | --- | --- | --- | --- |
 | Build (`CGO_ENABLED=0`) | amd64, arm64 | amd64, arm64 | amd64, arm64 |
-| Config and secret ownership checks | `euid` + mode | `euid` + mode | not implemented; fails closed |
+| Config and secret ownership checks | `euid` + mode | `euid` + mode | owner SID + DACL (only the user, SYSTEM, Administrators); new paths get a protected user-only DACL |
 | Background runtime | yes | yes | no |
 | App | — | menu-bar app | — |
 
