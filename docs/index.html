@@ -1,0 +1,647 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>nju-connect</title>
+<meta name="description" content="nju-connect：南京大学校园 VPN 客户端，支持 EasyConnect 与 aTrust，提供命令行和 macOS 菜单栏应用。">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Noto+Sans+SC:wght@400;500;700&family=Noto+Serif+SC:wght@700;900&display=swap">
+<style>
+:root {
+  --paper: #f5f4f7;
+  --surface: #ffffff;
+  --ink: #1c1720;
+  --muted: #605868;
+  --line: #dedae3;
+  --plum: #5e1a6b;
+  --plum-soft: #efe6f1;
+  --signal: #1e8757;
+  --warn: #9a5b00;
+  --warn-soft: #fbf1e1;
+  --term-bg: #17131b;
+  --term-ink: #e7e2ec;
+  --term-dim: #8d8497;
+  --term-key: #d6a5e0;
+  --term-ok: #6fd3a0;
+  --bar: rgba(245, 244, 247, 0.86);
+  --shadow: 0 1px 0 rgba(28, 23, 32, 0.04), 0 12px 32px -12px rgba(40, 20, 50, 0.22);
+  --serif: "Noto Serif SC", "Songti SC", "STSong", serif;
+  --sans: "Noto Sans SC", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --paper: #121015;
+    --surface: #1b1720;
+    --ink: #ede9f1;
+    --muted: #a79eaf;
+    --line: #2f2936;
+    --plum: #c894d4;
+    --plum-soft: #2a1f30;
+    --signal: #55c68f;
+    --warn: #e7b261;
+    --warn-soft: #2a2115;
+    --term-bg: #0c0a0e;
+    --bar: rgba(18, 16, 21, 0.86);
+    --shadow: 0 1px 0 rgba(0, 0, 0, 0.3), 0 16px 40px -16px rgba(0, 0, 0, 0.7);
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --paper: #121015;
+  --surface: #1b1720;
+  --ink: #ede9f1;
+  --muted: #a79eaf;
+  --line: #2f2936;
+  --plum: #c894d4;
+  --plum-soft: #2a1f30;
+  --signal: #55c68f;
+  --warn: #e7b261;
+  --warn-soft: #2a2115;
+  --term-bg: #0c0a0e;
+  --bar: rgba(18, 16, 21, 0.86);
+  --shadow: 0 1px 0 rgba(0, 0, 0, 0.3), 0 16px 40px -16px rgba(0, 0, 0, 0.7);
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font: 400 16px/1.75 var(--sans);
+  -webkit-font-smoothing: antialiased;
+}
+a { color: var(--plum); text-underline-offset: 3px; }
+a:hover { text-decoration-thickness: 2px; }
+:focus-visible { outline: 2px solid var(--plum); outline-offset: 2px; border-radius: 4px; }
+code, kbd, pre { font-family: var(--mono); font-size: 0.9em; }
+p code, li code, td code {
+  background: var(--plum-soft);
+  padding: 0.1em 0.35em;
+  border-radius: 4px;
+  overflow-wrap: anywhere;
+}
+h1, h2, h3 { font-family: var(--serif); text-wrap: balance; margin: 0; line-height: 1.25; }
+h2 { font-size: clamp(1.6rem, 3.2vw, 2.2rem); font-weight: 900; }
+h3 { font-size: 1.15rem; font-weight: 700; }
+p { margin: 0; }
+
+.wrap { max-width: 1120px; margin-inline: auto; padding-inline: 20px; }
+
+/* Menu bar: the site navigation is drawn as a macOS menu bar */
+.menubar {
+  position: sticky;
+  top: env(safe-area-inset-top, 0px);
+  z-index: 10;
+  background: var(--bar);
+  backdrop-filter: saturate(1.4) blur(14px);
+  -webkit-backdrop-filter: saturate(1.4) blur(14px);
+  border-bottom: 1px solid var(--line);
+  font-size: 13px;
+}
+.menubar .wrap { display: flex; align-items: center; gap: 20px; height: 34px; }
+.menubar .brand { font-family: var(--mono); font-weight: 500; color: var(--ink); text-decoration: none; }
+.menubar nav { display: flex; gap: 16px; flex: 1; overflow-x: auto; scrollbar-width: none; }
+.menubar nav a { color: var(--muted); text-decoration: none; white-space: nowrap; }
+.menubar nav a:hover { color: var(--ink); }
+.menubar .tray { display: flex; align-items: center; gap: 12px; color: var(--muted); font-family: var(--mono); font-size: 12px; }
+.tray-icon {
+  display: inline-grid; place-items: center;
+  width: 26px; height: 22px; border-radius: 5px;
+  background: var(--plum-soft); color: var(--plum);
+}
+.tray-icon svg { width: 15px; height: 15px; }
+@media (max-width: 640px) { .tray .clock { display: none; } }
+
+/* Hero */
+.hero { padding-block: 56px 72px; }
+.hero-grid { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr); gap: 48px; align-items: start; }
+.eyebrow { font-family: var(--mono); font-size: 12.5px; letter-spacing: 0.06em; color: var(--muted); }
+.eyebrow b { color: var(--plum); font-weight: 500; }
+.hero h1 {
+  font-size: clamp(2.3rem, 5.6vw, 4.1rem);
+  font-weight: 900;
+  letter-spacing: -0.01em;
+  margin-block: 14px 20px;
+}
+.hero h1 .name { font-family: var(--mono); font-weight: 500; font-size: 0.62em; color: var(--plum); display: block; letter-spacing: -0.02em; margin-bottom: 6px; }
+.lede { font-size: 1.1rem; color: var(--muted); max-width: 34em; }
+.actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 28px; }
+.btn {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 10px 18px; border-radius: 8px;
+  font-weight: 500; font-size: 15px; text-decoration: none;
+  border: 1px solid var(--line); color: var(--ink); background: var(--surface);
+}
+.btn.primary { background: var(--plum); border-color: var(--plum); color: var(--paper); }
+.btn:hover { text-decoration: none; filter: brightness(1.06); }
+.facts { display: flex; flex-wrap: wrap; gap: 8px 18px; margin-top: 26px; font-size: 13.5px; color: var(--muted); padding: 0; list-style: none; }
+.facts li::before { content: "·"; margin-right: 8px; color: var(--plum); }
+.facts li:first-child::before { content: none; }
+
+/* Specimens */
+.specimens { display: grid; gap: 20px; }
+.spec-label { font-family: var(--mono); font-size: 12px; color: var(--muted); display: flex; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
+
+.term {
+  background: var(--term-bg);
+  color: var(--term-ink);
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+.term-top { display: flex; gap: 6px; padding: 10px 12px; }
+.term-top i { width: 10px; height: 10px; border-radius: 50%; background: #3a3340; }
+.term pre {
+  margin: 0; padding: 4px 18px 18px;
+  overflow-x: auto;
+  font-size: 13px; line-height: 1.7;
+}
+.term .p { color: var(--term-dim); user-select: none; }
+.term .k { color: var(--term-key); }
+.term .ok { color: var(--term-ok); }
+.term .dim { color: var(--term-dim); }
+
+/* The dropdown panel, drawn at the app's real 292pt width */
+.panel-hang { display: flex; justify-content: flex-end; }
+.panel {
+  width: 292px; max-width: 100%;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+  font: 12px/1.45 -apple-system, BlinkMacSystemFont, "SF Pro Text", var(--sans);
+  overflow: hidden;
+}
+.panel-row { padding: 10px 12px; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.panel-row + .panel-row { border-top: 1px solid var(--line); }
+.panel-title { font-weight: 600; font-size: 13px; display: flex; align-items: center; gap: 7px; }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--signal); box-shadow: 0 0 0 3px color-mix(in srgb, var(--signal) 22%, transparent); }
+.seg { display: grid; grid-template-columns: repeat(3, 1fr); background: var(--paper); border-radius: 7px; padding: 2px; width: 100%; }
+.seg span { text-align: center; padding: 4px 0; border-radius: 5px; color: var(--muted); }
+.seg span.on { background: var(--surface); color: var(--ink); font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,0.12); }
+.muted { color: var(--muted); }
+.mono { font-family: var(--mono); }
+.traffic { display: block; }
+.traffic-head { display: flex; justify-content: space-between; margin-bottom: 6px; }
+.traffic svg { width: 100%; height: 42px; display: block; }
+.traffic-nums { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 6px; font-variant-numeric: tabular-nums; }
+.traffic-nums b { font-weight: 600; }
+.sample-note { font-size: 11.5px; color: var(--muted); margin-top: 8px; text-align: right; }
+
+/* Sections */
+section.block { padding-block: 72px; border-top: 1px solid var(--line); }
+.section-head { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); gap: 32px; align-items: end; margin-bottom: 40px; }
+.section-head .kicker { font-family: var(--mono); font-size: 12.5px; color: var(--plum); margin-bottom: 10px; }
+.section-head p { color: var(--muted); max-width: 38em; }
+
+.cmds { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.cmd { background: var(--surface); padding: 24px; display: grid; gap: 10px; align-content: start; }
+.cmd .sig { font-family: var(--mono); font-size: 14px; color: var(--plum); font-weight: 500; overflow-wrap: anywhere; }
+.cmd p { color: var(--muted); font-size: 15px; }
+.cmd pre {
+  margin: 4px 0 0; padding: 12px 14px;
+  background: var(--term-bg); color: var(--term-ink);
+  border-radius: 7px; overflow-x: auto;
+  font-size: 12.5px; line-height: 1.65;
+}
+.cmd pre .dim { color: var(--term-dim); }
+.cmd pre .k { color: var(--term-key); }
+
+.app-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 48px; align-items: start; }
+.feature-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 26px; }
+.feature-list h3 { margin-bottom: 6px; }
+.feature-list p { color: var(--muted); }
+.note { font-size: 14px; color: var(--muted); border-left: 2px solid var(--line); padding-left: 14px; margin-top: 28px; }
+
+/* Install */
+.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); margin-bottom: 28px; overflow-x: auto; }
+.tabs button {
+  font: 500 15px var(--sans); color: var(--muted);
+  background: none; border: 0; border-bottom: 2px solid transparent;
+  padding: 10px 14px; cursor: pointer; white-space: nowrap; margin-bottom: -1px;
+}
+.tabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--plum); }
+.steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 28px; counter-reset: step; max-width: 780px; }
+.steps > li { display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 4px 14px; counter-increment: step; }
+.steps > li::before {
+  content: counter(step);
+  grid-row: span 2;
+  width: 28px; height: 28px; border-radius: 50%;
+  display: grid; place-items: center;
+  font: 500 13px var(--mono);
+  border: 1px solid var(--line); color: var(--plum);
+}
+.steps h3 { font-family: var(--sans); font-size: 1.02rem; font-weight: 700; line-height: 28px; }
+.steps .body { display: grid; gap: 12px; }
+.steps .body > p { color: var(--muted); }
+.code {
+  position: relative;
+  background: var(--term-bg); color: var(--term-ink);
+  border-radius: 8px;
+}
+.code pre { margin: 0; padding: 12px 84px 12px 16px; overflow-x: auto; font-size: 13.5px; line-height: 1.65; }
+.code .dim { color: var(--term-dim); }
+.copy {
+  position: absolute; top: 7px; right: 7px;
+  font: 500 12px var(--sans); color: var(--term-ink);
+  background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.14);
+  border-radius: 6px; padding: 4px 10px; cursor: pointer;
+}
+.copy:hover { background: rgba(255,255,255,0.14); }
+.caution {
+  background: var(--warn-soft);
+  border: 1px solid color-mix(in srgb, var(--warn) 35%, transparent);
+  border-radius: 10px;
+  padding: 18px 20px;
+  display: grid; gap: 10px;
+}
+.caution strong { color: var(--warn); font-weight: 700; }
+.caution p { color: var(--ink); font-size: 15px; }
+.caution ul { margin: 0; padding-left: 1.2em; font-size: 15px; display: grid; gap: 6px; }
+
+/* License */
+.license { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 48px; }
+.license p + p { margin-top: 14px; }
+.license p { color: var(--muted); }
+.credits { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--line); }
+.credits li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 16px; padding: 14px 0; border-bottom: 1px solid var(--line); }
+.credits .lic { font-family: var(--mono); font-size: 12.5px; color: var(--muted); align-self: center; }
+.credits .what { grid-column: 1 / -1; font-size: 14px; color: var(--muted); }
+
+footer { border-top: 1px solid var(--line); padding-block: 28px 40px; font-size: 13.5px; color: var(--muted); }
+footer .wrap { display: flex; flex-wrap: wrap; gap: 10px 24px; justify-content: space-between; }
+footer nav { display: flex; gap: 18px; flex-wrap: wrap; }
+
+@media (max-width: 900px) {
+  .hero-grid, .app-grid, .license, .section-head { grid-template-columns: minmax(0, 1fr); }
+  .hero-grid { gap: 40px; }
+  .panel-hang { justify-content: flex-start; }
+  .cmds { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 480px) {
+  .wrap { padding-inline: 16px; }
+  .hero { padding-block: 36px 52px; }
+  section.block { padding-block: 52px; }
+  .cmd { padding: 20px 16px; }
+}
+</style>
+</head>
+<body>
+
+<header class="menubar">
+  <div class="wrap">
+    <a class="brand" href="#top">nju-connect</a>
+    <nav aria-label="页面导航">
+      <a href="#cli">命令行</a>
+      <a href="#app">菜单栏应用</a>
+      <a href="#install">安装</a>
+      <a href="#license">许可</a>
+      <a href="https://github.com/soundadam/nju-connect">源码</a>
+    </nav>
+    <div class="tray" aria-hidden="true">
+      <span class="tray-icon">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M2.5 6.5a8 8 0 0 1 11 0"/><path d="M4.8 9a4.8 4.8 0 0 1 6.4 0"/><circle cx="8" cy="11.8" r="1.1" fill="currentColor" stroke="none"/></svg>
+      </span>
+      <span class="clock">9月26日 周六 08:00</span>
+    </div>
+  </div>
+</header>
+
+<main id="top">
+  <section class="hero">
+    <div class="wrap hero-grid">
+      <div>
+        <p class="eyebrow"><b>NJU</b> · EasyConnect / aTrust · AGPL-3.0</p>
+        <h1><span class="name">nju-connect</span>在终端或菜单栏里，连上南大校园网</h1>
+        <p class="lede">nju-connect 是南京大学校园 VPN 的原生客户端。一个命令行程序负责登录和连接，同时支持 EasyConnect 与 aTrust 两种网关；macOS 上还有一个菜单栏应用，点一下就能连上或断开。</p>
+        <div class="actions">
+          <a class="btn primary" href="#install">安装</a>
+          <a class="btn" href="https://github.com/soundadam/nju-connect">在 GitHub 查看源码</a>
+        </div>
+        <ul class="facts">
+          <li>密码存进系统钥匙串</li>
+          <li>本地 SOCKS5 代理，不改系统路由</li>
+          <li>macOS / Linux / Windows</li>
+        </ul>
+      </div>
+
+      <div class="specimens">
+        <div>
+          <div class="spec-label"><span>命令行</span><span>aTrust，复用已保存的会话</span></div>
+          <div class="term" role="img" aria-label="终端里运行 nju-connect connect 的示意输出">
+            <div class="term-top"><i></i><i></i><i></i></div>
+<pre><span class="p">$ </span>nju-connect connect
+<span class="k">backend:</span> atrust
+<span class="k">authentication:</span> <span class="ok">resumed</span>
+<span class="k">socks:</span> 127.0.0.1:1081
+<span class="k">state:</span> <span class="ok">connected</span>
+<span class="dim">^C 或另开终端运行 nju-connect disconnect 断开</span></pre>
+          </div>
+        </div>
+
+        <div>
+          <div class="spec-label"><span>macOS 菜单栏</span><span>面板宽 292pt，与应用一致</span></div>
+          <div class="panel-hang">
+            <div class="panel" role="img" aria-label="nju-connect 菜单栏面板示意：已通过 aTrust 连接，显示实时流量">
+              <div class="panel-row">
+                <span class="panel-title"><span class="dot"></span>nju-connect</span>
+                <span class="muted mono">SOCKS5</span>
+              </div>
+              <div class="panel-row">
+                <div class="seg"><span>Off</span><span>EasyConnect</span><span class="on">aTrust</span></div>
+              </div>
+              <div class="panel-row">
+                <span>speed.nju.edu.cn</span>
+                <span class="muted">Ping 6 ms</span>
+              </div>
+              <div class="panel-row traffic">
+                <div class="traffic-head"><span>Live traffic</span><span class="muted">Last 30 sec</span></div>
+                <svg viewBox="0 0 268 42" preserveAspectRatio="none" aria-hidden="true">
+                  <polygon fill="var(--plum-soft)" points="0,42 0,34 14,31 28,33 42,24 56,27 70,18 84,22 98,12 112,16 126,20 140,9 154,14 168,11 182,19 196,15 210,23 224,17 238,21 252,13 268,16 268,42"/>
+                  <polyline fill="none" stroke="var(--plum)" stroke-width="1.6" stroke-linejoin="round" points="0,34 14,31 28,33 42,24 56,27 70,18 84,22 98,12 112,16 126,20 140,9 154,14 168,11 182,19 196,15 210,23 224,17 238,21 252,13 268,16"/>
+                  <circle cx="268" cy="16" r="2.4" fill="var(--plum)"/>
+                </svg>
+                <div class="traffic-nums">
+                  <span class="muted">Download <b>84 KB/s</b></span>
+                  <span class="muted">Upload <b>3 KB/s</b></span>
+                  <span class="muted">Session <b>↓ 678.9 KB ↑ 12.3 KB</b></span>
+                  <span class="muted">Conn. <b>2 active</b></span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <p class="sample-note">示意图，数值为示例</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="block" id="cli">
+    <div class="wrap">
+      <div class="section-head">
+        <div>
+          <p class="kicker">命令行 · nju-connect</p>
+          <h2>一条命令完成登录和连接</h2>
+        </div>
+        <p>命令行是 nju-connect 的核心，菜单栏应用也是调用它完成工作的。连接成功后，它在本机开一个 SOCKS5 代理（默认 <code>127.0.0.1:1081</code>），需要访问校内资源的程序走这个代理即可。</p>
+      </div>
+
+      <div class="cmds">
+        <article class="cmd">
+          <div class="sig">nju-connect setup</div>
+          <p>在终端里运行会进入引导式设置：依次选择后端和网关，自动发现 aTrust 支持的登录方式，再填写账号和密码。再次运行时，已保存的值就是默认值，只改你回答或用参数指定的项。</p>
+<pre><span class="dim"># 脚本里用管道传入密码</span>
+nju-connect setup --backend atrust --password-stdin</pre>
+        </article>
+
+        <article class="cmd">
+          <div class="sig">nju-connect connect</div>
+          <p>同时支持 EasyConnect 和 aTrust。网关要求短信验证码时，会在终端里提示输入。aTrust 会保存登录会话，下次连接直接复用，不用重新登录。密码被拒时会让你重新输入并保存，最多尝试三次。</p>
+<pre><span class="dim"># 不带命令等同于 connect</span>
+nju-connect
+<span class="k">Verification code:</span> <span class="dim">••••••</span></pre>
+        </article>
+
+        <article class="cmd">
+          <div class="sig">nju-connect status --json</div>
+          <p>查询正在运行的连接，输出带版本号的 JSON，方便脚本和其他工具读取。加上 <code>--watch</code> 每秒输出一行最新状态。没有连接时退出码为 1。</p>
+<pre><span class="k">{"schema_version"</span>:1,<span class="k">"running"</span>:true,
+ <span class="k">"state"</span>:"connected",<span class="k">"profile"</span>:"atrust-tcp",
+ <span class="k">"socks_listen"</span>:"127.0.0.1:1081", <span class="dim">…</span>}</pre>
+        </article>
+
+        <article class="cmd">
+          <div class="sig">nju-connect speedtest</div>
+          <p>测量到南大测速站 <code>speed.nju.edu.cn</code> 的下载、上传和延迟。优先走直连；不在校内时，自动改走正在运行的 nju-connect 代理，结果里会注明走的是哪条线路。</p>
+<pre><span class="k">status:</span> success
+<span class="k">route:</span> direct
+<span class="k">target:</span> speed.nju.edu.cn
+<span class="k">download_mbps:</span> <span class="dim">…</span></pre>
+        </article>
+
+        <article class="cmd">
+          <div class="sig">密码存进系统钥匙串</div>
+          <p>VPN 密码和 aTrust 会话保存在系统的凭据存储里：macOS 的登录钥匙串、Linux 的 Secret Service、Windows 凭据管理器。配置文件里只有账号和网关这类非敏感信息。没有钥匙串的服务器（比如通过 SSH 登录的 Linux）可以改用仅本人可读的文件。</p>
+<pre><span class="dim"># config.toml</span>
+credential_store = "file"</pre>
+        </article>
+
+        <article class="cmd">
+          <div class="sig">macOS · Linux · Windows</div>
+          <p>纯 Go 实现，不依赖 cgo，可以为 Linux、macOS、Windows 的 amd64 和 arm64 构建。<code>nju-connect doctor</code> 会检查本机配置，并告诉你下一步该运行哪条命令。</p>
+<pre>nju-connect doctor
+<span class="k">ready:</span> true
+<span class="k">next:</span> nju-connect connect</pre>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section class="block" id="app">
+    <div class="wrap app-grid">
+      <div>
+        <p class="eyebrow" style="color:var(--plum)">macOS 菜单栏应用</p>
+        <h2 style="margin-block:10px 28px">在菜单栏里点一下就能连上</h2>
+        <ul class="feature-list">
+          <li>
+            <h3>一键连接和断开</h3>
+            <p>在面板顶部选择 Off、EasyConnect 或 aTrust，就能开关连接或切换后端。第一次使用时，在面板里填入南大账号和密码，点「Save &amp; Connect」即可。需要验证码时，面板里会出现输入框。</p>
+          </li>
+          <li>
+            <h3>实时状态和流量</h3>
+            <p>打开面板时，实时显示连接状态、最近 30 秒的上传与下载速率曲线、本次会话的累计流量和活跃连接数。菜单栏图标本身也会反映连接状态。</p>
+          </li>
+          <li>
+            <h3>校园测速</h3>
+            <p>面板里可以直接对 speed.nju.edu.cn 测速，显示延迟和带宽，并标出走的是校园网直连还是 VPN。展开详情可以看到最近几次的延迟和带宽曲线。</p>
+          </li>
+        </ul>
+        <p class="note">应用的所有操作都通过内置的 nju-connect 命令行完成，密码经由命令行存入钥匙串，验证码通过私有的本地管道传递，不会被保存。需要 macOS 13 Ventura 或更高版本。</p>
+      </div>
+
+      <div class="panel-hang" style="justify-content:center">
+        <div class="panel" role="img" aria-label="首次使用时的设置面板示意">
+          <div class="panel-row">
+            <span class="panel-title"><span class="dot" style="background:var(--muted);box-shadow:none"></span>nju-connect</span>
+            <span class="muted">Setup needed</span>
+          </div>
+          <div class="panel-row">
+            <div class="seg"><span>Off</span><span class="on">EasyConnect</span><span>aTrust</span></div>
+          </div>
+          <div class="panel-row" style="display:grid;gap:8px">
+            <span style="border:1px solid var(--line);border-radius:6px;padding:5px 8px" class="muted">NJU account</span>
+            <span style="border:1px solid var(--line);border-radius:6px;padding:5px 8px" class="muted">NJU password</span>
+            <span style="justify-self:end;background:var(--plum);color:var(--paper);border-radius:6px;padding:4px 12px;font-weight:600">Save &amp; Connect</span>
+            <span class="muted" style="font-size:11px">The account is saved in nju-connect's settings; the long-lived password stays in Keychain and is shared by both backends. Verification codes are never saved.</span>
+          </div>
+          <div class="panel-row">
+            <span>speed.nju.edu.cn</span>
+            <span class="muted">Not tested</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="block" id="install">
+    <div class="wrap">
+      <div class="section-head">
+        <div>
+          <p class="kicker">安装</p>
+          <h2>通过 Homebrew 安装，或从源码构建</h2>
+        </div>
+        <p>macOS 上的 Homebrew 安装包同时包含菜单栏应用和 <code>nju-connect</code> 命令。Linux 和 Windows 目前需要从源码构建。</p>
+      </div>
+
+      <div class="tabs" role="tablist" aria-label="安装方式">
+        <button role="tab" id="tab-mac" aria-controls="pane-mac" aria-selected="true">macOS · Homebrew</button>
+        <button role="tab" id="tab-src" aria-controls="pane-src" aria-selected="false" tabindex="-1">Linux / Windows · 源码</button>
+      </div>
+
+      <div role="tabpanel" id="pane-mac" aria-labelledby="tab-mac">
+        <ol class="steps">
+          <li>
+            <h3>从 soundadam/tap 安装</h3>
+            <div class="body">
+              <div class="code"><pre>brew install --cask soundadam/tap/nju-connect</pre><button class="copy" type="button">复制</button></div>
+              <p>会一并安装测速所需的 <code>librespeed-cli-soundconnect</code>，以及终端里的 <code>nju-connect</code> 命令。</p>
+            </div>
+          </li>
+          <li>
+            <h3>第一次打开前：处理 Gatekeeper 拦截</h3>
+            <div class="body">
+              <div class="caution">
+                <p><strong>这个应用没有经过 Apple 公证。</strong>它使用 ad-hoc 签名，作者目前没有 Apple Developer ID。Homebrew 会保留下载文件的隔离属性，安装包也不会替你绕过 Gatekeeper，所以第一次打开时，macOS 会提示无法验证开发者并拒绝运行。</p>
+                <p>请先确认你愿意信任这份构建，再选择下面一种方式放行：</p>
+                <ul>
+                  <li>打开「系统设置 › 隐私与安全性」，在底部找到 nju-connect 的提示，点「仍要打开」。</li>
+                  <li>或者在终端里移除隔离属性。命令行程序在应用包内，放行应用后 <code>nju-connect</code> 命令也能正常使用。</li>
+                </ul>
+              </div>
+              <div class="code"><pre>xattr -dr com.apple.quarantine /Applications/nju-connect.app</pre><button class="copy" type="button">复制</button></div>
+              <p>想先核对再放行？每个版本的 GitHub Release 都附有 SHA-256 校验值，源码也完全公开，你可以自行比对，或者直接从源码构建。</p>
+            </div>
+          </li>
+          <li>
+            <h3>设置账号并连接</h3>
+            <div class="body">
+              <p>点击菜单栏里的 nju-connect 图标，在面板里填入账号和密码；或者在终端里运行：</p>
+              <div class="code"><pre>nju-connect setup
+nju-connect connect</pre><button class="copy" type="button">复制</button></div>
+            </div>
+          </li>
+        </ol>
+      </div>
+
+      <div role="tabpanel" id="pane-src" aria-labelledby="tab-src" hidden>
+        <ol class="steps">
+          <li>
+            <h3>准备 Go 1.25 或更高版本，然后构建</h3>
+            <div class="body">
+              <div class="code"><pre>git clone https://github.com/soundadam/nju-connect
+cd nju-connect
+go build -o nju-connect ./cmd/nju-connect</pre><button class="copy" type="button">复制</button></div>
+              <p>Windows 上把输出文件名改成 <code>nju-connect.exe</code>。要一次交叉编译全部六个平台，运行 <code>make build-platforms</code>。</p>
+            </div>
+          </li>
+          <li>
+            <h3>设置并连接</h3>
+            <div class="body">
+              <div class="code"><pre>./nju-connect setup
+./nju-connect connect</pre><button class="copy" type="button">复制</button></div>
+              <p>在没有 Secret Service 的 Linux 主机上，在 <code>config.toml</code> 里加入 <code>credential_store = "file"</code>。aTrust 的浏览器登录助手只在 macOS 上提供；其他平台使用 OAuth 登录时，命令行会打印登录链接，请把浏览器跳转后的回调地址粘贴回终端。</p>
+            </div>
+          </li>
+          <li>
+            <h3>测速（可选）</h3>
+            <div class="body">
+              <p><code>speedtest</code> 需要一个打过补丁的 librespeed-cli。macOS 的安装包会自动装好；其他平台请自行构建，并用 <code>NJU_CONNECT_LIBRESPEED_CLI</code> 指向它的绝对路径。</p>
+            </div>
+          </li>
+        </ol>
+      </div>
+    </div>
+  </section>
+
+  <section class="block" id="license">
+    <div class="wrap license">
+      <div>
+        <p class="kicker eyebrow" style="color:var(--plum);margin-bottom:10px">许可与致谢</p>
+        <h2 style="margin-bottom:20px">以 AGPL-3.0 开源</h2>
+        <p>nju-connect 以 GNU Affero General Public License v3.0 发布。你可以自由使用、修改和再分发；分发修改后的版本，或通过网络向他人提供服务时，需要同样公开对应的源码。</p>
+        <p>aTrust 协议部分直接使用了 <a href="https://github.com/mythologyli/zju-connect">mythologyli/zju-connect</a> 的客户端核心，这也是项目取名 nju-connect 的原因。感谢 zju-connect 的作者和贡献者。</p>
+        <p>本项目与南京大学、深信服均无隶属关系，仅供南大师生访问校内资源时自行使用。</p>
+      </div>
+      <ul class="credits">
+        <li><a href="https://github.com/mythologyli/zju-connect">zju-connect</a><span class="lic">AGPL-3.0</span><span class="what">aTrust 协议核心，以固定版本引入</span></li>
+        <li><a href="https://github.com/librespeed/speedtest-cli">librespeed-cli</a><span class="lic">LGPL-3.0</span><span class="what">校园测速，作为独立程序单独安装，不打包进应用</span></li>
+        <li><a href="https://github.com/soundadam/nju-connect/blob/main/THIRD_PARTY_NOTICES">THIRD_PARTY_NOTICES</a><span class="lic">全部依赖</span><span class="what">其余依赖及其许可证全文，随每个发布包一起分发</span></li>
+      </ul>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>nju-connect · AGPL-3.0</span>
+    <nav>
+      <a href="https://github.com/soundadam/nju-connect">源码</a>
+      <a href="https://github.com/soundadam/nju-connect/releases">发布版本</a>
+      <a href="https://github.com/soundadam/nju-connect/issues">问题反馈</a>
+      <a href="https://github.com/soundadam/nju-connect/blob/main/LICENSE">LICENSE</a>
+    </nav>
+  </div>
+</footer>
+
+<script>
+(function () {
+  var tabs = Array.prototype.slice.call(document.querySelectorAll('[role="tab"]'));
+  function select(tab) {
+    tabs.forEach(function (t) {
+      var on = t === tab;
+      t.setAttribute('aria-selected', on ? 'true' : 'false');
+      t.tabIndex = on ? 0 : -1;
+      document.getElementById(t.getAttribute('aria-controls')).hidden = !on;
+    });
+  }
+  tabs.forEach(function (tab, i) {
+    tab.addEventListener('click', function () { select(tab); });
+    tab.addEventListener('keydown', function (e) {
+      if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+      var next = tabs[(i + (e.key === 'ArrowRight' ? 1 : tabs.length - 1)) % tabs.length];
+      select(next); next.focus();
+    });
+  });
+
+  document.querySelectorAll('.copy').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var pre = btn.parentNode.querySelector('pre');
+      var text = pre.innerText.trim();
+      function done(label) {
+        btn.textContent = label;
+        setTimeout(function () { btn.textContent = '复制'; }, 1600);
+      }
+      function fallback() {
+        var range = document.createRange();
+        range.selectNodeContents(pre);
+        var sel = window.getSelection();
+        sel.removeAllRanges(); sel.addRange(range);
+        done('已选中');
+      }
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(function () { done('已复制'); }, fallback);
+      } else {
+        fallback();
+      }
+    });
+  });
+})();
+</script>
+
+</body></html>
