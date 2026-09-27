@@ -169,7 +169,7 @@ over IPv4. It probes the direct path first and falls back to the live
 runtime's loopback SOCKS listener only when the direct probe fails. The helper
 ignores ambient proxy variables, disables telemetry and sharing, and is a
 separately executed LGPL component: on macOS the
-`librespeed-cli-soundconnect` Homebrew Formula builds it from the source kept
+`librespeed-cli-nju-connect` Homebrew Formula builds it from the source kept
 in `soundadam/soundprobe`, and the app never embeds it.
 
 ## Platforms

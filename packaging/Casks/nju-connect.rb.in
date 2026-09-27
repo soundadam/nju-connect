@@ -10,7 +10,7 @@ cask "nju-connect" do
   homepage "__HOMEPAGE__"
 
   depends_on macos: :ventura
-  depends_on formula: "librespeed-cli-soundconnect"
+  depends_on formula: "librespeed-cli-nju-connect"
 
   app "nju-connect.app"
   binary "#{appdir}/nju-connect.app/Contents/Helpers/nju-connect"
@@ -28,7 +28,7 @@ cask "nju-connect" do
     personal tap. Homebrew preserves quarantine and this cask does not bypass
     Gatekeeper. VPN setup, connection control, runtime status, and campus speed
     testing use the bundled native nju-connect CLI. Speed measurements also
-    require the separately installed librespeed-cli-soundconnect Homebrew Formula.
+    require the separately installed librespeed-cli-nju-connect Homebrew Formula.
 
     nju-connect is licensed under AGPL-3.0. Review the corresponding source,
     immutable Release, SHA-256, build manifest, notices, and security state

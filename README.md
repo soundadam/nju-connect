@@ -125,7 +125,7 @@ the command asks the user to connect nju-connect and retry. Results always
 identify the selected path and never infer it from connection state alone.
 
 LibreSpeed remains a separate third-party executable. On macOS, the preview
-Cask depends on the `librespeed-cli-soundconnect` Formula, which builds the
+Cask depends on the `librespeed-cli-nju-connect` Formula, which builds the
 pinned upstream source with the explicit SOCKS and structured-progress patches
 required by nju-connect. The App neither embeds nor downloads this helper.
 Linux packaging remains a separate decision; developers may point to a

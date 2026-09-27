@@ -88,8 +88,8 @@ func runSpeedtestCampus(cmd *cobra.Command, deps app.Deps, options campusOptions
 		}
 		status := manager.Status()
 		if !status.DownloadReady {
-			fmt.Fprintln(stderr, "Campus speed testing requires the external librespeed-cli-soundconnect helper.")
-			fmt.Fprintln(stderr, "On macOS install it with: brew install soundadam/local/librespeed-cli-soundconnect")
+			fmt.Fprintln(stderr, "Campus speed testing requires the external librespeed-cli-nju-connect helper.")
+			fmt.Fprintln(stderr, "On macOS install it with: brew install soundadam/tap/librespeed-cli-nju-connect")
 			return exitCode(1)
 		}
 		install, err := deps.Interaction.Confirm(cmd.Context(), fmt.Sprintf(
@@ -281,7 +281,7 @@ func newSpeedtestComponentInstallCommand(deps app.Deps) *cobra.Command {
 			}
 			if manager.Status().InstallSource == "" {
 				return writeSpeedtestError(false, jsonEvents, stdout, stderr, "component_install_failed",
-					errors.New("install the external helper with: brew install soundadam/local/librespeed-cli-soundconnect"), 1)
+					errors.New("install the external helper with: brew install soundadam/tap/librespeed-cli-nju-connect"), 1)
 			}
 			sink := plainSpeedtestSink(stderr)
 			if jsonEvents {
