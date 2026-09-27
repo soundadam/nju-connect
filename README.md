@@ -36,7 +36,9 @@ nju-connect connect   # 连接；不带命令等同于 connect
 ```
 
 aTrust 协议部分使用了 [mythologyli/zju-connect](https://github.com/mythologyli/zju-connect)
-的客户端核心。本项目以 AGPL-3.0 发布，与南京大学、深信服均无隶属关系。
+的客户端核心；EasyConnect 部分参考了
+[lyc8503/NJUConnect](https://github.com/lyc8503/NJUConnect) 的实现。感谢两个项目的作者和贡献者。
+本项目以 AGPL-3.0 发布，与南京大学、深信服均无隶属关系。
 
 The rest of this README is developer documentation, in English.
 
