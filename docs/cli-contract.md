@@ -53,6 +53,21 @@ Cobra) are checked against the same surface.
   show interactive forms on stderr (`internal/tui`). `TERM=dumb` or
   `NJU_CONNECT_ACCESSIBLE=1` keeps plain line prompts. Anything piped or
   redirected gets the line prompts described below, byte for byte.
+- Forms lay out at most 80 columns wide and at least two columns short of
+  the width the terminal reports (80 when it reports none), because the
+  renderer redraws by moving the cursor up one row per line: a line that
+  fills the last column takes two rows in terminals that wrap there, draw
+  the `┃` border as two cells, or report a column more than they show, and
+  every redraw would then stack below the last one. A terminal that cannot
+  move the cursor up at all still stacks frames; `TERM=dumb` or
+  `NJU_CONNECT_ACCESSIBLE=1` is the workaround there.
+- The linked aTrust core (zju-connect) narrates its requests, prompts and
+  node probes through Go's standard logger. None of that reaches stdout or
+  stderr: `internal/backend/atrust` captures it, answers its prompts through
+  nju-connect's own, and discards the lines. `NJU_CONNECT_DEBUG=1` copies
+  them raw to stderr for troubleshooting; that output is not contract, may
+  include gateway messages and masked phone numbers, and breaks the
+  one-line guarantees below, so the macOS app never sets it.
 
 ### Credential storage
 
@@ -76,7 +91,7 @@ earlier state:
 - Keyring items under `com.soundadam.soundconnect` (and the isolated
   `com.soundadam.soundconnect.<hash>` services) move to
   `com.soundadam.nju-connect` the first time each secret is read.
-- Environment variables are renamed from `SOUNDCONNECT_*` to `NJU_CONNECT_*`
+- Environment variables are renamed from `NJU_CONNECT_*` to `NJU_CONNECT_*`
   (`NJU_CONNECT_CONFIG_DIR`, `NJU_CONNECT_ACCESSIBLE`, …); the old names are
   not read.
 - The speed-test route and error code `soundconnect` / `soundconnect_required`
@@ -144,15 +159,17 @@ stderr kept empty. The error codes are `invalid_arguments`, `local_state`,
   password fails with `no saved VPN password; run "nju-connect account
   set-password"`.
 - When the gateway rejects the saved username or password (EasyConnect's
-  password step, or aTrust `auth/psw`), a non-terminal `connect` exits 1 with
-  one stderr line starting with the stable token `credential_rejected:` and
-  ending with `run "nju-connect account set-password"`. On a terminal,
+  password step, or aTrust `auth/psw`), a non-terminal `connect` exits 1 and
+  its entire stderr is one line, starting with the stable token
+  `credential_rejected:` and ending with
+  `run "nju-connect account set-password"`. On a terminal,
   `connect` instead offers to re-enter the password, change the username and
   password (which also forgets the aTrust session), or stop (exit 0). The new
   values are saved before the next attempt, and at most three sign-ins are
   made before it gives up with the same token.
 - `connect --verification-code-stdin` prints `Verification code: ` on stderr
-  when the gateway asks for a code, then reads one line from stdin. Without
+  when the gateway asks for a code, then reads one line from stdin. The
+  aTrust core's own SMS prompt is never printed next to it. Without
   the flag the prompt needs a terminal and fails with
   `hidden prompt requires a terminal` on a pipe.
 - An aTrust OAuth login without the bundled helper prints the login URL and

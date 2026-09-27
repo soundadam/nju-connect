@@ -38,8 +38,13 @@ const (
 // dialer, so LoginRequest.Dial and ResumeRequest.Dial are ignored; and it
 // does not verify gateway or node certificates. It also reads interactive
 // factors from standard input; the adapter redirects those reads to the
-// Prompter (see stdioBridge), so no terminal input reaches it.
-func NewCore() Core { return zjuCore{setup: setupUpstream} }
+// Prompter (see stdioBridge), so no terminal input reaches it. Its log
+// output never reaches the terminal either: NewCore takes over the standard
+// logger (see upstreamLog and SetUpstreamDebugLog).
+func NewCore() Core {
+	captureUpstreamLog()
+	return zjuCore{setup: setupUpstream, discover: discoverUpstream}
+}
 
 // upstreamClient is the part of the upstream client the adapter uses.
 type upstreamClient interface {
@@ -66,6 +71,24 @@ type setupRequest struct {
 // setupFunc runs an upstream login and returns the connected client and its
 // opaque client data. Tests replace it.
 type setupFunc func(setupRequest) (upstreamClient, []byte, error)
+
+// discoverFunc lists a gateway's public authentication methods. Tests
+// replace it.
+type discoverFunc func(backend.Endpoint) ([]backend.AuthenticationMethod, error)
+
+func discoverUpstream(endpoint backend.Endpoint) ([]backend.AuthenticationMethod, error) {
+	info, err := upstream.GetAuthInfoList(endpoint.DialHost(), endpoint.Port, "", false)
+	methods := make([]backend.AuthenticationMethod, 0, len(info))
+	for _, method := range info {
+		methods = append(methods, backend.AuthenticationMethod{
+			Domain:   method.LoginDomain,
+			Type:     method.AuthType,
+			Name:     method.AuthName,
+			LoginURL: method.LoginURL,
+		})
+	}
+	return methods, err
+}
 
 func setupUpstream(request setupRequest) (upstreamClient, []byte, error) {
 	client := upstream.NewClient("", "", "", "")
@@ -94,7 +117,8 @@ func setupUpstream(request setupRequest) (upstreamClient, []byte, error) {
 }
 
 type zjuCore struct {
-	setup setupFunc
+	setup    setupFunc
+	discover discoverFunc
 }
 
 func (core zjuCore) Discover(ctx context.Context, endpoint backend.Endpoint) ([]backend.AuthenticationMethod, error) {
@@ -105,18 +129,14 @@ func (core zjuCore) Discover(ctx context.Context, endpoint backend.Endpoint) ([]
 		methods []backend.AuthenticationMethod
 		err     error
 	}
+	discover := core.discover
+	if discover == nil {
+		discover = discoverUpstream
+	}
+	captureUpstreamLog()
 	completed := make(chan result, 1)
 	go func() {
-		info, err := upstream.GetAuthInfoList(endpoint.DialHost(), endpoint.Port, "", false)
-		methods := make([]backend.AuthenticationMethod, 0, len(info))
-		for _, method := range info {
-			methods = append(methods, backend.AuthenticationMethod{
-				Domain:   method.LoginDomain,
-				Type:     method.AuthType,
-				Name:     method.AuthName,
-				LoginURL: method.LoginURL,
-			})
-		}
+		methods, err := discover(endpoint)
 		completed <- result{methods: methods, err: err}
 	}()
 	select {

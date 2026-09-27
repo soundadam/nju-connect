@@ -4,8 +4,6 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"io"
-	"log"
 	"os"
 	"regexp"
 	"strings"
@@ -35,27 +33,26 @@ const (
 
 var upstreamGatewayAnswer = regexp.MustCompile(`Code: (-?\d+), Message: (.*)$`)
 
-// stdioBridgeMu serializes bridges: os.Stdin and the standard logger are
-// process-wide, so only one upstream Setup may run at a time.
+// stdioBridgeMu serializes bridges: os.Stdin and the upstream log observer
+// are process-wide, so only one upstream Setup may run at a time.
 var stdioBridgeMu sync.Mutex
 
-// stdioBridge replaces os.Stdin with a pipe and watches the standard logger
-// for upstream prompts, answering each one through the Prompter. The upstream
-// client therefore never reads the real terminal, and the host keeps full
-// control of how factors are collected.
+// stdioBridge replaces os.Stdin with a pipe and watches the upstream log
+// lines (see upstreamLog) for prompts, answering each one through the
+// Prompter. The upstream client therefore never reads the real terminal nor
+// writes to it, and the host keeps full control of how factors are collected.
 type stdioBridge struct {
 	ctx         context.Context
 	prompter    Prompter
 	captchaFile string
 
-	reader         *os.File
-	writer         *os.File
-	originalStdin  *os.File
-	originalOutput io.Writer
+	reader        *os.File
+	writer        *os.File
+	originalStdin *os.File
+	stopObserving func()
 
-	mu      sync.Mutex
-	pending []byte
-	err     error
+	mu  sync.Mutex
+	err error
 	// inPasswordLogin is set between the upstream password request and the
 	// next request; rejection holds the gateway's refusal of the password.
 	inPasswordLogin bool
@@ -65,9 +62,11 @@ type stdioBridge struct {
 	stop            func() bool
 }
 
-// installStdioBridge takes the bridge lock and redirects standard input and
-// the standard logger. A nil prompter refuses every factor. Close restores
-// both and releases the lock.
+// installStdioBridge takes the bridge lock, redirects standard input and
+// starts observing upstream log lines. A nil prompter refuses every factor.
+// Close restores standard input, stops observing and releases the lock; the
+// standard logger stays captured, since the upstream client keeps logging
+// for the lifetime of the session.
 func installStdioBridge(ctx context.Context, prompter Prompter, captchaFile string) (*stdioBridge, error) {
 	stdioBridgeMu.Lock()
 	reader, writer, err := os.Pipe()
@@ -76,45 +75,19 @@ func installStdioBridge(ctx context.Context, prompter Prompter, captchaFile stri
 		return nil, errors.New("aTrust prompt bridge is unavailable")
 	}
 	bridge := &stdioBridge{
-		ctx:            ctx,
-		prompter:       prompter,
-		captchaFile:    captchaFile,
-		reader:         reader,
-		writer:         writer,
-		originalStdin:  os.Stdin,
-		originalOutput: log.Writer(),
+		ctx:           ctx,
+		prompter:      prompter,
+		captchaFile:   captchaFile,
+		reader:        reader,
+		writer:        writer,
+		originalStdin: os.Stdin,
 	}
 	os.Stdin = reader
-	log.SetOutput(bridge)
+	captureUpstreamLog()
+	bridge.stopObserving = upstreamLog.observe(bridge.dispatch)
 	// Cancelling ctx closes the pipe so a pending upstream read fails at once.
 	bridge.stop = context.AfterFunc(ctx, bridge.closeWriter)
 	return bridge, nil
-}
-
-// Write receives standard-logger output. Each complete line is forwarded to
-// the previous logger output and inspected for an upstream prompt.
-func (bridge *stdioBridge) Write(data []byte) (int, error) {
-	bridge.mu.Lock()
-	bridge.pending = append(bridge.pending, data...)
-	var lines []string
-	for {
-		index := bytes.IndexByte(bridge.pending, '\n')
-		if index < 0 {
-			break
-		}
-		lines = append(lines, string(bridge.pending[:index]))
-		bridge.pending = bridge.pending[index+1:]
-	}
-	bridge.mu.Unlock()
-
-	written, err := bridge.originalOutput.Write(data)
-	for _, line := range lines {
-		bridge.dispatch(line)
-	}
-	if err != nil {
-		return written, err
-	}
-	return len(data), nil
 }
 
 // dispatch answers a prompt asynchronously so the logger lock is not held
@@ -235,8 +208,8 @@ func (bridge *stdioBridge) Err() error {
 	return bridge.err
 }
 
-// Close restores standard input and the logger and releases the bridge
-// lock. Call it only after the upstream Setup has returned.
+// Close restores standard input, stops observing upstream log lines and
+// releases the bridge lock. Call it only after the upstream Setup has returned.
 func (bridge *stdioBridge) Close() {
 	bridge.closeOnce.Do(func() {
 		bridge.mu.Lock()
@@ -244,7 +217,7 @@ func (bridge *stdioBridge) Close() {
 		bridge.mu.Unlock()
 		bridge.stop()
 		os.Stdin = bridge.originalStdin
-		log.SetOutput(bridge.originalOutput)
+		bridge.stopObserving()
 		bridge.closeWriter()
 		_ = bridge.reader.Close()
 		stdioBridgeMu.Unlock()

@@ -196,3 +196,18 @@ func TestMigrateCommandCopiesConfigAndImportsCredential(t *testing.T) {
 		t.Fatal("credential was not imported")
 	}
 }
+
+func TestUpstreamDebugLogNeedsNJUConnectDebug(t *testing.T) {
+	stderr := &bytes.Buffer{}
+	for value, want := range map[string]bool{"": false, "0": false, "true": false, "1": true} {
+		getenv := func(name string) string {
+			if name == "NJU_CONNECT_DEBUG" {
+				return value
+			}
+			return ""
+		}
+		if got := upstreamDebugLog(getenv, stderr); (got == stderr) != want || (got != nil) != want {
+			t.Errorf("NJU_CONNECT_DEBUG=%q: debug log = %v, want enabled %v", value, got, want)
+		}
+	}
+}

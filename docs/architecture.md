@@ -140,10 +140,15 @@ Background hosting is Unix-only and EasyConnect-only for now.
   before calling upstream `Setup`. The upstream client reads later factors
   (SMS code, captcha) with `fmt.Scanln` after logging a prompt, so the adapter
   installs a scoped bridge that swaps `os.Stdin` for a pipe, watches the
-  standard logger and answers each prompt through the `Prompter`. The bridge
+  upstream log lines and answers each prompt through the `Prompter`. The bridge
   also recognizes a rejected password (`Code: N` after
   `/passport/v1/auth/psw`). Upstream logins are serialized because the bridge
   is process-wide.
+- The standard logger belongs to the adapter from `NewCore` on (`upstreamLog`),
+  because the upstream client also logs during discovery and for the whole
+  session. Its lines never reach the terminal; the host may route them to a
+  debug sink with `SetUpstreamDebugLog` (the CLI does so for
+  `NJU_CONNECT_DEBUG=1`).
 - `Resume` runs `Setup` with the saved client data and refuses every prompt;
   any non-network rejection is `ErrSessionExpired`.
 - `Session.Resources` translates upstream IP, domain and DNS resources, and

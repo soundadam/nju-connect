@@ -35,7 +35,8 @@ nju-connect account forget --session # sign in to aTrust from scratch next time
 Scripts can pipe the password with `setup --password-stdin` or
 `account set-password --password-stdin`; piped input always gets plain line
 prompts. `TERM=dumb` or `NJU_CONNECT_ACCESSIBLE=1` does the same on a
-terminal.
+terminal, and is the fallback for a terminal that shows forms as stacked
+copies instead of redrawing them in place.
 
 Pre-release worktree state can be imported explicitly without overwriting an
 existing destination:

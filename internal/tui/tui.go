@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/huh"
 	"golang.org/x/term"
 
@@ -23,6 +24,13 @@ const (
 	maximumInputCharacters    = 4096
 	maximumCodeCharacters     = 64
 	maximumCallbackCharacters = 8192
+
+	// Forms lay out at most this wide, and never closer than
+	// formRightMargin to the right edge; see fitWindow.
+	maximumFormWidth = 80
+	formRightMargin  = 2
+	// fallbackFormHeight stands in for a terminal that reports no rows.
+	fallbackFormHeight = 24
 )
 
 // Interaction runs one huh form per question.
@@ -37,13 +45,19 @@ func New(input io.Reader, output io.Writer) *Interaction {
 	return &Interaction{input: input, output: output}
 }
 
-func (tui *Interaction) run(ctx context.Context, fields ...huh.Field) error {
-	form := huh.NewForm(huh.NewGroup(fields...)).
+func (tui *Interaction) form(fields ...huh.Field) *huh.Form {
+	// WithProgramOptions replaces the program options, so it goes before
+	// WithInput and WithOutput, which add to them.
+	return huh.NewForm(huh.NewGroup(fields...)).
+		WithProgramOptions(tea.WithFilter(fitWindow)).
 		WithInput(tui.input).
 		WithOutput(tui.output).
 		WithShowHelp(false).
 		WithTheme(huh.ThemeBase())
-	err := form.RunWithContext(ctx)
+}
+
+func (tui *Interaction) run(ctx context.Context, fields ...huh.Field) error {
+	err := tui.form(fields...).RunWithContext(ctx)
 	switch {
 	case err == nil:
 		return nil
@@ -54,6 +68,32 @@ func (tui *Interaction) run(ctx context.Context, fields ...huh.Field) error {
 	default:
 		return err
 	}
+}
+
+// fitWindow narrows the window size a form lays out at. huh pads every line
+// to the full width it is given, and bubbletea redraws a form by moving the
+// cursor up one row per line it drew. A line that exactly fills the terminal
+// takes two rows wherever the terminal wraps at the last column instead of
+// deferring the wrap, draws the East Asian ambiguous-width "┃" border as two
+// cells, or shows one column fewer than it reports; every redraw then lands
+// below the last one, stacking copies of the form, and erasing the form on
+// submit removes the wrong rows. Keeping lines clear of the right edge
+// avoids all three. A terminal that reports no size gets usable defaults
+// instead of an empty form.
+func fitWindow(_ tea.Model, msg tea.Msg) tea.Msg {
+	size, ok := msg.(tea.WindowSizeMsg)
+	if !ok {
+		return msg
+	}
+	if size.Width <= 0 {
+		size.Width = maximumFormWidth
+	} else {
+		size.Width = max(1, min(size.Width-formRightMargin, maximumFormWidth))
+	}
+	if size.Height <= 0 {
+		size.Height = fallbackFormHeight
+	}
+	return size
 }
 
 func (tui *Interaction) Select(ctx context.Context, title string, options []app.Option, defaultValue string) (string, error) {
