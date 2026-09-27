@@ -1,6 +1,4 @@
-# Local preview and release preparation targets.
-# Public signing, notarization, upload, and tap publication are disabled until a
-# Developer ID Application identity and notary profile are intentionally added.
+# Packaging, local install, and release-check targets.
 
 .PHONY: cli-release
 cli-release:
@@ -49,15 +47,3 @@ release-check: fmt-check versioning-test test vet
 
 .PHONY: release-preview
 release-preview: release-check package-macos-local
-
-.PHONY: release-sign release-publish release-tap
-release-sign release-publish release-tap:
-	@echo "disabled: Developer ID signing, notarization, and public release are not configured" >&2
-	@echo "use make release-preview VERSION=X.Y.Z for a local-only build" >&2
-	@exit 78
-
-# Future production flow, intentionally inactive:
-# release-sign:       sign nested executables and App with Developer ID Application
-#                     then submit, staple, and verify notarization.
-# release-publish:    upload immutable assets only after anonymous SHA-256 checks.
-# release-tap:        render and audit the public Cask from downloaded Release assets.

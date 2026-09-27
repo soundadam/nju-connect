@@ -3,7 +3,6 @@
 package backend
 
 import (
-	"context"
 	"errors"
 	"strings"
 )
@@ -122,19 +121,4 @@ type AuthenticationMethod struct {
 	Type     string `json:"type"`
 	Name     string `json:"name"`
 	LoginURL string `json:"login_url,omitempty"`
-}
-
-// Discoverer reads public, unauthenticated backend capabilities. It must not
-// initiate login, send a verification code, or mutate device trust.
-type Discoverer interface {
-	Name() Name
-	Discover(context.Context, Endpoint) ([]AuthenticationMethod, error)
-}
-
-// Session is the application-facing lifecycle shared by protocol backends.
-// Authentication material and wire-specific state remain private to the
-// backend implementation.
-type Session interface {
-	Run(context.Context) error
-	Close() error
 }

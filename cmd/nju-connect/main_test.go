@@ -2,14 +2,10 @@ package main
 
 import (
 	"bytes"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/soundadam/nju-connect/internal/app"
-	"github.com/soundadam/nju-connect/internal/config"
-	"github.com/soundadam/nju-connect/internal/credential"
 )
 
 func TestVersion(t *testing.T) {
@@ -126,74 +122,6 @@ func TestReleaseCommandsRejectWorktreeDevelopmentOverride(t *testing.T) {
 	}
 	if !strings.Contains(stderr.String(), "unknown flag: --worktree") {
 		t.Fatalf("stderr = %q", stderr.String())
-	}
-}
-
-type commandMemoryStore struct {
-	secret []byte
-}
-
-func (store *commandMemoryStore) Inspect() error {
-	if store.secret == nil {
-		return os.ErrNotExist
-	}
-	return nil
-}
-
-func (store *commandMemoryStore) Get() ([]byte, error) {
-	if err := store.Inspect(); err != nil {
-		return nil, err
-	}
-	return append([]byte(nil), store.secret...), nil
-}
-
-func (store *commandMemoryStore) Set(secret []byte) error {
-	store.secret = append(store.secret[:0], secret...)
-	return nil
-}
-
-func TestMigrateCommandCopiesConfigAndImportsCredential(t *testing.T) {
-	legacyRoot := t.TempDir()
-	legacy, err := config.LegacyPaths(legacyRoot)
-	if err != nil {
-		t.Fatal(err)
-	}
-	want := config.Config{Server: "vpn.example.edu", Username: "student", SOCKSListen: config.DefaultSOCKSListen}
-	if err := config.Replace(legacy.Config, want); err != nil {
-		t.Fatal(err)
-	}
-	legacyCredential, err := credential.NewFileStore(legacy.Credential, true)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := legacyCredential.Set([]byte("synthetic-password")); err != nil {
-		t.Fatal(err)
-	}
-
-	root := filepath.Join(t.TempDir(), "nju-connect")
-	destination := config.Paths{
-		Root:       root,
-		Config:     filepath.Join(root, "config.toml"),
-		Credential: filepath.Join(root, "credential"),
-	}
-	store := &commandMemoryStore{}
-	deps := testDeps(t, destination)
-	deps.PasswordStore = func(credential.Location) (credential.Store, error) { return store, nil }
-
-	var stdout bytes.Buffer
-	var stderr bytes.Buffer
-	if code := run(deps, []string{"migrate", "--from", legacyRoot}, &stdout, &stderr); code != 0 {
-		t.Fatalf("run(migrate) = %d, stderr = %q", code, stderr.String())
-	}
-	if stdout.String() != "configuration_migrated: true\ncredential_migrated: true\nsource_preserved: true\n" {
-		t.Fatalf("stdout = %q", stdout.String())
-	}
-	got, err := config.Load(destination.Config)
-	if err != nil || got != want {
-		t.Fatalf("configuration = %#v, err = %v", got, err)
-	}
-	if string(store.secret) != "synthetic-password" {
-		t.Fatal("credential was not imported")
 	}
 }
 

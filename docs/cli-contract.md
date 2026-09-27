@@ -127,7 +127,6 @@ is the one place that turns errors into exit codes and stderr lines.
 | `configure` | `--backend`, `--server`, `--username`, `--auth-type`, `--login-domain`, `--socks-listen`, `--upstream-proxy` | `configuration:`, `backend:`, `server:`, `socks_listen:` (and `auth_type:`, `login_domain:` for aTrust) | Merges into the existing configuration and never touches secrets. Refuses (exit 1) while a runtime is active. |
 | `backends` | `--json` | Tab-separated catalog, or JSON | Strong: `--json`. |
 | `auth-info` | `--backend` (`atrust`), `--server`, `--json` | Discovered aTrust methods | aTrust only; EasyConnect exits 2. |
-| `migrate` | `--from` (`.`) | `configuration_migrated:`, `credential_migrated:`, `source_preserved: true` | Idempotent; copies, never moves. |
 | `doctor` | `--json` | `ready`, `configuration`, `credential_store`, `upstream_proxy`, `next_step` (text: `next:`) | Exit 1 when not ready. `next_step` is the command to run next: `nju-connect setup`, `nju-connect account set-password`, `nju-connect configure --upstream-proxy` or `nju-connect connect`. Strong: `--json`. |
 | `disconnect` | — | `stopping: true`, or `running: false` | Exit 0 in both cases. |
 | `logout` | — | `atrust_session_cleared: true`, `oauth_profile_cleared: <bool>` | Clears only aTrust state; the shared password and the configuration stay. On macOS without the OAuth helper next to the binary (a bare `bin/nju-connect`), it still exits 0 with `oauth_profile_cleared: false` and one stderr line saying the browser sign-in state was not cleared. A helper that fails exits 1. |

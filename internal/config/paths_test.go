@@ -9,28 +9,6 @@ import (
 	"github.com/soundadam/nju-connect/internal/credential"
 )
 
-func TestLegacyPathsStayInsideWorktree(t *testing.T) {
-	worktree := t.TempDir()
-	paths, err := LegacyPaths(worktree)
-	if err != nil {
-		t.Fatalf("LegacyPaths() error = %v", err)
-	}
-
-	wantRoot := filepath.Join(worktree, ".config")
-	if paths.Root != wantRoot {
-		t.Fatalf("Root = %q, want %q", paths.Root, wantRoot)
-	}
-	if paths.Config != filepath.Join(wantRoot, "config.toml") {
-		t.Fatalf("Config = %q", paths.Config)
-	}
-	if paths.Credential != filepath.Join(wantRoot, "credential") {
-		t.Fatalf("Credential = %q", paths.Credential)
-	}
-	if paths.ATrustClientData != filepath.Join(wantRoot, "atrust-client-data") {
-		t.Fatalf("ATrustClientData = %q", paths.ATrustClientData)
-	}
-}
-
 func TestApplicationPathsUseStableFiles(t *testing.T) {
 	root := filepath.Join(t.TempDir(), applicationDirectory)
 	paths := pathsAt(root)

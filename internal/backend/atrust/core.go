@@ -34,7 +34,7 @@ var ErrSessionExpired = errors.New("saved aTrust session has expired")
 type Core interface {
 	// Discover reads the gateway's public, unauthenticated login
 	// configuration. It must not start a login, send a verification code, or
-	// change device trust. It satisfies backend.Discoverer semantics.
+	// change device trust.
 	Discover(ctx context.Context, endpoint backend.Endpoint) ([]backend.AuthenticationMethod, error)
 
 	// Authenticate performs an interactive login with the selected method,
@@ -84,10 +84,6 @@ type Session interface {
 	// OpenTunnel selects a tunnel node and returns a TCP tunnel bound to this
 	// session.
 	OpenTunnel(ctx context.Context) (Tunnel, error)
-
-	// Logout invalidates the session on the gateway. It is best effort; the
-	// caller always clears local client data regardless of the result.
-	Logout(ctx context.Context) error
 
 	Close() error
 }
@@ -185,12 +181,10 @@ func (funcs PrompterFuncs) OAuthCode(ctx context.Context, request OAuthRequest) 
 	return funcs.OnOAuthCode(ctx, request)
 }
 
-// Discovery adapts a Core to backend.Discoverer.
+// Discovery runs public sign-in method discovery, defaulting to NewCore.
 type Discovery struct {
 	Core Core
 }
-
-func (Discovery) Name() backend.Name { return backend.ATrust }
 
 func (discovery Discovery) Discover(ctx context.Context, endpoint backend.Endpoint) ([]backend.AuthenticationMethod, error) {
 	if err := validateEndpoint(endpoint); err != nil {
@@ -212,5 +206,3 @@ func validateEndpoint(endpoint backend.Endpoint) error {
 	}
 	return nil
 }
-
-var _ backend.Discoverer = Discovery{}

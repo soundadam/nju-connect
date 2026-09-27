@@ -70,21 +70,3 @@ func newSetupCommand(deps app.Deps) *cobra.Command {
 	flags.BoolVar(&request.PasswordSupplied, "password-stdin", false, "read the password from standard input without a terminal prompt")
 	return command
 }
-
-func newMigrateCommand(deps app.Deps) *cobra.Command {
-	var legacyRoot string
-	command := &cobra.Command{
-		Use: "migrate",
-		RunE: func(cmd *cobra.Command, _ []string) error {
-			result, err := app.Migrate(withInteraction(deps, app.LineOptions{}, cmd.ErrOrStderr()), legacyRoot)
-			if err != nil {
-				return err
-			}
-			fmt.Fprintf(cmd.OutOrStdout(), "configuration_migrated: %t\ncredential_migrated: %t\nsource_preserved: true\n",
-				result.ConfigurationMigrated, result.CredentialMigrated)
-			return nil
-		},
-	}
-	command.Flags().StringVar(&legacyRoot, "from", ".", "directory containing the legacy .config state")
-	return command
-}

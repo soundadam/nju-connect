@@ -197,39 +197,6 @@ func TestSaveRequiresReaderAndStoreForPasswordProfiles(t *testing.T) {
 	}
 }
 
-func TestMigrateCopiesConfigAndImportsCredential(t *testing.T) {
-	t.Parallel()
-	legacyRoot := t.TempDir()
-	legacy, err := config.LegacyPaths(legacyRoot)
-	if err != nil {
-		t.Fatal(err)
-	}
-	want := config.Config{Server: "vpn.example.edu", Username: "student", SOCKSListen: config.DefaultSOCKSListen}
-	if err := config.Replace(legacy.Config, want); err != nil {
-		t.Fatal(err)
-	}
-	env := newTestEnv(t)
-	env.setSecret(legacy.Credential, "synthetic-password")
-
-	result, err := Migrate(env.deps, legacyRoot)
-	if err != nil || result != (MigrateResult{ConfigurationMigrated: true, CredentialMigrated: true}) {
-		t.Fatalf("result=%+v err=%v", result, err)
-	}
-	if got, err := config.Load(env.paths.Config); err != nil || got != want {
-		t.Fatalf("configuration = %+v, err = %v", got, err)
-	}
-	if secret, err := env.secret(env.paths.Credential); err != nil || secret != "synthetic-password" {
-		t.Fatalf("password = %q, err = %v", secret, err)
-	}
-	if secret, err := env.secret(legacy.Credential); err != nil || secret != "synthetic-password" {
-		t.Fatalf("legacy source was not preserved: %q, %v", secret, err)
-	}
-	result, err = Migrate(env.deps, legacyRoot)
-	if err != nil || result.ConfigurationMigrated {
-		t.Fatalf("second Migrate() = %+v, %v", result, err)
-	}
-}
-
 func TestSetupKeepsSavedSettingsThatTheRequestLeavesOut(t *testing.T) {
 	t.Parallel()
 	env := newTestEnv(t)

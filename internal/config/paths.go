@@ -14,7 +14,6 @@ const (
 	// legacyApplicationDirectory is the state directory of releases named
 	// soundconnect. DefaultPaths moves it into place once.
 	legacyApplicationDirectory = "soundconnect"
-	legacyLocalDirectory       = ".config"
 	configDirectoryEnv         = "NJU_CONNECT_CONFIG_DIR"
 )
 
@@ -73,20 +72,6 @@ func adoptLegacyDirectory(legacy, root string) error {
 		return fmt.Errorf("move earlier state directory %s to %s: %w", legacy, root, err)
 	}
 	return nil
-}
-
-// LegacyPaths resolves the pre-release worktree-local layout. It exists only
-// as an input to migration and must not be used as an active runtime root.
-func LegacyPaths(worktree string) (Paths, error) {
-	if worktree == "" {
-		return Paths{}, errors.New("legacy root path is required")
-	}
-
-	root, err := filepath.Abs(filepath.Join(worktree, legacyLocalDirectory))
-	if err != nil {
-		return Paths{}, err
-	}
-	return pathsAt(root), nil
 }
 
 func pathsAt(root string) Paths {

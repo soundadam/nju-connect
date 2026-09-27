@@ -344,31 +344,3 @@ func save(paths config.Paths, configured config.Config, store credential.Store, 
 	}
 	return config.Replace(paths.Config, configured)
 }
-
-// MigrateResult reports what Migrate imported.
-type MigrateResult struct {
-	ConfigurationMigrated bool
-	CredentialMigrated    bool
-}
-
-// Migrate copies pre-release worktree state from legacyRoot into the user
-// state directory. It is idempotent and never moves or deletes the source.
-func Migrate(deps Deps, legacyRoot string) (MigrateResult, error) {
-	paths, err := deps.Paths()
-	if err != nil {
-		return MigrateResult{}, fmt.Errorf("resolve user configuration: %w", err)
-	}
-	legacy, configMigrated, err := config.MigrateLegacyConfig(legacyRoot, paths)
-	if err != nil {
-		return MigrateResult{}, fmt.Errorf("migrate configuration: %w", err)
-	}
-	store, err := deps.PasswordStore(PasswordLocation(paths, savedCredentialBackend(paths)))
-	if err != nil {
-		return MigrateResult{}, fmt.Errorf("prepare credential store: %w", err)
-	}
-	credentialMigrated, err := credential.MigrateFile(store, legacy.Credential)
-	if err != nil {
-		return MigrateResult{}, fmt.Errorf("migrate credential: %w", err)
-	}
-	return MigrateResult{ConfigurationMigrated: configMigrated, CredentialMigrated: credentialMigrated}, nil
-}

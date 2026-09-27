@@ -1,5 +1,5 @@
-// Package dial owns the outbound network policy shared by future gateway
-// authentication and transport implementations.
+// Package dial owns the outbound network policy shared by gateway
+// authentication and transport.
 package dial
 
 import (

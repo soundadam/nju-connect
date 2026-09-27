@@ -53,7 +53,6 @@ commands:
   configure  switch non-secret backend and listener settings
   backends   print non-secret backend metadata and capabilities
   auth-info  discover public aTrust authentication methods without logging in
-  migrate    import pre-release worktree configuration and credential state
   connect    authenticate and run the native userspace VPN core (default)
   disconnect stop the active native userspace VPN core
   logout     clear saved aTrust session and OAuth browser state
@@ -107,7 +106,6 @@ func newRootCommand(deps app.Deps) *cobra.Command {
 		newConfigureCommand(deps),
 		newBackendsCommand(),
 		newAuthInfoCommand(deps),
-		newMigrateCommand(deps),
 		newConnectCommand(deps),
 		newDisconnectCommand(deps),
 		newLogoutCommand(deps),

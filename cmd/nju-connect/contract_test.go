@@ -53,7 +53,6 @@ func TestContractCommandHelp(t *testing.T) {
 		{"configure", []string{"configure", "-h"}},
 		{"backends", []string{"backends", "-h"}},
 		{"auth_info", []string{"auth-info", "-h"}},
-		{"migrate", []string{"migrate", "-h"}},
 		{"doctor", []string{"doctor", "-h"}},
 		{"connect", []string{"connect", "-h"}},
 		{"disconnect", []string{"disconnect", "-h"}},

@@ -41,7 +41,7 @@ flowchart LR
 | `internal/tui` | huh forms on a terminal, line prompts otherwise | protocol state |
 | `internal/config` | backend, gateway, authentication selection, loopback listener | cookies, OAuth browser state, passwords |
 | `internal/credential` | the system keyring (go-keyring) or owner-only files | anything but opaque secret bytes |
-| `internal/backend` | backend vocabulary, catalog, endpoints, discovery and session contracts | UI state, keyring access |
+| `internal/backend` | backend vocabulary, catalog, endpoints | UI state, keyring access |
 | `internal/backend/easyconnect` | EasyConnect authentication and native session handoff | aTrust resources |
 | `internal/backend/atrust` | `Core`/`Session`/`Tunnel`/`Prompter`, the zju-connect adapter, resource model, SOCKS routing, OAuth callback validation | EasyConnect tokens |
 | `internal/runtime`, `internal/core` | the EasyConnect userspace dataplane | configuration, credentials |
@@ -125,7 +125,7 @@ sides clear the token. The child reports readiness on a second pipe before the
 parent returns, and appends sanitized output to the owner-only `runtime.log`.
 The wire details are in the contract document.
 
-Background hosting is Unix-only and EasyConnect-only for now.
+Background hosting is Unix-only and EasyConnect-only.
 
 ## aTrust backend
 

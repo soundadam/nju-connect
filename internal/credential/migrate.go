@@ -33,13 +33,3 @@ func Migrate(destination, source Store) (bool, error) {
 	}
 	return true, nil
 }
-
-// MigrateFile imports an existing owner-only credential file into destination
-// only when destination is empty. The source file is preserved.
-func MigrateFile(destination Store, sourcePath string) (bool, error) {
-	source, err := NewFileStore(sourcePath, true)
-	if err != nil {
-		return false, err
-	}
-	return Migrate(destination, source)
-}

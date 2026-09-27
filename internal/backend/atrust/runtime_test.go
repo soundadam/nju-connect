@@ -59,7 +59,6 @@ func (session *fakeSession) Resources(context.Context) (Resources, error) {
 	return session.resources, nil
 }
 func (session *fakeSession) OpenTunnel(context.Context) (Tunnel, error) { return session.tunnel, nil }
-func (session *fakeSession) Logout(context.Context) error               { return nil }
 func (session *fakeSession) Close() error {
 	session.closed = true
 	return nil
