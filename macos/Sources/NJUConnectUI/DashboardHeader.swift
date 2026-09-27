@@ -10,6 +10,7 @@ struct DashboardHeader: View {
                 .frame(width: 8, height: 8)
                 .background(Circle().fill(model.statusTint.opacity(0.22)).padding(-3))
                 .padding(.leading, 2)
+                .animation(.easeOut(duration: 0.2), value: model.statusTint)
 
             VStack(alignment: .leading, spacing: 1) {
                 Text("nju-connect")

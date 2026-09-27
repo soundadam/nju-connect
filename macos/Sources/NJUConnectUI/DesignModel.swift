@@ -36,7 +36,7 @@ enum DesignPhase: Equatable {
     case stopped
 }
 
-enum MenuBarIconState {
+enum MenuBarIconState: CaseIterable {
     case connected
     case inProgress
     case needsAttention
@@ -126,20 +126,6 @@ final class DesignModel: ObservableObject {
         gatewayOverride
             ?? backendCatalog?.descriptor(for: backend)?.defaultGateway
             ?? "vpn.nju.edu.cn"
-    }
-
-    var menuBarGatewayLabel: String {
-        let serverURL = gatewayServer.contains("://")
-            ? URL(string: gatewayServer)
-            : URL(string: "https://\(gatewayServer)")
-        let labels = (serverURL?.host ?? gatewayServer).split(separator: ".")
-
-        guard let vpnIndex = labels.firstIndex(where: { $0.caseInsensitiveCompare("vpn") == .orderedSame }),
-              labels.indices.contains(vpnIndex + 1)
-        else {
-            return "VPN"
-        }
-        return labels[vpnIndex + 1].uppercased()
     }
 
     var phase: DesignPhase {

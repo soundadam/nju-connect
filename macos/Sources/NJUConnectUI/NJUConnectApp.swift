@@ -31,13 +31,8 @@ private struct MenuBarLabel: View {
     @ObservedObject var model: DesignModel
 
     var body: some View {
-        HStack(spacing: 3) {
-            MenuBarStatusIcon(state: model.menuBarIconState)
-            Text(model.menuBarGatewayLabel)
-                .font(.system(size: 11, weight: .semibold))
-        }
-        .fixedSize()
-        .accessibilityLabel("nju-connect, \(model.statusTitle)")
+        MenuBarStatusIcon(state: model.menuBarIconState)
+            .accessibilityLabel("nju-connect, \(model.statusTitle)")
     }
 }
 #endif
@@ -77,6 +72,18 @@ private struct DesignPreviewView: View {
                 }
 
                 Spacer()
+            }
+
+            HStack(spacing: 14) {
+                Text("Menu bar")
+                    .foregroundStyle(.secondary)
+                ForEach(MenuBarIconState.allCases, id: \.self) { state in
+                    MenuBarStatusIcon(state: state)
+                        .help(state.symbolName)
+                }
+                MenuBarStatusIcon(state: model.menuBarIconState)
+                    .foregroundStyle(Color.brand)
+                    .help("Current state")
             }
 
             Divider()

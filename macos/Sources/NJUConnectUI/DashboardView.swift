@@ -12,14 +12,21 @@ struct DashboardView: View {
             Divider()
             CampusSpeedSummaryRow(speedTest: speedTest)
 
-            VPNContextRows(model: model)
+            // Only the sections below the fixed rows animate; the switch and
+            // the speed row never move under the pointer.
+            VStack(spacing: 0) {
+                VPNContextRows(model: model)
 
-            if !model.showsCredentialSetup,
-               model.phase == .connected || model.phase == .reconnecting
-            {
-                Divider()
-                TrafficRow(model: model)
+                if !model.showsCredentialSetup,
+                   model.phase == .connected || model.phase == .reconnecting
+                {
+                    Divider()
+                    TrafficRow(model: model)
+                        .transition(.opacity)
+                }
             }
+            .animation(.easeOut(duration: 0.2), value: model.scenario)
+            .animation(.easeOut(duration: 0.2), value: model.isReconfiguringCredentials)
         }
         .frame(width: 292)
         .tint(.brand)

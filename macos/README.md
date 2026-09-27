@@ -30,6 +30,12 @@ The panel is 292pt wide and stacks fixed sections top to bottom:
    (download filled, upload as a line), current rates, session totals and
    active connections.
 
+The menu-bar item is one SF Symbol template image whose shape follows the
+state: a checkmark shield when connected, a half-filled shield that pulses
+while connecting (macOS 14+), an exclamation shield when something needs
+attention, and a slashed shield when off. Sections below the speed row fade
+in and out; the switch and the speed row never move.
+
 The accent color is the project plum (`Color.brand`, the page's `--plum`);
 status colors are system green, orange and red.
 
