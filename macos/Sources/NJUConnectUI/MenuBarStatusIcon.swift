@@ -104,15 +104,6 @@ private struct MenuBarStateBadge: Shape {
                 ),
                 cornerSize: CGSize(width: rect.height * 0.11, height: rect.height * 0.11)
             )
-        case .unknown:
-            path.addRoundedRect(
-                in: outer,
-                cornerSize: CGSize(width: rect.width * 0.16, height: rect.height * 0.16)
-            )
-            path.addRoundedRect(
-                in: rect.insetBy(dx: rect.width * 0.32, dy: rect.height * 0.32),
-                cornerSize: CGSize(width: rect.width * 0.07, height: rect.height * 0.07)
-            )
         }
 
         return path

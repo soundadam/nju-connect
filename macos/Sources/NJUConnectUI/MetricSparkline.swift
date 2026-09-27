@@ -4,6 +4,7 @@ struct MetricSparklineSeries: Identifiable {
     let id: String
     let samples: [Double]
     let color: Color
+    var filled = false
 }
 
 struct MetricSparklineChart: View {
@@ -27,6 +28,7 @@ struct MetricSparklineChart: View {
                 MetricSparkline(
                     samples: item.samples,
                     color: item.color,
+                    filled: item.filled,
                     minimum: minimum,
                     maximum: maximum
                 )
@@ -38,42 +40,55 @@ struct MetricSparklineChart: View {
 struct MetricSparkline: View {
     let samples: [Double]
     let color: Color
+    var filled = false
     var minimum: Double?
     var maximum: Double?
 
     init(
         samples: [Double],
         color: Color,
+        filled: Bool = false,
         minimum: Double? = nil,
         maximum: Double? = nil
     ) {
         self.samples = samples
         self.color = color
+        self.filled = filled
         self.minimum = minimum
         self.maximum = maximum
     }
 
     var body: some View {
         GeometryReader { geometry in
-            let lowerBound = minimum ?? samples.min() ?? 0
-            let upperBound = maximum ?? samples.max() ?? (lowerBound + 1)
-            let span = max(upperBound - lowerBound, 1)
-
-            Path { path in
-                for (index, sample) in samples.enumerated() {
-                    let x = samples.count <= 1
-                        ? geometry.size.width / 2
-                        : geometry.size.width * CGFloat(index) / CGFloat(samples.count - 1)
-                    let normalized = min(max((sample - lowerBound) / span, 0), 1)
-                    let y = geometry.size.height - (geometry.size.height * CGFloat(normalized))
-                    if index == 0 {
-                        path.move(to: CGPoint(x: x, y: y))
-                    } else {
-                        path.addLine(to: CGPoint(x: x, y: y))
+            let points = plottedPoints(in: geometry.size)
+            ZStack {
+                if filled, let first = points.first, let last = points.last {
+                    Path { path in
+                        path.move(to: CGPoint(x: first.x, y: geometry.size.height))
+                        points.forEach { path.addLine(to: $0) }
+                        path.addLine(to: CGPoint(x: last.x, y: geometry.size.height))
+                        path.closeSubpath()
                     }
+                    .fill(color.opacity(0.16))
                 }
+                Path { path in
+                    path.addLines(points)
+                }
+                .stroke(color, style: StrokeStyle(lineWidth: filled ? 1.6 : 1.5, lineCap: .round, lineJoin: .round))
             }
-            .stroke(color, style: StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
+        }
+    }
+
+    private func plottedPoints(in size: CGSize) -> [CGPoint] {
+        let lowerBound = minimum ?? samples.min() ?? 0
+        let upperBound = maximum ?? samples.max() ?? (lowerBound + 1)
+        let span = max(upperBound - lowerBound, 1)
+        return samples.enumerated().map { index, sample in
+            let x = samples.count <= 1
+                ? size.width / 2
+                : size.width * CGFloat(index) / CGFloat(samples.count - 1)
+            let normalized = min(max((sample - lowerBound) / span, 0), 1)
+            return CGPoint(x: x, y: size.height * (1 - CGFloat(normalized)))
         }
     }
 }

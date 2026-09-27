@@ -17,7 +17,7 @@ enum DesignScenario: String, CaseIterable, Identifiable, Hashable {
     var title: String {
         switch self {
         case .setup: return uiText("Setup", "首次设置")
-        case .stopped: return uiText("Offline", "服务离线")
+        case .stopped: return uiText("Disconnected", "未连接")
         case .connecting: return uiText("Connecting", "连接中")
         case .waitingMFA: return uiText("Verification", "等待验证码")
         case .connected: return uiText("Connected", "已连接")
@@ -30,8 +30,6 @@ enum DesignScenario: String, CaseIterable, Identifiable, Hashable {
 }
 
 enum DesignPhase: Equatable {
-    case starting
-    case authenticating
     case waitingMFA
     case connecting
     case connected
@@ -45,7 +43,6 @@ enum MenuBarIconState {
     case inProgress
     case needsAttention
     case inactive
-    case unknown
 }
 
 struct TrafficRates {
@@ -61,8 +58,8 @@ final class DesignModel: ObservableObject {
     private var pendingBackendStart = false
     private var pollingTask: Task<Void, Never>?
     private var isRefreshingStatus = false
-	private var lastTrafficSample: (sampledAtUnixMilli: Int64, upload: UInt64, download: UInt64)?
-	private var isTrafficMonitoringActive = false
+    private var lastTrafficSample: (sampledAtUnixMilli: Int64, upload: UInt64, download: UInt64)?
+    private var isTrafficMonitoringActive = false
     private var runtimeSOCKSEndpoint = "127.0.0.1:1081"
     private var runtimeRates = TrafficRates(uploadBytesPerSecond: 0, downloadBytesPerSecond: 0)
     private var runtimeUploadBytes: UInt64 = 0
@@ -114,6 +111,13 @@ final class DesignModel: ObservableObject {
             }
             refreshRuntimeStatus()
             startPolling()
+        } else {
+            // A deterministic curve so the design preview shows a live chart.
+            downloadRateSamples = (0..<Self.maximumTrafficRateSamples).map { index in
+                let x = Double(index)
+                return 1_000_000 * (0.55 + 0.3 * sin(x * 0.7) + 0.1 * sin(x * 2.3))
+            }
+            uploadRateSamples = downloadRateSamples.map { $0 / 8 }
         }
     }
 
@@ -152,15 +156,12 @@ final class DesignModel: ObservableObject {
     }
 
     var statusTitle: String {
-        if scenario == .setup {
-            return uiText("Setup required", "需要完成初始设置")
-        }
         if isReconfiguringCredentials {
             return uiText("Reset credentials", "重置账号与密码")
         }
         switch scenario {
         case .setup: return uiText("Setup required", "需要完成初始设置")
-        case .stopped: return uiText("Service offline", "服务离线")
+        case .stopped: return uiText("Disconnected", "未连接")
         case .connecting: return uiText("\(backend.title) · Connecting…", "\(backend.title) · 正在连接")
         case .waitingMFA: return uiText("Waiting for verification code", "等待短信验证码")
         case .connected: return uiText("\(backend.title) · Connected", "\(backend.title) · 已连接")
@@ -172,19 +173,16 @@ final class DesignModel: ObservableObject {
     }
 
     var statusDetail: String {
-        if scenario == .setup {
-            return uiText(
-                "Enter the NJU account and password shared by both backends. A verification code may be requested next.",
-                "请输入两个后端共用的南大账号和密码；短信或动态口令将在网关随后要求时单独输入"
-            )
-        }
         if isReconfiguringCredentials {
             return uiText("Saving will start a new sign-in.", "更新账号与长期密码后，会显式重新发起登录")
         }
         switch scenario {
         case .setup:
-            return ""
-        case .stopped:
+            return uiText(
+                "Enter the NJU account and password shared by both backends. A verification code may be requested next.",
+                "请输入两个后端共用的南大账号和密码；短信或动态口令将在网关随后要求时单独输入"
+            )
+        case .stopped, .connected, .credentialRejected:
             return ""
         case .connecting:
             return uiText(
@@ -193,15 +191,11 @@ final class DesignModel: ObservableObject {
             )
         case .waitingMFA:
             return uiText("The verification code is not saved or logged.", "验证码不会被保存或写入日志")
-        case .connected:
-            return ""
         case .reconnecting:
             return uiText(
                 "Restoring the VPN session. Sign-in will restart if recovery takes over two minutes.",
                 "后台服务仍在运行，正在恢复原 VPN 会话；连续两分钟未恢复会要求重新登录"
             )
-        case .credentialRejected:
-            return ""
         case .credentialAccessCancelled:
             return uiText(
                 "Retry, then choose Allow when macOS asks to access the saved VPN password.",
@@ -225,47 +219,31 @@ final class DesignModel: ObservableObject {
     }
 
     var serviceControlNotice: String? {
-        if scenario == .setup || isReconfiguringCredentials {
-            return nil
-        }
-        if scenario == .stopped {
-            return uiText("Turn on to start the VPN service.", "开启后会启动后台 VPN 服务")
-        }
-        return nil
+        guard scenario == .stopped, !isReconfiguringCredentials else { return nil }
+        return uiText("Choose EasyConnect or aTrust to connect.", "选择 EasyConnect 或 aTrust 即可连接")
     }
 
     var canControlService: Bool {
         !showsCredentialSetup
     }
 
-    var requiresServiceApproval: Bool {
-        false
-    }
-
     var socksEndpoint: String {
         controller == nil ? "127.0.0.1:1081" : runtimeSOCKSEndpoint
     }
 
-    /// Listener port and the gateway it leads to, for example "1081 → vpn.nju.edu.cn".
-    var socksRouteSummary: String {
-        guard let port = socksEndpoint.split(separator: ":").last, !port.isEmpty else {
-            return "— → \(gatewayServer)"
-        }
-        return "\(port) → \(gatewayServer)"
+    /// The listener port, for example "1081" from "127.0.0.1:1081".
+    var socksPort: String {
+        guard let port = socksEndpoint.split(separator: ":").last, !port.isEmpty else { return "—" }
+        return String(port)
     }
 
     var rates: TrafficRates {
         if controller != nil {
             return runtimeRates
         }
-        switch scenario {
-        case .connected:
-            return TrafficRates(uploadBytesPerSecond: 128 * 1024, downloadBytesPerSecond: 1.2 * 1024 * 1024)
-        case .reconnecting:
-            return TrafficRates(uploadBytesPerSecond: 0, downloadBytesPerSecond: 0)
-        default:
-            return TrafficRates(uploadBytesPerSecond: 0, downloadBytesPerSecond: 0)
-        }
+        return scenario == .connected
+            ? TrafficRates(uploadBytesPerSecond: 128 * 1024, downloadBytesPerSecond: 1.2 * 1024 * 1024)
+            : TrafficRates(uploadBytesPerSecond: 0, downloadBytesPerSecond: 0)
     }
 
     var uploadBytes: UInt64 {
@@ -306,8 +284,6 @@ final class DesignModel: ObservableObject {
             return uiText("Gateway rejected the account or password.", "VPN 网关未接受账号或长期密码")
         case .credentialAccessCancelled:
             return uiText("Allow Keychain access on the next attempt.", "下次重试时请允许访问钥匙串")
-        case .transportFailed:
-            return uiText("Reconnect after fixing the issue.", "问题修复后可重新连接")
         default:
             return uiText("Reconnect after fixing the issue.", "问题修复后可重新连接")
         }
@@ -477,7 +453,7 @@ final class DesignModel: ObservableObject {
         }
     }
 
-	func refreshRuntimeStatus() {
+    func refreshRuntimeStatus() {
         guard let controller, !isRefreshingStatus else { return }
         isRefreshingStatus = true
         controller.readStatus { [weak self] result in
@@ -493,47 +469,48 @@ final class DesignModel: ObservableObject {
                 self.actionMessage = error.localizedDescription
             }
         }
-	}
+    }
 
-	func setTrafficMonitoringActive(_ active: Bool) {
-		guard isTrafficMonitoringActive != active else {
-			if active { refreshRuntimeStatus() }
-			return
-		}
-		isTrafficMonitoringActive = active
-		lastTrafficSample = nil
-		runtimeRates = TrafficRates(uploadBytesPerSecond: 0, downloadBytesPerSecond: 0)
-		clearTrafficRateSamples()
-		if active {
-			pollingTask?.cancel()
-			pollingTask = nil
-			controller?.startStatusMonitoring { [weak self] result in
-				guard let self else { return }
-				switch result {
-				case .success(let snapshot):
-					self.apply(snapshot)
-				case .failure(let error):
-					guard !self.isPerformingAction else { return }
-					self.isServiceEnabled = false
-					self.scenario = .transportFailed
-					self.actionMessage = error.localizedDescription
-				}
-			}
-		} else {
-			controller?.stopStatusMonitoring()
-			startPolling()
-			refreshRuntimeStatus()
-		}
-	}
+    func setTrafficMonitoringActive(_ active: Bool) {
+        guard let controller else { return }
+        guard isTrafficMonitoringActive != active else {
+            if active { refreshRuntimeStatus() }
+            return
+        }
+        isTrafficMonitoringActive = active
+        lastTrafficSample = nil
+        runtimeRates = TrafficRates(uploadBytesPerSecond: 0, downloadBytesPerSecond: 0)
+        clearTrafficRateSamples()
+        if active {
+            pollingTask?.cancel()
+            pollingTask = nil
+            controller.startStatusMonitoring { [weak self] result in
+                guard let self else { return }
+                switch result {
+                case .success(let snapshot):
+                    self.apply(snapshot)
+                case .failure(let error):
+                    guard !self.isPerformingAction else { return }
+                    self.isServiceEnabled = false
+                    self.scenario = .transportFailed
+                    self.actionMessage = error.localizedDescription
+                }
+            }
+        } else {
+            controller.stopStatusMonitoring()
+            startPolling()
+            refreshRuntimeStatus()
+        }
+    }
 
-	private func startPolling() {
-		pollingTask?.cancel()
-		pollingTask = Task { [weak self] in
-			while !Task.isCancelled {
-				guard let self else { return }
-				try? await Task.sleep(for: .seconds(5))
-				guard !Task.isCancelled else { return }
-				self.refreshRuntimeStatus()
+    private func startPolling() {
+        pollingTask?.cancel()
+        pollingTask = Task { [weak self] in
+            while !Task.isCancelled {
+                guard let self else { return }
+                try? await Task.sleep(for: .seconds(5))
+                guard !Task.isCancelled else { return }
+                self.refreshRuntimeStatus()
             }
         }
     }
@@ -599,33 +576,33 @@ final class DesignModel: ObservableObject {
         clearRuntimeTraffic()
     }
 
-	private func updateTraffic(_ traffic: NJUConnectTrafficSnapshot?) {
+    private func updateTraffic(_ traffic: NJUConnectTrafficSnapshot?) {
         guard let traffic else {
             clearRuntimeTraffic()
             return
         }
-		runtimeUploadBytes = traffic.uploadBytes
-		runtimeDownloadBytes = traffic.downloadBytes
-		runtimeActiveConnections = traffic.activeConnections
-		guard isTrafficMonitoringActive else {
-			lastTrafficSample = nil
-			runtimeRates = TrafficRates(uploadBytesPerSecond: 0, downloadBytesPerSecond: 0)
-			return
-		}
-		let sampledAtUnixMilli = traffic.sampledAtUnixMilli > 0
-			? traffic.sampledAtUnixMilli
-			: Int64(Date().timeIntervalSince1970 * 1_000)
-		if let previous = lastTrafficSample {
-			let elapsed = Double(sampledAtUnixMilli - previous.sampledAtUnixMilli) / 1_000
-			if elapsed > 0, traffic.uploadBytes >= previous.upload, traffic.downloadBytes >= previous.download {
-				runtimeRates = TrafficRates(
+        runtimeUploadBytes = traffic.uploadBytes
+        runtimeDownloadBytes = traffic.downloadBytes
+        runtimeActiveConnections = traffic.activeConnections
+        guard isTrafficMonitoringActive else {
+            lastTrafficSample = nil
+            runtimeRates = TrafficRates(uploadBytesPerSecond: 0, downloadBytesPerSecond: 0)
+            return
+        }
+        let sampledAtUnixMilli = traffic.sampledAtUnixMilli > 0
+            ? traffic.sampledAtUnixMilli
+            : Int64(Date().timeIntervalSince1970 * 1_000)
+        if let previous = lastTrafficSample {
+            let elapsed = Double(sampledAtUnixMilli - previous.sampledAtUnixMilli) / 1_000
+            if elapsed > 0, traffic.uploadBytes >= previous.upload, traffic.downloadBytes >= previous.download {
+                runtimeRates = TrafficRates(
                     uploadBytesPerSecond: Double(traffic.uploadBytes - previous.upload) / elapsed,
                     downloadBytesPerSecond: Double(traffic.downloadBytes - previous.download) / elapsed
-			)
-			appendTrafficRateSamples(runtimeRates)
-			}
-		}
-		lastTrafficSample = (sampledAtUnixMilli, traffic.uploadBytes, traffic.downloadBytes)
+            )
+            appendTrafficRateSamples(runtimeRates)
+            }
+        }
+        lastTrafficSample = (sampledAtUnixMilli, traffic.uploadBytes, traffic.downloadBytes)
     }
 
     private func clearRuntimeTraffic() {

@@ -7,6 +7,7 @@ struct DashboardView: View {
     var body: some View {
         VStack(spacing: 0) {
             DashboardHeader(model: model)
+            BackendSwitch(model: model)
 
             Divider()
             CampusSpeedSummaryRow(speedTest: speedTest)
@@ -20,18 +21,19 @@ struct DashboardView: View {
                 TrafficRow(model: model)
             }
         }
-		.frame(width: 292)
-		.onAppear {
-			model.setTrafficMonitoringActive(true)
-			speedTest.beginLatencySamplingIfNeeded()
-		}
-		.onDisappear {
-			model.setTrafficMonitoringActive(false)
-		}
-		.onChange(of: model.phase) { phase in
-			if phase == .connected {
-				speedTest.beginLatencySampling(force: true)
-			}
-		}
-	}
+        .frame(width: 292)
+        .tint(.brand)
+        .onAppear {
+            model.setTrafficMonitoringActive(true)
+            speedTest.beginLatencySamplingIfNeeded()
+        }
+        .onDisappear {
+            model.setTrafficMonitoringActive(false)
+        }
+        .onChange(of: model.phase) { phase in
+            if phase == .connected {
+                speedTest.beginLatencySampling(force: true)
+            }
+        }
+    }
 }

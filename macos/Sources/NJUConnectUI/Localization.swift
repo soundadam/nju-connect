@@ -10,8 +10,8 @@ enum UILanguage: String {
     }()
 }
 
-/// Keeps English and Simplified Chinese copy together while the UI is evolving.
-/// English is the default; set NJU_CONNECT_UI_LANGUAGE=zh-Hans to preview Chinese.
+/// Keeps English and Simplified Chinese copy side by side. English is the
+/// default; NJU_CONNECT_UI_LANGUAGE=zh-Hans selects Chinese.
 func uiText(_ english: String, _ simplifiedChinese: String) -> String {
     switch UILanguage.current {
     case .english: return english

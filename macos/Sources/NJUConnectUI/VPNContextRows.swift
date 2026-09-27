@@ -50,7 +50,7 @@ struct VPNContextRows: View {
     private var statusDetailRow: some View {
         HStack(alignment: .top, spacing: 7) {
             Image(systemName: statusDetailSymbol)
-                .foregroundStyle(statusColor)
+                .foregroundStyle(model.statusTint)
                 .frame(width: 13)
 
             Text(model.statusDetail)
@@ -80,8 +80,8 @@ struct VPNContextRows: View {
 
     private func serviceControlNoticeRow(_ notice: String) -> some View {
         HStack(alignment: .top, spacing: 7) {
-            Image(systemName: "gearshape.2")
-                .foregroundStyle(.orange)
+            Image(systemName: "power")
+                .foregroundStyle(.secondary)
                 .frame(width: 13)
             Text(notice)
                 .font(.caption)
@@ -138,6 +138,8 @@ struct VPNContextRows: View {
                 }
 
                 Button(uiText("Save & Connect", "保存并连接"), action: submitSetup)
+                    .buttonStyle(.borderedProminent)
+                    .keyboardShortcut(.defaultAction)
                     .controlSize(.small)
                     .disabled(
                         schoolAccount.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -168,6 +170,7 @@ struct VPNContextRows: View {
                 .onSubmit(submitCode)
 
             Button(uiText("Submit", "提交"), action: submitCode)
+                .buttonStyle(.borderedProminent)
                 .controlSize(.small)
                 .disabled(oneTimeCode.isEmpty || model.isPerformingAction)
         }
@@ -198,6 +201,7 @@ struct VPNContextRows: View {
                     model.retry()
                 }
             }
+            .buttonStyle(.borderedProminent)
             .controlSize(.small)
             .frame(minWidth: 56, minHeight: 32)
             .contentShape(Rectangle())
@@ -207,18 +211,6 @@ struct VPNContextRows: View {
         .frame(minHeight: 36)
     }
 
-    private var statusColor: Color {
-        if model.showsCredentialSetup {
-            return .orange
-        }
-        switch model.phase {
-        case .connected: return .green
-        case .waitingMFA, .authenticating, .connecting, .reconnecting, .starting: return .orange
-        case .degraded: return .red
-        case .stopped: return .secondary
-        }
-    }
-
     private var statusDetailSymbol: String {
         if model.showsCredentialSetup {
             return "person.badge.key.fill"
@@ -226,7 +218,7 @@ struct VPNContextRows: View {
         switch model.phase {
         case .connected: return "checkmark.circle.fill"
         case .waitingMFA: return "ellipsis.message.fill"
-        case .starting, .authenticating, .connecting, .reconnecting: return "arrow.triangle.2.circlepath"
+        case .connecting, .reconnecting: return "arrow.triangle.2.circlepath"
         case .degraded: return "exclamationmark.triangle.fill"
         case .stopped: return "circle.slash"
         }

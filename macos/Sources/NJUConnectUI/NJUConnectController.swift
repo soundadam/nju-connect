@@ -1,22 +1,22 @@
 import Foundation
 
 struct NJUConnectTrafficSnapshot: Equatable {
-	let uploadBytes: UInt64
-	let downloadBytes: UInt64
-	let activeConnections: Int
-	let sampledAtUnixMilli: Int64
+    let uploadBytes: UInt64
+    let downloadBytes: UInt64
+    let activeConnections: Int
+    let sampledAtUnixMilli: Int64
 
-	init(
-		uploadBytes: UInt64,
-		downloadBytes: UInt64,
-		activeConnections: Int,
-		sampledAtUnixMilli: Int64 = 0
-	) {
-		self.uploadBytes = uploadBytes
-		self.downloadBytes = downloadBytes
-		self.activeConnections = activeConnections
-		self.sampledAtUnixMilli = sampledAtUnixMilli
-	}
+    init(
+        uploadBytes: UInt64,
+        downloadBytes: UInt64,
+        activeConnections: Int,
+        sampledAtUnixMilli: Int64 = 0
+    ) {
+        self.uploadBytes = uploadBytes
+        self.downloadBytes = downloadBytes
+        self.activeConnections = activeConnections
+        self.sampledAtUnixMilli = sampledAtUnixMilli
+    }
 }
 
 struct NJUConnectRuntimeSnapshot: Equatable {
@@ -97,11 +97,11 @@ let missingHelperMessage = uiText(
 // CLI payloads are internal so tests can decode the shared fixtures in
 // testdata/contract, which the Go tests regenerate from real CLI output.
 struct RuntimeStatusPayload: Decodable {
-	struct Traffic: Decodable {
-		let uploadBytes: UInt64
-		let downloadBytes: UInt64
-		let activeConnections: Int
-		let sampledAtUnixMilli: Int64?
+    struct Traffic: Decodable {
+        let uploadBytes: UInt64
+        let downloadBytes: UInt64
+        let activeConnections: Int
+        let sampledAtUnixMilli: Int64?
     }
 
     let running: Bool

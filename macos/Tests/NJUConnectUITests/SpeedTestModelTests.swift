@@ -19,20 +19,20 @@ final class SpeedTestModelTests: XCTestCase {
         var catalog: NJUConnectBackendCatalog? = testBackendCatalog
         var disconnectCalls = 0
         var forgetSessionCalls = 0
-		var statusMonitorCompletion: NJUConnectStatusCompletion?
+        var statusMonitorCompletion: NJUConnectStatusCompletion?
 
         func readStatus(completion: @escaping NJUConnectStatusCompletion) {
             completion(.success(snapshot))
         }
 
-		func startStatusMonitoring(completion: @escaping NJUConnectStatusCompletion) {
-			statusMonitorCompletion = completion
-			completion(.success(snapshot))
-		}
+        func startStatusMonitoring(completion: @escaping NJUConnectStatusCompletion) {
+            statusMonitorCompletion = completion
+            completion(.success(snapshot))
+        }
 
-		func stopStatusMonitoring() {
-			statusMonitorCompletion = nil
-		}
+        func stopStatusMonitoring() {
+            statusMonitorCompletion = nil
+        }
 
         func loadBackendCatalog(completion: @escaping NJUConnectCatalogCompletion) {
             completion(catalog)
@@ -170,7 +170,7 @@ final class SpeedTestModelTests: XCTestCase {
         XCTAssertEqual(model.backend, .aTrust)
         XCTAssertEqual(model.gatewayServer, "vpn.nju.edu.cn")
         XCTAssertEqual(model.scenario, .connected)
-        XCTAssertEqual(model.socksRouteSummary, "1081 → vpn.nju.edu.cn")
+        XCTAssertEqual(model.socksPort, "1081")
     }
 
     @MainActor
@@ -263,7 +263,7 @@ final class SpeedTestModelTests: XCTestCase {
     }
 
     @MainActor
-	func testLiveModelUsesRuntimeStatusAndDisconnectController() {
+    func testLiveModelUsesRuntimeStatusAndDisconnectController() {
         let controller = FakeNJUConnectController()
         let model = DesignModel(controller: controller)
 
@@ -276,69 +276,69 @@ final class SpeedTestModelTests: XCTestCase {
         XCTAssertEqual(controller.disconnectCalls, 1)
         XCTAssertEqual(model.scenario, .stopped)
         XCTAssertFalse(model.isServiceEnabled)
-	}
+    }
 
-	@MainActor
-	func testLiveRatesUseBackendSampleTimeOnlyWhilePanelIsOpen() {
-		let controller = FakeNJUConnectController()
-		controller.snapshot = NJUConnectRuntimeSnapshot(
-			configured: true,
-			running: true,
-			state: "connected",
-			socksListen: "127.0.0.1:1081",
-			traffic: NJUConnectTrafficSnapshot(
-				uploadBytes: 1_000,
-				downloadBytes: 2_000,
-				activeConnections: 1,
-				sampledAtUnixMilli: 1_000
-			)
-		)
-		let model = DesignModel(controller: controller)
-		model.setTrafficMonitoringActive(true)
+    @MainActor
+    func testLiveRatesUseBackendSampleTimeOnlyWhilePanelIsOpen() {
+        let controller = FakeNJUConnectController()
+        controller.snapshot = NJUConnectRuntimeSnapshot(
+            configured: true,
+            running: true,
+            state: "connected",
+            socksListen: "127.0.0.1:1081",
+            traffic: NJUConnectTrafficSnapshot(
+                uploadBytes: 1_000,
+                downloadBytes: 2_000,
+                activeConnections: 1,
+                sampledAtUnixMilli: 1_000
+            )
+        )
+        let model = DesignModel(controller: controller)
+        model.setTrafficMonitoringActive(true)
 
-		controller.snapshot = NJUConnectRuntimeSnapshot(
-			configured: true,
-			running: true,
-			state: "connected",
-			socksListen: "127.0.0.1:1081",
-			traffic: NJUConnectTrafficSnapshot(
-				uploadBytes: 2_000,
-				downloadBytes: 4_000,
-				activeConnections: 1,
-				sampledAtUnixMilli: 2_000
-			)
-		)
-		controller.statusMonitorCompletion?(.success(controller.snapshot))
+        controller.snapshot = NJUConnectRuntimeSnapshot(
+            configured: true,
+            running: true,
+            state: "connected",
+            socksListen: "127.0.0.1:1081",
+            traffic: NJUConnectTrafficSnapshot(
+                uploadBytes: 2_000,
+                downloadBytes: 4_000,
+                activeConnections: 1,
+                sampledAtUnixMilli: 2_000
+            )
+        )
+        controller.statusMonitorCompletion?(.success(controller.snapshot))
 
-		XCTAssertEqual(model.rates.uploadBytesPerSecond, 1_000)
-		XCTAssertEqual(model.rates.downloadBytesPerSecond, 2_000)
-		XCTAssertEqual(model.uploadRateSamples, [1_000])
-		XCTAssertEqual(model.downloadRateSamples, [2_000])
+        XCTAssertEqual(model.rates.uploadBytesPerSecond, 1_000)
+        XCTAssertEqual(model.rates.downloadBytesPerSecond, 2_000)
+        XCTAssertEqual(model.uploadRateSamples, [1_000])
+        XCTAssertEqual(model.downloadRateSamples, [2_000])
 
-		for second in 3...37 {
-			controller.snapshot = NJUConnectRuntimeSnapshot(
-				configured: true,
-				running: true,
-				state: "connected",
-				socksListen: "127.0.0.1:1081",
-				traffic: NJUConnectTrafficSnapshot(
-					uploadBytes: UInt64(second * 1_000),
-					downloadBytes: UInt64(second * 2_000),
-					activeConnections: 1,
-					sampledAtUnixMilli: Int64(second * 1_000)
-				)
-			)
-			controller.statusMonitorCompletion?(.success(controller.snapshot))
-		}
-		XCTAssertEqual(model.uploadRateSamples.count, 30)
-		XCTAssertEqual(model.downloadRateSamples.count, 30)
+        for second in 3...37 {
+            controller.snapshot = NJUConnectRuntimeSnapshot(
+                configured: true,
+                running: true,
+                state: "connected",
+                socksListen: "127.0.0.1:1081",
+                traffic: NJUConnectTrafficSnapshot(
+                    uploadBytes: UInt64(second * 1_000),
+                    downloadBytes: UInt64(second * 2_000),
+                    activeConnections: 1,
+                    sampledAtUnixMilli: Int64(second * 1_000)
+                )
+            )
+            controller.statusMonitorCompletion?(.success(controller.snapshot))
+        }
+        XCTAssertEqual(model.uploadRateSamples.count, 30)
+        XCTAssertEqual(model.downloadRateSamples.count, 30)
 
-		model.setTrafficMonitoringActive(false)
-		XCTAssertEqual(model.rates.uploadBytesPerSecond, 0)
-		XCTAssertEqual(model.rates.downloadBytesPerSecond, 0)
-		XCTAssertTrue(model.uploadRateSamples.isEmpty)
-		XCTAssertTrue(model.downloadRateSamples.isEmpty)
-	}
+        model.setTrafficMonitoringActive(false)
+        XCTAssertEqual(model.rates.uploadBytesPerSecond, 0)
+        XCTAssertEqual(model.rates.downloadBytesPerSecond, 0)
+        XCTAssertTrue(model.uploadRateSamples.isEmpty)
+        XCTAssertTrue(model.downloadRateSamples.isEmpty)
+    }
 
     @MainActor
     func testLiveSetupSavesThenStartsRealController() {

@@ -10,14 +10,7 @@ enum NJUConnectBackend: String, CaseIterable, Identifiable, Hashable, Codable {
 
     var title: String {
         switch self {
-        case .easyConnect: return uiText("EasyConnect", "EasyConnect")
-        case .aTrust: return uiText("aTrust", "aTrust")
-        }
-    }
-
-    var shortTitle: String {
-        switch self {
-        case .easyConnect: return "Easy"
+        case .easyConnect: return "EasyConnect"
         case .aTrust: return "aTrust"
         }
     }
