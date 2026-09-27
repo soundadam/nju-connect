@@ -7,6 +7,8 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+
+	"github.com/soundadam/nju-connect/internal/owneronly"
 )
 
 // FileStore keeps the credential in a separate plaintext file. Construction
@@ -46,7 +48,7 @@ func (s *FileStore) Inspect() error {
 	if err != nil {
 		return fmt.Errorf("inspect credential file: %w", err)
 	}
-	if err := validateFileInfo(info); err != nil {
+	if err := validateFileInfo(s.path, info); err != nil {
 		return err
 	}
 	if info.Size() == 0 {
@@ -69,7 +71,7 @@ func (s *FileStore) Get() ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("inspect credential file: %w", err)
 	}
-	if err := validateFileInfo(pathInfo); err != nil {
+	if err := validateFileInfo(s.path, pathInfo); err != nil {
 		return nil, err
 	}
 
@@ -83,7 +85,7 @@ func (s *FileStore) Get() ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("inspect opened credential file: %w", err)
 	}
-	if err := validateFileInfo(openedInfo); err != nil {
+	if err := validateFileInfo(s.path, openedInfo); err != nil {
 		return nil, err
 	}
 	if !os.SameFile(pathInfo, openedInfo) {
@@ -112,7 +114,7 @@ func (s *FileStore) Set(secret []byte) error {
 	}
 
 	if info, err := os.Lstat(s.path); err == nil {
-		if err := validateFileInfo(info); err != nil {
+		if err := validateFileInfo(s.path, info); err != nil {
 			return err
 		}
 	} else if !errors.Is(err, fs.ErrNotExist) {
@@ -120,17 +122,17 @@ func (s *FileStore) Set(secret []byte) error {
 	}
 
 	dir := filepath.Dir(s.path)
-	if err := os.MkdirAll(dir, 0700); err != nil {
+	if err := owneronly.MkdirAll(dir); err != nil {
 		return fmt.Errorf("create credential directory: %w", err)
 	}
 	directoryInfo, err := os.Lstat(dir)
 	if err != nil {
 		return fmt.Errorf("inspect credential directory: %w", err)
 	}
-	if !directoryInfo.IsDir() || directoryInfo.Mode().Perm()&0077 != 0 {
+	if !directoryInfo.IsDir() || owneronly.Restricted(dir, directoryInfo, 0700) != nil {
 		return ErrInsecureDirectory
 	}
-	if !ownedByCurrentUser(directoryInfo) {
+	if !owneronly.Owned(dir, directoryInfo) {
 		return ErrWrongOwner
 	}
 
@@ -150,7 +152,7 @@ func (s *FileStore) Set(secret []byte) error {
 		_ = temporary.Close()
 		return fmt.Errorf("%s credential file: %w", operation, operationErr)
 	}
-	if err := temporary.Chmod(0600); err != nil {
+	if err := owneronly.Restrict(temporary, 0600); err != nil {
 		return fail("secure temporary", err)
 	}
 	if err := writeAll(temporary, secret); err != nil {
@@ -186,7 +188,7 @@ func (s *FileStore) Clear() error {
 	if err != nil {
 		return fmt.Errorf("inspect credential file: %w", err)
 	}
-	if err := validateFileInfo(info); err != nil {
+	if err := validateFileInfo(s.path, info); err != nil {
 		return err
 	}
 	current, err := os.Lstat(s.path)
@@ -217,15 +219,15 @@ func syncDirectory(path string) error {
 	return directory.Sync()
 }
 
-func validateFileInfo(info fs.FileInfo) error {
+func validateFileInfo(path string, info fs.FileInfo) error {
 	if !info.Mode().IsRegular() {
 		return ErrNotRegular
 	}
-	if !ownedByCurrentUser(info) {
+	if !owneronly.Owned(path, info) {
 		return ErrWrongOwner
 	}
-	if info.Mode().Perm()&^fs.FileMode(0600) != 0 {
-		return fmt.Errorf("%w: mode %04o", ErrInsecurePermissions, info.Mode().Perm())
+	if err := owneronly.Restricted(path, info, 0600); err != nil {
+		return fmt.Errorf("%w: %v", ErrInsecurePermissions, err)
 	}
 	return nil
 }
