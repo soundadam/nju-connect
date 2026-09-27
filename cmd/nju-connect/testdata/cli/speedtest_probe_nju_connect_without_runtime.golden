@@ -1,0 +1,5 @@
+$ nju-connect speedtest probe --route nju-connect --json
+exit: 1
+--- stdout
+{"error":{"code":"nju_connect_required","message":"nju-connect must be connected to reach the NJU campus speed-test service"},"schema_version":1,"type":"error"}
+--- stderr

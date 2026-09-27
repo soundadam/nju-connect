@@ -1,10 +1,12 @@
 package config
 
 import (
+	"errors"
+	"os"
 	"path/filepath"
 	"testing"
 
-	"github.com/soundadam/soundconnect/internal/credential"
+	"github.com/soundadam/nju-connect/internal/credential"
 )
 
 func TestLegacyPathsStayInsideWorktree(t *testing.T) {
@@ -47,7 +49,23 @@ func TestApplicationPathsUseStableFiles(t *testing.T) {
 	}
 }
 
+// isolateUserConfigDir points os.UserConfigDir at a temporary directory, so
+// DefaultPaths never moves the real state directory, and returns it.
+func isolateUserConfigDir(t *testing.T) string {
+	t.Helper()
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, ".config"))
+	t.Setenv(configDirectoryEnv, "")
+	configDir, err := os.UserConfigDir()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return configDir
+}
+
 func TestDefaultPathsUseUserConfigDirectory(t *testing.T) {
+	isolateUserConfigDir(t)
 	paths, err := DefaultPaths()
 	if err != nil {
 		t.Fatal(err)
@@ -83,5 +101,38 @@ func TestDefaultPathsRejectRelativeConfigDirectory(t *testing.T) {
 	_, err := DefaultPaths()
 	if err == nil {
 		t.Fatal("DefaultPaths() unexpectedly accepted a relative override")
+	}
+}
+
+func TestDefaultPathsAdoptTheSoundconnectDirectoryOnce(t *testing.T) {
+	configDir := isolateUserConfigDir(t)
+	legacy := filepath.Join(configDir, legacyApplicationDirectory)
+	if err := os.MkdirAll(legacy, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(legacy, "config.toml"), []byte("backend = 'atrust'\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	paths, err := DefaultPaths()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if content, err := os.ReadFile(paths.Config); err != nil || string(content) != "backend = 'atrust'\n" {
+		t.Fatalf("config after move = %q, %v", content, err)
+	}
+	if _, err := os.Lstat(legacy); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("earlier directory still exists: %v", err)
+	}
+
+	// A later soundconnect directory is left alone once nju-connect exists.
+	if err := os.MkdirAll(legacy, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := DefaultPaths(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Lstat(legacy); err != nil {
+		t.Fatalf("second run touched the earlier directory: %v", err)
 	}
 }

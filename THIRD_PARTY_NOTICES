@@ -1,18 +1,18 @@
-soundconnect third-party notices
+nju-connect third-party notices
 ================================
 
-soundconnect is AGPL-3.0 software. This notice applies to
-third-party components linked into the soundconnect command binary. The root
+nju-connect is AGPL-3.0 software. This notice applies to
+third-party components linked into the nju-connect command binary. The root
 LICENSE does not replace, restrict, or grant rights under their licenses.
 
 The aTrust backend links `github.com/mythologyli/zju-connect` at
 `v1.2.3-0.20260803141543-cb3a819c9bcc` (commit
 `cb3a819c9bcc34571862982ee4bcc19c66ed903b`), licensed under AGPL-3.0. Its
-protocol implementation is the reason soundconnect, including the combined
+protocol implementation is the reason nju-connect, including the combined
 EasyConnect/aTrust binary, is distributed under AGPL-3.0.
 
 The versions below are pinned by go.mod/go.sum and were verified against
-'go list -deps ./cmd/soundconnect' and 'go version -m bin/soundconnect' on
+'go list -deps ./cmd/nju-connect' and 'go version -m bin/nju-connect' on
 2026-09-25. “Indirect” means the module is linked transitively; it is still
 covered by the binary distribution notice.
 
@@ -104,7 +104,7 @@ Required release obligations
 3. Apache-2.0 components require providing the Apache License, retaining
    copyright and attribution notices, reproducing any applicable NOTICE text,
    and marking modified files. No root NOTICE or COPYING file was present in
-   the pinned module roots audited here, and soundconnect made no changes to
+   the pinned module roots audited here, and nju-connect made no changes to
    those modules.
 4. The root LICENSE files for klauspost/compress and sagernet/gvisor contain
    additional component-specific MIT/BSD/Apache blocks. Their complete
@@ -153,7 +153,7 @@ Separately installed campus speed-test component
 The optional campus speed-test component is a separately downloaded and
 executed derivative of LibreSpeed CLI v1.0.13 (commit
 2f2408764d88e9601aa64a03b340f8e3151003e4), licensed under LGPL-3.0. It is
-not linked into the soundconnect binary. The component applies the
+not linked into the nju-connect binary. The component applies the
 checked-in progress-JSON and explicit SOCKS5 patches. Its pinned source archive
 SHA-256 is 5ad938b61e3edc0ca95e2ccff0c06e97a69383f3cbb0243bd47b21b9865f9f55.
 Every component release must include the unchanged upstream license, both
@@ -192,5 +192,5 @@ https://pkg.go.dev/<module>@<version>?tab=licenses for the versions listed
 above.
 
 golang.org/x/text is linked only into the Windows binary. Re-run the
-link-time audit ('go list -deps ./cmd/soundconnect' for each GOOS) and update
+link-time audit ('go list -deps ./cmd/nju-connect' for each GOOS) and update
 this file whenever imports or build tags change.

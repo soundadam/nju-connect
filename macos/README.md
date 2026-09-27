@@ -1,6 +1,6 @@
-# soundconnect macOS UI
+# nju-connect macOS UI
 
-这一版开始开发 `soundconnect` 的菜单栏面板结构：
+这一版开始开发 `nju-connect` 的菜单栏面板结构：
 
 - 顶部状态、服务开关和菜单栏图标
 - 首次设置（学校账号、VPN 长期密码）
@@ -9,7 +9,7 @@
 - SOCKS5 地址、实时速率和本次累计流量
 - 重连、账号失败和传输失败的恢复入口
 
-正式菜单栏 App 已通过内置 `soundconnect` CLI 接入真实 VPN 生命周期：设置会把
+正式菜单栏 App 已通过内置 `nju-connect` CLI 接入真实 VPN 生命周期：设置会把
 非秘密配置写入用户配置目录、把长期密码写入 Keychain；开关会启动或停止后台
 userspace runtime；验证码仅通过本机 stdin 管道提交；状态、SOCKS5 地址和流量来自
 owner-only runtime socket。`make macos-preview` 仍保留模拟状态，专门用于视觉预览。
@@ -17,12 +17,12 @@ owner-only runtime socket。`make macos-preview` 仍保留模拟状态，专门�
 顶部的服务开关现为三段式 `BackendSwitch`：关闭、EasyConnect、aTrust。切换后端时，
 面板先停止当前 runtime，再通过 CLI 的非秘密 `configure --backend` 选择新后端并启动；
 两个后端共用 CLI 所有的 SOCKS5 监听端口与 Keychain 密码。后端目录（网关默认值、
-认证能力）由 `soundconnect backends --json` 提供，Swift 不硬编码协议信息。aTrust
+认证能力）由 `nju-connect backends --json` 提供，Swift 不硬编码协议信息。aTrust
 目前以前台进程运行，协议核心由固定版本的 zju-connect 提供。
 
-`soundconnect-atrust-oauth-helper` 是独立的 WebKit 登录窗口：使用隔离且持久的
+`nju-connect-atrust-oauth-helper` 是独立的 WebKit 登录窗口：使用隔离且持久的
 网站数据存储，只在需要用户交互时显示窗口，在网关回调被浏览器加载前截获并只把授权码
-通过本机管道交给 CLI；`soundconnect logout` 会调用 `--clear-data` 清除其数据。
+通过本机管道交给 CLI；`nju-connect logout` 会调用 `--clear-data` 清除其数据。
 
 ## 面板槽位拓扑
 
@@ -66,7 +66,7 @@ flowchart LR
 
 ## 测速与 VPN 的依赖关系
 
-`--route auto` 当前会先探测校园网直连。直连成功时不依赖 soundconnect；只有
+`--route auto` 当前会先探测校园网直连。直连成功时不依赖 nju-connect；只有
 直连失败后才检查 VPN 与本机 SOCKS5。因此“VPN 认证失败”和“校园测速不可用”
 不能使用同一个状态或图标表达。
 
@@ -76,7 +76,7 @@ flowchart TD
     P -->|"校园网直连可达"| R1["使用 direct 测速"]
     P -->|"直连不可达"| V{"VPN 与 SOCKS5 可用？"}
     V -->|"是"| P2["通过 SOCKS5 再探测"]
-    P2 -->|"可达"| R2["使用 soundconnect 测速"]
+    P2 -->|"可达"| R2["使用 nju-connect 测速"]
     P2 -->|"不可达"| E["测速不可用"]
     V -->|"否"| E
 ```

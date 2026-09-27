@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/soundadam/soundconnect/internal/sessiontoken"
+	"github.com/soundadam/nju-connect/internal/sessiontoken"
 )
 
 type memoryPacketEndpoint struct {

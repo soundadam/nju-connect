@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/soundadam/soundconnect/internal/core"
-	"github.com/soundadam/soundconnect/internal/sessiontoken"
+	"github.com/soundadam/nju-connect/internal/core"
+	"github.com/soundadam/nju-connect/internal/sessiontoken"
 )
 
 func TestNativeSessionOwnsAndJoinsCompleteRuntime(t *testing.T) {

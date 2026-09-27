@@ -1,5 +1,0 @@
-$ soundconnect setup --server vpn.example.edu --username student --password-stdin
-exit: 1
---- stdout
---- stderr
-setup profile: another native runtime is already active

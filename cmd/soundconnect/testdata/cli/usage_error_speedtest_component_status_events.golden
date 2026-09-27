@@ -1,5 +1,0 @@
-$ soundconnect speedtest component status --json-events
-exit: 2
---- stdout
---- stderr
-speedtest component status supports only --json

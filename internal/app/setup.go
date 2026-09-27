@@ -7,10 +7,10 @@ import (
 	"os"
 	"strings"
 
-	"github.com/soundadam/soundconnect/internal/backend"
-	"github.com/soundadam/soundconnect/internal/config"
-	"github.com/soundadam/soundconnect/internal/credential"
-	"github.com/soundadam/soundconnect/internal/runtimecontrol"
+	"github.com/soundadam/nju-connect/internal/backend"
+	"github.com/soundadam/nju-connect/internal/config"
+	"github.com/soundadam/nju-connect/internal/credential"
+	"github.com/soundadam/nju-connect/internal/runtimecontrol"
 )
 
 // SetupRequest describes the profile to save. Setup starts from the saved

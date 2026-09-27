@@ -4,13 +4,13 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/soundadam/soundconnect/internal/backend"
-	"github.com/soundadam/soundconnect/internal/config"
-	"github.com/soundadam/soundconnect/internal/credential"
+	"github.com/soundadam/nju-connect/internal/backend"
+	"github.com/soundadam/nju-connect/internal/config"
+	"github.com/soundadam/nju-connect/internal/credential"
 )
 
 func TestBuildReportsReadyLocalState(t *testing.T) {
-	root := filepath.Join(t.TempDir(), "soundconnect")
+	root := filepath.Join(t.TempDir(), "nju-connect")
 	paths := config.Paths{
 		Root:       root,
 		Config:     filepath.Join(root, "config.toml"),
@@ -34,7 +34,7 @@ func TestBuildReportsReadyLocalState(t *testing.T) {
 }
 
 func TestBuildDoesNotRequirePasswordForATrustOAuth(t *testing.T) {
-	root := filepath.Join(t.TempDir(), "soundconnect")
+	root := filepath.Join(t.TempDir(), "nju-connect")
 	paths := config.Paths{Root: root, Config: filepath.Join(root, "config.toml")}
 	configured := config.Config{
 		Backend: backend.ATrust, Server: config.DefaultATrustServer,
@@ -59,7 +59,7 @@ func TestBuildDoesNotRequirePasswordForATrustOAuth(t *testing.T) {
 }
 
 func TestBuildNamesTheNextStep(t *testing.T) {
-	root := filepath.Join(t.TempDir(), "soundconnect")
+	root := filepath.Join(t.TempDir(), "nju-connect")
 	paths := config.Paths{Root: root, Config: filepath.Join(root, "config.toml"), Credential: filepath.Join(root, "credential")}
 	store, err := credential.NewFileStore(paths.Credential, true)
 	if err != nil {

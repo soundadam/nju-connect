@@ -1,5 +1,0 @@
-$ soundconnect account show extra
-exit: 2
---- stdout
---- stderr
-account show accepts no positional arguments

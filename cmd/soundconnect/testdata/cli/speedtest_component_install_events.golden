@@ -1,6 +1,0 @@
-$ soundconnect speedtest component install --yes --json-events
-exit: 0
---- stdout
-{"schema_version":1,"type":"component_progress","phase":"downloading","progress":1}
-{"schema_version":1,"type":"component_progress","phase":"complete","progress":1}
---- stderr

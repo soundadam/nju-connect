@@ -1,6 +1,0 @@
-$ soundconnect logout
-exit: 0
---- stdout
-atrust_session_cleared: true
-oauth_profile_cleared: true
---- stderr

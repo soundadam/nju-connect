@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/soundadam/soundconnect/internal/backend"
+	"github.com/soundadam/nju-connect/internal/backend"
 )
 
 const oauthCallbackPath = "/passport/v1/auth/httpsOauth2"

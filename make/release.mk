@@ -13,15 +13,15 @@ package-macos:
 
 .PHONY: macos-preview
 macos-preview: build
-	SOUNDCONNECT_HELPER="$(CURDIR)/$(BINARY)" SOUNDCONNECT_UI_LANGUAGE="$(UI_LANGUAGE)" swift run --package-path macos -Xswiftc -DUI_DESIGN_PREVIEW soundconnect-menu
+	NJU_CONNECT_HELPER="$(CURDIR)/$(BINARY)" NJU_CONNECT_UI_LANGUAGE="$(UI_LANGUAGE)" swift run --package-path macos -Xswiftc -DUI_DESIGN_PREVIEW nju-connect-menu
 
 .PHONY: macos-dev-build
 macos-dev-build:
-	SOUNDCONNECT_UI_LANGUAGE="$(UI_LANGUAGE)" ./scripts/run_macos_development.zsh --build-only
+	NJU_CONNECT_UI_LANGUAGE="$(UI_LANGUAGE)" ./scripts/run_macos_development.zsh --build-only
 
 .PHONY: macos-dev
 macos-dev:
-	SOUNDCONNECT_UI_LANGUAGE="$(UI_LANGUAGE)" ./scripts/run_macos_development.zsh
+	NJU_CONNECT_UI_LANGUAGE="$(UI_LANGUAGE)" ./scripts/run_macos_development.zsh
 
 .PHONY: package-macos-local
 package-macos-local:

@@ -16,10 +16,26 @@ import (
 	"github.com/zalando/go-keyring"
 )
 
-// DefaultKeyringService names soundconnect's items in the operating-system
+// DefaultKeyringService names nju-connect's items in the operating-system
 // keyring: the macOS login Keychain, the Secret Service on Linux, or the
 // Windows Credential Manager.
-const DefaultKeyringService = "com.soundadam.soundconnect"
+const DefaultKeyringService = "com.soundadam.nju-connect"
+
+// LegacyKeyringService named the items of releases called soundconnect.
+// Open moves them under DefaultKeyringService the first time they are read.
+const LegacyKeyringService = "com.soundadam.soundconnect"
+
+// legacyKeyringService maps a service to the name an earlier release used
+// for the same state directory, including the hashed isolated services.
+func legacyKeyringService(service string) (string, bool) {
+	if service == DefaultKeyringService {
+		return LegacyKeyringService, true
+	}
+	if suffix, ok := strings.CutPrefix(service, DefaultKeyringService+"."); ok {
+		return LegacyKeyringService + "." + suffix, true
+	}
+	return "", false
+}
 
 // Keyring accounts. EasyConnect and aTrust password authentication share
 // PasswordAccount.
@@ -30,7 +46,7 @@ const (
 
 // KeyringService returns the keyring service for a state directory. The
 // default directory uses DefaultKeyringService; an isolated directory
-// (SOUNDCONNECT_CONFIG_DIR) gets its own service so tests and alternate
+// (NJU_CONNECT_CONFIG_DIR) gets its own service so tests and alternate
 // profiles never touch the real items.
 func KeyringService(root string, isolated bool) string {
 	if !isolated {

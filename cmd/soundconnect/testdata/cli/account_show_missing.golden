@@ -1,8 +1,0 @@
-$ soundconnect account show
-exit: 0
---- stdout
-configuration: missing
-credential_store: keyring
-password: missing
-atrust_session: missing
---- stderr

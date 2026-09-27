@@ -6,7 +6,7 @@ import (
 	"net/http/cookiejar"
 	"net/url"
 
-	"github.com/soundadam/soundconnect/internal/sessiontoken"
+	"github.com/soundadam/nju-connect/internal/sessiontoken"
 )
 
 var ErrNoAuthenticatedSession = errors.New("gateway authentication is not complete")

@@ -5,9 +5,9 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/soundadam/soundconnect/internal/backend/easyconnect/auth"
-	"github.com/soundadam/soundconnect/internal/core"
-	"github.com/soundadam/soundconnect/internal/credential"
+	"github.com/soundadam/nju-connect/internal/backend/easyconnect/auth"
+	"github.com/soundadam/nju-connect/internal/core"
+	"github.com/soundadam/nju-connect/internal/credential"
 )
 
 // DryRunReport is how far a dry run got. DryRun fills it in step by step,

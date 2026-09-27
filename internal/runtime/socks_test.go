@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/soundadam/soundconnect/internal/traffic"
+	"github.com/soundadam/nju-connect/internal/traffic"
 )
 
 func TestSOCKSTCPRelayCountsOnlyApplicationPayload(t *testing.T) {

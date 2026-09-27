@@ -1,11 +1,11 @@
-# soundconnect architecture
+# nju-connect architecture
 
-soundconnect is a campus VPN client with two parts: a Go CLI that owns every
+nju-connect is a campus VPN client with two parts: a Go CLI that owns every
 protocol, secret and runtime, and a SwiftUI menu-bar app that drives the CLI.
-It supports two mutually exclusive backends: EasyConnect (soundconnect's own
+It supports two mutually exclusive backends: EasyConnect (nju-connect's own
 implementation) and aTrust (through the pinned AGPL-3.0
 `mythologyli/zju-connect` client). Traffic leaves through one numeric loopback
-SOCKS5 listener (`127.0.0.1:1081` by default). soundconnect never creates a
+SOCKS5 listener (`127.0.0.1:1081` by default). nju-connect never creates a
 kernel TUN, installs routes, changes DNS or PF, or starts a vendor service.
 
 The observable CLI surface (commands, exit codes, JSON, the app's command
@@ -14,7 +14,7 @@ lines) is specified in [`cli-contract.md`](cli-contract.md).
 ```mermaid
 flowchart LR
     UI[SwiftUI menu-bar app]
-    CLI[soundconnect CLI]
+    CLI[nju-connect CLI]
     CONFIG[config.toml + system keyring]
     STATUS[private runtime status socket]
     EASY[EasyConnect backend]
@@ -36,7 +36,7 @@ flowchart LR
 
 | Layer | Owns | Must not own |
 | --- | --- | --- |
-| `cmd/soundconnect` | Cobra commands, output formatting, exit codes | business logic |
+| `cmd/nju-connect` | Cobra commands, output formatting, exit codes | business logic |
 | `internal/app` | setup, account, connect lifecycle, background handoff, speed test; every dependency injected through `app.Deps` | terminal rendering |
 | `internal/tui` | huh forms on a terminal, line prompts otherwise | protocol state |
 | `internal/config` | backend, gateway, authentication selection, loopback listener | cookies, OAuth browser state, passwords |
@@ -46,7 +46,7 @@ flowchart LR
 | `internal/backend/atrust` | `Core`/`Session`/`Tunnel`/`Prompter`, the zju-connect adapter, resource model, SOCKS routing, OAuth callback validation | EasyConnect tokens |
 | `internal/runtime`, `internal/core` | the EasyConnect userspace dataplane | configuration, credentials |
 | `internal/runtimecontrol` | the status/disconnect socket | runtime state (it only reports it) |
-| `SoundConnectUI` (Swift) | backend selection and sanitized presentation | passwords, protocol requests, sockets |
+| `NJUConnectUI` (Swift) | backend selection and sanitized presentation | passwords, protocol requests, sockets |
 | `ATrustOAuthHelper` (Swift) | an isolated WebKit profile for browser login; returns only the authorization code | aTrust session state, passwords |
 
 The Go core never depends on Swift. CI checks the core and the Swift shell in
@@ -54,7 +54,7 @@ separate jobs.
 
 ## The macOS app
 
-The app runs the bundled CLI (`Contents/Helpers/soundconnect`) as child
+The app runs the bundled CLI (`Contents/Helpers/nju-connect`) as child
 processes and parses only the strong-contract output.
 
 1. The user picks Off, EasyConnect or aTrust. The app stops an active runtime
@@ -185,10 +185,10 @@ for that import only).
 
 ## Releases and dependencies
 
-soundconnect is AGPL-3.0 because it links zju-connect; `sing-tun` and `sing`
+nju-connect is AGPL-3.0 because it links zju-connect; `sing-tun` and `sing`
 are GPL-3.0-or-later. `THIRD_PARTY_NOTICES` indexes every linked module, and
 a binary release must ship their license texts and the corresponding source.
-Re-derive the linked set with `go list -deps ./cmd/soundconnect` for each OS
+Re-derive the linked set with `go list -deps ./cmd/nju-connect` for each OS
 when imports change.
 
 Before a release, from a clean worktree:

@@ -7,10 +7,10 @@ import (
 	"os"
 	"time"
 
-	"github.com/soundadam/soundconnect/internal/backend"
-	"github.com/soundadam/soundconnect/internal/config"
-	"github.com/soundadam/soundconnect/internal/credential"
-	"github.com/soundadam/soundconnect/internal/dial"
+	"github.com/soundadam/nju-connect/internal/backend"
+	"github.com/soundadam/nju-connect/internal/config"
+	"github.com/soundadam/nju-connect/internal/credential"
+	"github.com/soundadam/nju-connect/internal/dial"
 )
 
 type Report struct {
@@ -24,10 +24,10 @@ type Report struct {
 
 // Next steps reported by Build.
 const (
-	NextSetup          = "soundconnect setup"
-	NextSetPassword    = "soundconnect account set-password"
-	NextConfigureProxy = "soundconnect configure --upstream-proxy"
-	NextConnect        = "soundconnect connect"
+	NextSetup          = "nju-connect setup"
+	NextSetPassword    = "nju-connect account set-password"
+	NextConfigureProxy = "nju-connect configure --upstream-proxy"
+	NextConnect        = "nju-connect connect"
 )
 
 func Build(paths config.Paths, store credential.Store) Report {

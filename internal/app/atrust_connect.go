@@ -12,14 +12,14 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/soundadam/soundconnect/internal/backend"
-	"github.com/soundadam/soundconnect/internal/backend/atrust"
-	"github.com/soundadam/soundconnect/internal/backend/easyconnect/session"
-	"github.com/soundadam/soundconnect/internal/config"
-	"github.com/soundadam/soundconnect/internal/credential"
-	"github.com/soundadam/soundconnect/internal/dial"
-	"github.com/soundadam/soundconnect/internal/runtime"
-	"github.com/soundadam/soundconnect/internal/runtimecontrol"
+	"github.com/soundadam/nju-connect/internal/backend"
+	"github.com/soundadam/nju-connect/internal/backend/atrust"
+	"github.com/soundadam/nju-connect/internal/backend/easyconnect/session"
+	"github.com/soundadam/nju-connect/internal/config"
+	"github.com/soundadam/nju-connect/internal/credential"
+	"github.com/soundadam/nju-connect/internal/dial"
+	"github.com/soundadam/nju-connect/internal/runtime"
+	"github.com/soundadam/nju-connect/internal/runtimecontrol"
 )
 
 const atrustGatewayDialTimeout = 15 * time.Second
@@ -155,10 +155,10 @@ func promptATrustOAuthCode(ctx context.Context, deps Deps, request atrustbackend
 }
 
 // OAuthHelperPath locates the bundled WebKit OAuth helper next to the CLI,
-// or an absolute SOUNDCONNECT_ATRUST_OAUTH_HELPER override. It is the
+// or an absolute NJU_CONNECT_ATRUST_OAUTH_HELPER override. It is the
 // production Deps.OAuthHelper.
 func OAuthHelperPath() (string, bool) {
-	if configured := os.Getenv("SOUNDCONNECT_ATRUST_OAUTH_HELPER"); configured != "" {
+	if configured := os.Getenv("NJU_CONNECT_ATRUST_OAUTH_HELPER"); configured != "" {
 		if !filepath.IsAbs(configured) {
 			return "", false
 		}
@@ -171,7 +171,7 @@ func OAuthHelperPath() (string, bool) {
 	if err != nil {
 		return "", false
 	}
-	candidate := filepath.Join(filepath.Dir(executable), "soundconnect-atrust-oauth-helper")
+	candidate := filepath.Join(filepath.Dir(executable), "nju-connect-atrust-oauth-helper")
 	if info, err := os.Stat(candidate); err == nil && !info.IsDir() && info.Mode()&0o111 != 0 {
 		return candidate, true
 	}
@@ -185,7 +185,7 @@ func runATrustOAuthHelper(
 	endpoint backend.Endpoint,
 	output io.Writer,
 ) (string, error) {
-	fmt.Fprintln(output, "Opening SoundConnect OAuth login; complete NJU login there if the saved session has expired.")
+	fmt.Fprintln(output, "Opening nju-connect OAuth login; complete NJU login there if the saved session has expired.")
 	command := exec.CommandContext(
 		ctx,
 		helperPath,

@@ -1,0 +1,7 @@
+$ nju-connect help status
+exit: 0
+--- stdout
+Usage of nju-connect status:
+      --json    print JSON
+      --watch   stream JSON status once per second
+--- stderr

@@ -1,4 +1,4 @@
-// Package backend defines the stable boundary between the SoundConnect
+// Package backend defines the stable boundary between the nju-connect
 // application and protocol-specific VPN implementations.
 package backend
 

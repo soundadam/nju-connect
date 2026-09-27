@@ -1,5 +1,0 @@
-$ soundconnect disconnect -h
-exit: 0
---- stdout
-Usage of soundconnect disconnect:
---- stderr

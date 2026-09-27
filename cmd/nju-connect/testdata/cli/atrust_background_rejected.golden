@@ -1,0 +1,5 @@
+$ nju-connect connect --background
+exit: 2
+--- stdout
+--- stderr
+--background is EasyConnect only; run "nju-connect connect" in the foreground for aTrust

@@ -3,9 +3,9 @@ package app
 import (
 	"fmt"
 
-	"github.com/soundadam/soundconnect/internal/backend"
-	"github.com/soundadam/soundconnect/internal/config"
-	"github.com/soundadam/soundconnect/internal/doctor"
+	"github.com/soundadam/nju-connect/internal/backend"
+	"github.com/soundadam/nju-connect/internal/config"
+	"github.com/soundadam/nju-connect/internal/doctor"
 )
 
 // BackendCatalog is the `backends --json` contract shared with the macOS app.

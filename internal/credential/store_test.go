@@ -10,7 +10,7 @@ import (
 func fileLocation(t *testing.T, account string) Location {
 	t.Helper()
 	root := t.TempDir()
-	return Location{Service: KeyringService(root, true), Account: account, File: filepath.Join(root, "soundconnect", account)}
+	return Location{Service: KeyringService(root, true), Account: account, File: filepath.Join(root, "nju-connect", account)}
 }
 
 func writeFileSecret(t *testing.T, path, secret string) *FileStore {
@@ -72,6 +72,53 @@ func TestOpenMovesALegacyFileIntoTheKeyringOnce(t *testing.T) {
 	}
 	if _, err := store.Get(); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("Get() after Clear = %v", err)
+	}
+}
+
+// Releases named soundconnect used another keyring service. Their items,
+// chunked ones included, move under the new service on the first read.
+func TestOpenMovesSoundconnectKeyringItemsOnce(t *testing.T) {
+	location := fileLocation(t, ATrustSessionAccount)
+	service, ok := legacyKeyringService(location.Service)
+	if !ok || service == location.Service {
+		t.Fatalf("legacyKeyringService(%q) = %q, %t", location.Service, service, ok)
+	}
+	renamed, err := NewKeyringStore(service, location.Account)
+	if err != nil {
+		t.Fatal(err)
+	}
+	large := string(make([]byte, 3*maximumChunkRaw))
+	if err := renamed.Set([]byte(large)); err != nil {
+		t.Fatal(err)
+	}
+	store, err := Open(location)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if secret, err := store.Get(); err != nil || string(secret) != large {
+		t.Fatalf("Get() = %d bytes, %v", len(secret), err)
+	}
+	if err := renamed.Inspect(); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("soundconnect item remains: %v", err)
+	}
+	if err := store.Clear(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.Get(); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("Get() after Clear = %v", err)
+	}
+}
+
+func TestLegacyKeyringServiceCoversDefaultAndIsolatedServices(t *testing.T) {
+	if got, ok := legacyKeyringService(DefaultKeyringService); !ok || got != LegacyKeyringService {
+		t.Fatalf("default = %q, %t", got, ok)
+	}
+	isolated := KeyringService("/tmp/profile", true)
+	if got, ok := legacyKeyringService(isolated); !ok || got != LegacyKeyringService+isolated[len(DefaultKeyringService):] {
+		t.Fatalf("isolated = %q, %t", got, ok)
+	}
+	if _, ok := legacyKeyringService("com.example.other"); ok {
+		t.Fatal("unrelated service mapped")
 	}
 }
 

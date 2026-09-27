@@ -1,0 +1,8 @@
+$ nju-connect speedtest campus -h
+exit: 0
+--- stdout
+Usage of nju-connect speedtest campus:
+      --json           print one JSON result
+      --json-events    emit versioned NDJSON events
+      --route string   auto, direct, or nju-connect (default "auto")
+--- stderr

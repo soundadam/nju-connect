@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/soundadam/soundconnect/internal/runtime"
+	"github.com/soundadam/nju-connect/internal/runtime"
 )
 
 const defaultDirectDialTimeout = 10 * time.Second

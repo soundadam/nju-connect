@@ -1,7 +1,7 @@
 # sing-box integration
 
 `campus.json` is a native sing-box configuration fragment that routes campus
-TCP traffic to SoundConnect's shared loopback SOCKS5 listener.
+TCP traffic to nju-connect's shared loopback SOCKS5 listener.
 
 Merge this fragment into a configuration that already defines:
 
@@ -17,14 +17,14 @@ outbound while its native session is being established. aTrust tunnel nodes on
 TCP port 441 within `219.219.112.0/20` also remain direct because their addresses
 are discovered after authentication and may be used as bare IPs.
 
-This fragment supports TCP only because SoundConnect exposes SOCKS5 TCP CONNECT
+This fragment supports TCP only because nju-connect exposes SOCKS5 TCP CONNECT
 listeners. Both mutually exclusive backends share the CLI-owned listener
 setting; only select it while a runtime is active.
 
 ## Smoke test before SFM
 
 SFM does not need to be involved while validating the aTrust listener. After
-`soundconnect connect` reports `socks_listen: 127.0.0.1:1081`, verify the
+`nju-connect connect` reports `socks_listen: 127.0.0.1:1081`, verify the
 listener and an allowed SSH resource directly:
 
 ```sh
@@ -37,7 +37,7 @@ ssh -o ControlMaster=no -o ControlPath=none \
 The SSH command must exit successfully; a listening socket alone is not proof
 that the selected backend's resource tunnel works. If port 1081 is absent, the
 runtime has stopped, so do not select the campus outbound in SFM yet. The SFM
-outbound does not change when SoundConnect switches backend.
+outbound does not change when nju-connect switches backend.
 
 The matching policy is mirrored from the public campus module maintained in
 the `soundadam-upload/sing-box-config` repository. Keep both copies aligned

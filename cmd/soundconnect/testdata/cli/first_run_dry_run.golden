@@ -1,5 +1,0 @@
-$ soundconnect dry-run
-exit: 1
---- stdout
---- stderr
-load configuration: no configuration yet; run "soundconnect setup" first

@@ -10,7 +10,7 @@ readonly mode="${1:-run}"
 readonly repo_root="${0:A:h:h}"
 cd "$repo_root"
 
-identity="${SOUNDCONNECT_CODESIGN_IDENTITY:-}"
+identity="${NJU_CONNECT_CODESIGN_IDENTITY:-}"
 if [[ -z "$identity" ]]; then
   identity="$(security find-identity -v -p codesigning | awk '/"Apple Development:/{print $2; exit}')"
 fi
@@ -20,22 +20,22 @@ fi
 }
 
 mkdir -p bin
-go build -o bin/soundconnect ./cmd/soundconnect
-swift build --package-path macos --product soundconnect-menu
-swift build --package-path macos --product soundconnect-atrust-oauth-helper
+go build -o bin/nju-connect ./cmd/nju-connect
+swift build --package-path macos --product nju-connect-menu
+swift build --package-path macos --product nju-connect-atrust-oauth-helper
 
 readonly swift_bin="$(swift build --package-path macos --show-bin-path)"
-readonly menu_binary="${swift_bin}/soundconnect-menu"
-readonly oauth_helper="${swift_bin}/soundconnect-atrust-oauth-helper"
+readonly menu_binary="${swift_bin}/nju-connect-menu"
+readonly oauth_helper="${swift_bin}/nju-connect-atrust-oauth-helper"
 
 codesign --force --sign "$identity" --timestamp=none \
-  --identifier com.soundadam.soundconnect.cli bin/soundconnect
+  --identifier com.soundadam.nju-connect.cli bin/nju-connect
 codesign --force --sign "$identity" --timestamp=none \
-  --identifier com.soundadam.soundconnect.oauth-helper "$oauth_helper"
+  --identifier com.soundadam.nju-connect.oauth-helper "$oauth_helper"
 codesign --force --sign "$identity" --timestamp=none \
-  --identifier com.soundadam.soundconnect.menu "$menu_binary"
+  --identifier com.soundadam.nju-connect.menu "$menu_binary"
 
-for artifact in bin/soundconnect "$oauth_helper" "$menu_binary"; do
+for artifact in bin/nju-connect "$oauth_helper" "$menu_binary"; do
   # Remove only quarantine inherited by copied development artifacts. Keep
   # provenance and unrelated extended attributes intact.
   xattr -d com.apple.quarantine "$artifact" 2>/dev/null || true
@@ -43,14 +43,14 @@ for artifact in bin/soundconnect "$oauth_helper" "$menu_binary"; do
 done
 
 if [[ "$mode" == "--build-only" ]]; then
-  print -- "signed_cli=${repo_root}/bin/soundconnect"
+  print -- "signed_cli=${repo_root}/bin/nju-connect"
   print -- "signed_menu=${menu_binary}"
   print -- "signed_oauth_helper=${oauth_helper}"
   exit 0
 fi
 
 exec env \
-  SOUNDCONNECT_HELPER="${repo_root}/bin/soundconnect" \
-  SOUNDCONNECT_ATRUST_OAUTH_HELPER="$oauth_helper" \
-  SOUNDCONNECT_UI_LANGUAGE="${SOUNDCONNECT_UI_LANGUAGE:-en}" \
+  NJU_CONNECT_HELPER="${repo_root}/bin/nju-connect" \
+  NJU_CONNECT_ATRUST_OAUTH_HELPER="$oauth_helper" \
+  NJU_CONNECT_UI_LANGUAGE="${NJU_CONNECT_UI_LANGUAGE:-en}" \
   "$menu_binary"

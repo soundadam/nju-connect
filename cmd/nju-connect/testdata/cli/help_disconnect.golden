@@ -1,0 +1,5 @@
+$ nju-connect disconnect -h
+exit: 0
+--- stdout
+Usage of nju-connect disconnect:
+--- stderr

@@ -18,15 +18,15 @@ if command -v brew >/dev/null 2>&1; then
   fi
 fi
 readonly local_tap_root="${2:-${default_tap_root}}"
-readonly archive="${repo_root}/dist/${version}/soundconnect-${version}-macos-universal.zip"
-readonly cask_output="${local_tap_root}/Casks/soundconnect.rb"
+readonly archive="${repo_root}/dist/${version}/nju-connect-${version}-macos-universal.zip"
+readonly cask_output="${local_tap_root}/Casks/nju-connect.rb"
 
 [[ -d "${local_tap_root}/.git" ]] || {
   print -u2 -- "local tap is not a Git repository: ${local_tap_root}"
   exit 66
 }
 
-SOUNDCONNECT_ALLOW_DIRTY=1 "${repo_root}/scripts/package_macos_release.zsh" "$version"
+NJU_CONNECT_ALLOW_DIRTY=1 "${repo_root}/scripts/package_macos_release.zsh" "$version"
 readonly sha256="$(shasum -a 256 "$archive" | awk '{print $1}')"
 "${repo_root}/scripts/render_homebrew_cask.zsh" \
   "$version" "$sha256" "$cask_output" "file://${archive}"

@@ -36,8 +36,8 @@ func ValidateBackend(name string) error {
 }
 
 // Open returns the store for location. Keyring stores also move secrets
-// left behind by earlier releases: the pre-keyring macOS Keychain item and
-// the owner-only file. The move happens once, the first time the secret is
+// left behind by earlier releases: the keyring items of releases named
+// soundconnect, the pre-keyring macOS Keychain item, and the owner-only file. The move happens once, the first time the secret is
 // read, so a cleared secret is never resurrected.
 func Open(location Location) (Clearable, error) {
 	if err := ValidateBackend(location.Backend); err != nil {
@@ -51,6 +51,13 @@ func Open(location Location) (Clearable, error) {
 		return nil, err
 	}
 	store := &migratingStore{primary: primary}
+	if service, ok := legacyKeyringService(location.Service); ok {
+		renamed, err := NewKeyringStore(service, location.Account)
+		if err != nil {
+			return nil, err
+		}
+		store.legacy = append(store.legacy, renamed)
+	}
 	if legacy := legacyKeychainStore(location); legacy != nil {
 		store.legacy = append(store.legacy, legacy)
 	}

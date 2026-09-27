@@ -1,0 +1,12 @@
+$ nju-connect auth-info
+exit: 0
+--- stdout
+backend: atrust
+auth_name: Unified identity
+auth_type: auth/httpsOauth2
+login_domain: oauth-domain
+backend: atrust
+auth_name: Account password
+auth_type: auth/psw
+login_domain: ldap-domain
+--- stderr

@@ -12,7 +12,7 @@ import (
 
 	"golang.org/x/term"
 
-	"github.com/soundadam/soundconnect/internal/credential"
+	"github.com/soundadam/nju-connect/internal/credential"
 )
 
 // Interaction is every question a service can ask the user. The methods are

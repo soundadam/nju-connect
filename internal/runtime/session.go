@@ -10,9 +10,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/soundadam/soundconnect/internal/core"
-	"github.com/soundadam/soundconnect/internal/sessiontoken"
-	"github.com/soundadam/soundconnect/internal/traffic"
+	"github.com/soundadam/nju-connect/internal/core"
+	"github.com/soundadam/nju-connect/internal/sessiontoken"
+	"github.com/soundadam/nju-connect/internal/traffic"
 )
 
 // NativeDataStreamOpenFunc opens an authenticated gateway protocol stream. The

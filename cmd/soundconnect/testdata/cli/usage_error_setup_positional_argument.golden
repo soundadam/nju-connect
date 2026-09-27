@@ -1,5 +1,0 @@
-$ soundconnect setup extra
-exit: 2
---- stdout
---- stderr
-setup accepts no positional arguments

@@ -1,0 +1,5 @@
+$ nju-connect account rename
+exit: 2
+--- stdout
+--- stderr
+unknown account command "rename"; run "nju-connect account -h"

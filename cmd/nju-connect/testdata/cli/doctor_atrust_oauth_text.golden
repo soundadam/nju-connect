@@ -1,0 +1,9 @@
+$ nju-connect doctor
+exit: 0
+--- stdout
+ready: true
+configuration: ready
+credential_store: not_required
+upstream_proxy: not_configured
+next: nju-connect connect
+--- stderr

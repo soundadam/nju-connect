@@ -1,0 +1,5 @@
+$ nju-connect speedtest component status extra
+exit: 2
+--- stdout
+--- stderr
+speedtest component status accepts no positional arguments

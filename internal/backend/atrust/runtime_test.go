@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/soundadam/soundconnect/internal/backend"
+	"github.com/soundadam/nju-connect/internal/backend"
 )
 
 type fakeCore struct {

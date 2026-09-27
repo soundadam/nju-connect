@@ -1,0 +1,5 @@
+$ nju-connect speedtest component install --json
+exit: 2
+--- stdout
+--- stderr
+speedtest component install streams progress; use --json-events instead of --json

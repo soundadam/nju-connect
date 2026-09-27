@@ -3,7 +3,7 @@ import Darwin
 import Foundation
 import WebKit
 
-private let soundConnectOAuthStoreIdentifier = UUID(uuidString: "B7D4B8D9-63AD-4A75-9D17-8A4D0F4A2D6B")!
+private let njuConnectOAuthStoreIdentifier = UUID(uuidString: "B7D4B8D9-63AD-4A75-9D17-8A4D0F4A2D6B")!
 
 private struct Options {
     let clearData: Bool
@@ -55,7 +55,7 @@ private final class OAuthWindowController: NSObject, NSApplicationDelegate, NSWi
         // retaining the NJU SSO cookies between aTrust reconnects. The Go
         // side still stores the aTrust client data separately in Keychain.
         if #available(macOS 14.0, *) {
-            configuration.websiteDataStore = WKWebsiteDataStore(forIdentifier: soundConnectOAuthStoreIdentifier)
+            configuration.websiteDataStore = WKWebsiteDataStore(forIdentifier: njuConnectOAuthStoreIdentifier)
         } else {
             // macOS 13 has no identifier-based store; its default WebKit
             // profile is still persistent and remains scoped to this app.
@@ -78,7 +78,7 @@ private final class OAuthWindowController: NSObject, NSApplicationDelegate, NSWi
             backing: .buffered,
             defer: false
         )
-        window.title = "SoundConnect aTrust Login"
+        window.title = "nju-connect aTrust Login"
         window.contentView = webView
         window.delegate = self
         window.center()

@@ -1,6 +1,6 @@
 # Shared configuration
 GO ?= go
-BINARY := bin/soundconnect
+BINARY := bin/nju-connect
 PLATFORMS := linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64 windows/arm64
 BENCHTIME ?= 250ms
 BENCHCOUNT ?= 5

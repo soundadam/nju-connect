@@ -1,11 +1,11 @@
-// Package core owns soundconnect's connection state transitions and decisions.
+// Package core owns nju-connect's connection state transitions and decisions.
 package core
 
 import (
 	"errors"
 	"fmt"
 
-	"github.com/soundadam/soundconnect/internal/backend/easyconnect/auth"
+	"github.com/soundadam/nju-connect/internal/backend/easyconnect/auth"
 )
 
 type DataplaneMode string
