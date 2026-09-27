@@ -95,13 +95,13 @@ struct VPNContextRows: View {
 
     private var setupRow: some View {
         VStack(alignment: .leading, spacing: 7) {
-            TextField(uiText("NJU account", "南大账号"), text: $schoolAccount)
+            TextField("NJU account", text: $schoolAccount)
                 .textFieldStyle(.roundedBorder)
                 .controlSize(.small)
                 .focused($setupFieldFocused, equals: .schoolAccount)
                 .onSubmit { setupFieldFocused = .vpnPassword }
 
-            SecureField(uiText("NJU password", "南大密码"), text: $vpnPassword)
+            SecureField("NJU password", text: $vpnPassword)
                 .textFieldStyle(.roundedBorder)
                 .controlSize(.small)
                 .focused($setupFieldFocused, equals: .vpnPassword)
@@ -118,26 +118,23 @@ struct VPNContextRows: View {
                 Spacer(minLength: 4)
 
                 if model.canForgetSession {
-                    Button(uiText("Forget session", "清除会话")) {
+                    Button("Forget session") {
                         model.forgetSavedSession()
                     }
                     .controlSize(.small)
                     .disabled(model.isPerformingAction)
-                    .help(uiText(
-                        "Forget the saved aTrust session and browser sign-in; the password is kept.",
-                        "清除保存的 aTrust 会话与浏览器登录状态，保留密码"
-                    ))
+                    .help("Forget the saved aTrust session and browser sign-in; the password is kept.")
                 }
 
                 if model.isReconfiguringCredentials {
-                    Button(uiText("Cancel", "取消")) {
+                    Button("Cancel") {
                         model.cancelCredentialRecovery()
                     }
                     .controlSize(.small)
                     .disabled(model.isPerformingAction)
                 }
 
-                Button(uiText("Save & Connect", "保存并连接"), action: submitSetup)
+                Button("Save & Connect", action: submitSetup)
                     .buttonStyle(.borderedProminent)
                     .keyboardShortcut(.defaultAction)
                     .controlSize(.small)
@@ -154,10 +151,7 @@ struct VPNContextRows: View {
             setupFieldFocused = .schoolAccount
         }
         .help(
-            uiText(
-                "The account is saved in nju-connect's settings; the long-lived password stays in Keychain and is shared by both backends. Verification codes are never saved.",
-                "账号保存在 nju-connect 设置中，长期密码存储在钥匙串，两个后端共用；短信或动态口令不会保存"
-            )
+            "The account is saved in nju-connect's settings; the long-lived password stays in Keychain and is shared by both backends. Verification codes are never saved."
         )
     }
 
@@ -169,7 +163,7 @@ struct VPNContextRows: View {
                 .focused($codeFieldFocused)
                 .onSubmit(submitCode)
 
-            Button(uiText("Submit", "提交"), action: submitCode)
+            Button("Submit", action: submitCode)
                 .buttonStyle(.borderedProminent)
                 .controlSize(.small)
                 .disabled(oneTimeCode.isEmpty || model.isPerformingAction)
@@ -180,10 +174,7 @@ struct VPNContextRows: View {
             codeFieldFocused = true
         }
         .help(
-            uiText(
-                "The code is sent once through a private local socket and is never saved.",
-                "验证码仅经本机私有 socket 发送一次，不会保存"
-            )
+            "The code is sent once through a private local socket and is never saved."
         )
     }
 
@@ -233,12 +224,12 @@ struct VPNContextRows: View {
     private func submitSetup() {
         let account = schoolAccount.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !account.isEmpty, !account.contains("\n"), !account.contains("\r") else {
-            setupValidationMessage = uiText("Enter a valid school account.", "请输入有效的学校账号")
+            setupValidationMessage = "Enter a valid school account."
             setupFieldFocused = .schoolAccount
             return
         }
         guard !vpnPassword.isEmpty else {
-            setupValidationMessage = uiText("Enter the VPN password.", "请输入 VPN 长期密码")
+            setupValidationMessage = "Enter the VPN password."
             setupFieldFocused = .vpnPassword
             return
         }

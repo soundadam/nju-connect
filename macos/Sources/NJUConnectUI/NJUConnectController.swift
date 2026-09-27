@@ -89,10 +89,7 @@ protocol NJUConnectControlling: AnyObject {
     func forgetSession(completion: @escaping NJUConnectActionCompletion)
 }
 
-let missingHelperMessage = uiText(
-    "The bundled nju-connect CLI is missing. Reinstall nju-connect to restore it.",
-    "找不到内置 nju-connect CLI，请重新安装应用以修复"
-)
+let missingHelperMessage = "The bundled nju-connect CLI is missing. Reinstall nju-connect to restore it."
 
 // CLI payloads are internal so tests can decode the shared fixtures in
 // testdata/contract, which the Go tests regenerate from real CLI output.

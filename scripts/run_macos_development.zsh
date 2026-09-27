@@ -52,5 +52,4 @@ fi
 exec env \
   NJU_CONNECT_HELPER="${repo_root}/bin/nju-connect" \
   NJU_CONNECT_ATRUST_OAUTH_HELPER="$oauth_helper" \
-  NJU_CONNECT_UI_LANGUAGE="${NJU_CONNECT_UI_LANGUAGE:-en}" \
   "$menu_binary"

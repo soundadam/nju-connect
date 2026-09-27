@@ -36,7 +36,7 @@ struct CampusSpeedSummaryRow: View {
                     .font(.system(size: 10, weight: .semibold))
                     .foregroundStyle(.tertiary)
                     .frame(width: 14)
-                    .accessibilityLabel(uiText("Open speed inspector", "打开测速详情"))
+                    .accessibilityLabel("Open speed inspector")
             }
             .padding(.horizontal, 12)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -78,20 +78,20 @@ func campusSpeedSummary(for speedTest: SpeedTestController) -> CampusSpeedSummar
         let label: String
         switch speedTest.phase {
         case .downloading:
-            label = uiText("Installing", "安装中")
+            label = "Installing"
         case .probing:
-            label = uiText("Probing", "探测中")
+            label = "Probing"
         case .measuring:
             switch speedTest.activeMeasurementPhase {
             case "download":
-                label = uiText("Downloading", "下载中")
+                label = "Downloading"
             case "upload":
-                label = uiText("Uploading", "上传中")
+                label = "Uploading"
             default:
-                label = uiText("Measuring", "测量中")
+                label = "Measuring"
             }
         default:
-            label = uiText("Working", "处理中")
+            label = "Working"
         }
         return CampusSpeedSummary(
             label: label,
@@ -104,16 +104,16 @@ func campusSpeedSummary(for speedTest: SpeedTestController) -> CampusSpeedSummar
     let label: String
     switch speedTest.phase {
     case .componentRequired:
-        label = uiText("Setup needed", "需要设置")
+        label = "Setup needed"
     case .connectionRequired:
-        label = uiText("VPN needed", "需要 VPN")
+        label = "VPN needed"
     case .failed:
-        label = uiText("Unavailable", "不可用")
+        label = "Unavailable"
     default:
         label = campusSpeedResultText(for: speedTest)
             ?? (speedTest.latencyMs.map {
-                String(format: uiText("Ping %.0f ms", "延迟 %.0f ms"), $0)
-            } ?? uiText("Not tested", "尚未测速"))
+                String(format: "Ping %.0f ms", $0)
+            } ?? "Not tested")
     }
 
     switch speedTest.reachabilityState {
@@ -162,12 +162,12 @@ func campusSpeedHelp(for speedTest: SpeedTestController) -> String {
     if let route = speedTest.route {
         details.append(
             route == "direct"
-                ? uiText("Direct campus route", "校园网直连")
-                : uiText("Via nju-connect", "经 nju-connect")
+                ? "Direct campus route"
+                : "Via nju-connect"
         )
     }
     if let latencyMs = speedTest.latencyMs {
-        details.append(String(format: uiText("Latency %.0f ms", "延迟 %.0f ms"), latencyMs))
+        details.append(String(format: "Latency %.0f ms", latencyMs))
     }
     return details.joined(separator: " · ")
 }

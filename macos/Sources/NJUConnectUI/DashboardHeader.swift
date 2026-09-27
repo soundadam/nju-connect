@@ -29,10 +29,7 @@ struct DashboardHeader: View {
                 Text("SOCKS5 :\(model.socksPort)")
                     .font(.system(size: 11, design: .monospaced))
                     .foregroundStyle(.secondary)
-                    .help(uiText(
-                        "Local SOCKS5 proxy \(model.socksEndpoint) → \(model.gatewayServer)",
-                        "本机 SOCKS5 代理 \(model.socksEndpoint) → \(model.gatewayServer)"
-                    ))
+                    .help("Local SOCKS5 proxy \(model.socksEndpoint) → \(model.gatewayServer)")
             }
         }
         .padding(.horizontal, 12)

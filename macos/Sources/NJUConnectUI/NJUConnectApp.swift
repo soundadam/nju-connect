@@ -53,20 +53,20 @@ private struct DesignPreviewView: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text("nju-connect macOS UI")
                     .font(.title2.weight(.semibold))
-                Text(uiText("Review the menu-bar layout with simulated VPN states.", "使用模拟 VPN 状态检查菜单栏布局"))
+                Text("Review the menu-bar layout with simulated VPN states.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
             }
 
             HStack(spacing: 12) {
-                Picker(uiText("State", "状态"), selection: $model.scenario) {
+                Picker("State", selection: $model.scenario) {
                     ForEach(DesignScenario.allCases) { scenario in
                         Text(scenario.title).tag(scenario)
                     }
                 }
                 .frame(width: 170)
 
-                Picker(uiText("Speed test", "测速"), selection: $speedPreviewState) {
+                Picker("Speed test", selection: $speedPreviewState) {
                     ForEach(CampusSpeedTestPreviewState.allCases) { state in
                         Text(state.title).tag(state)
                     }

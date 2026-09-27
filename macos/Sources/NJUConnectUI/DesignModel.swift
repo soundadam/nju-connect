@@ -16,15 +16,15 @@ enum DesignScenario: String, CaseIterable, Identifiable, Hashable {
 
     var title: String {
         switch self {
-        case .setup: return uiText("Setup", "首次设置")
-        case .stopped: return uiText("Disconnected", "未连接")
-        case .connecting: return uiText("Connecting", "连接中")
-        case .waitingMFA: return uiText("Verification", "等待验证码")
-        case .connected: return uiText("Connected", "已连接")
-        case .reconnecting: return uiText("Reconnecting", "重连中")
-        case .credentialRejected: return uiText("Authentication failed", "认证失败")
-        case .credentialAccessCancelled: return uiText("Keychain cancelled", "钥匙串访问已取消")
-        case .transportFailed: return uiText("Transport failed", "传输失败")
+        case .setup: return "Setup"
+        case .stopped: return "Disconnected"
+        case .connecting: return "Connecting"
+        case .waitingMFA: return "Verification"
+        case .connected: return "Connected"
+        case .reconnecting: return "Reconnecting"
+        case .credentialRejected: return "Authentication failed"
+        case .credentialAccessCancelled: return "Keychain cancelled"
+        case .transportFailed: return "Transport failed"
         }
     }
 }
@@ -157,52 +157,40 @@ final class DesignModel: ObservableObject {
 
     var statusTitle: String {
         if isReconfiguringCredentials {
-            return uiText("Reset credentials", "重置账号与密码")
+            return "Reset credentials"
         }
         switch scenario {
-        case .setup: return uiText("Setup required", "需要完成初始设置")
-        case .stopped: return uiText("Disconnected", "未连接")
-        case .connecting: return uiText("\(backend.title) · Connecting…", "\(backend.title) · 正在连接")
-        case .waitingMFA: return uiText("Waiting for verification code", "等待短信验证码")
-        case .connected: return uiText("\(backend.title) · Connected", "\(backend.title) · 已连接")
-        case .reconnecting: return uiText("\(backend.title) · Reconnecting…", "\(backend.title) · 正在重连")
-        case .credentialRejected: return uiText("Authentication failed", "认证失败")
-        case .credentialAccessCancelled: return uiText("Keychain access cancelled", "钥匙串访问已取消")
-        case .transportFailed: return uiText("VPN transport failed", "VPN 传输失败")
+        case .setup: return "Setup required"
+        case .stopped: return "Disconnected"
+        case .connecting: return "\(backend.title) · Connecting…"
+        case .waitingMFA: return "Waiting for verification code"
+        case .connected: return "\(backend.title) · Connected"
+        case .reconnecting: return "\(backend.title) · Reconnecting…"
+        case .credentialRejected: return "Authentication failed"
+        case .credentialAccessCancelled: return "Keychain access cancelled"
+        case .transportFailed: return "VPN transport failed"
         }
     }
 
     var statusDetail: String {
         if isReconfiguringCredentials {
-            return uiText("Saving will start a new sign-in.", "更新账号与长期密码后，会显式重新发起登录")
+            return "Saving will start a new sign-in."
         }
         switch scenario {
         case .setup:
-            return uiText(
-                "Enter the NJU account and password shared by both backends. A verification code may be requested next.",
-                "请输入两个后端共用的南大账号和密码；短信或动态口令将在网关随后要求时单独输入"
-            )
+            return "Enter the NJU account and password shared by both backends. A verification code may be requested next."
         case .stopped, .connected, .credentialRejected:
             return ""
         case .connecting:
-            return uiText(
-                "Opening the \(backend.title) data stream and local proxy.",
-                "正在打开 \(backend.title) 数据流和本机代理"
-            )
+            return "Opening the \(backend.title) data stream and local proxy."
         case .waitingMFA:
-            return uiText("The verification code is not saved or logged.", "验证码不会被保存或写入日志")
+            return "The verification code is not saved or logged."
         case .reconnecting:
-            return uiText(
-                "Restoring the VPN session. Sign-in will restart if recovery takes over two minutes.",
-                "后台服务仍在运行，正在恢复原 VPN 会话；连续两分钟未恢复会要求重新登录"
-            )
+            return "Restoring the VPN session. Sign-in will restart if recovery takes over two minutes."
         case .credentialAccessCancelled:
-            return uiText(
-                "Retry, then choose Allow when macOS asks to access the saved VPN password.",
-                "请点击重试，并在 macOS 请求读取已保存 VPN 密码时选择“允许”"
-            )
+            return "Retry, then choose Allow when macOS asks to access the saved VPN password."
         case .transportFailed:
-            return uiText("The proxy or VPN transport failed. Fix the issue and retry.", "账号、前置代理或 VPN 传输未能完成；修复后点击重试")
+            return "The proxy or VPN transport failed. Fix the issue and retry."
         }
     }
 
@@ -215,12 +203,12 @@ final class DesignModel: ObservableObject {
     }
 
     var authenticationPlaceholder: String {
-        uiText("Verification code", "短信验证码")
+        "Verification code"
     }
 
     var serviceControlNotice: String? {
         guard scenario == .stopped, !isReconfiguringCredentials else { return nil }
-        return uiText("Choose EasyConnect or aTrust to connect.", "选择 EasyConnect 或 aTrust 即可连接")
+        return "Choose EasyConnect or aTrust to connect."
     }
 
     var canControlService: Bool {
@@ -275,17 +263,17 @@ final class DesignModel: ObservableObject {
     }
 
     var retryTitle: String {
-        scenario == .credentialRejected ? uiText("Reset", "重置") : uiText("Retry", "重试")
+        scenario == .credentialRejected ? "Reset" : "Retry"
     }
 
     var retryDetail: String {
         switch scenario {
         case .credentialRejected:
-            return uiText("Gateway rejected the account or password.", "VPN 网关未接受账号或长期密码")
+            return "Gateway rejected the account or password."
         case .credentialAccessCancelled:
-            return uiText("Allow Keychain access on the next attempt.", "下次重试时请允许访问钥匙串")
+            return "Allow Keychain access on the next attempt."
         default:
-            return uiText("Reconnect after fixing the issue.", "问题修复后可重新连接")
+            return "Reconnect after fixing the issue."
         }
     }
 
@@ -308,7 +296,7 @@ final class DesignModel: ObservableObject {
         pendingBackendStart = true
         isPerformingAction = true
         scenario = .connecting
-        actionMessage = uiText("Switching to \(selection.title)…", "正在切换到 \(selection.title)")
+        actionMessage = "Switching to \(selection.title)…"
         controller.disconnect { [weak self] result in
             guard let self else { return }
             guard self.pendingBackendStart else { return }
@@ -318,7 +306,7 @@ final class DesignModel: ObservableObject {
                 self.clearRuntimeTraffic()
                 self.isServiceEnabled = true
                 self.scenario = .connecting
-                self.actionMessage = uiText("Starting \(selection.title)…", "正在启动 \(selection.title)")
+                self.actionMessage = "Starting \(selection.title)…"
                 self.startConnection(using: controller)
             case .failure(let error):
                 self.isPerformingAction = false
@@ -336,17 +324,17 @@ final class DesignModel: ObservableObject {
         guard let controller else {
             scenario = enabled ? .connecting : .stopped
             actionMessage = enabled
-                ? uiText("Starting service…", "已请求启动服务")
-                : uiText("Stopping service…", "已请求停止服务")
+                ? "Starting service…"
+                : "Stopping service…"
             return
         }
         isPerformingAction = true
         if enabled {
             scenario = .connecting
-            actionMessage = uiText("Starting service…", "正在启动服务")
+            actionMessage = "Starting service…"
             startConnection(using: controller)
         } else {
-            actionMessage = uiText("Stopping service…", "正在停止服务")
+            actionMessage = "Stopping service…"
             controller.disconnect { [weak self] result in
                 guard let self else { return }
                 self.isPerformingAction = false
@@ -366,11 +354,11 @@ final class DesignModel: ObservableObject {
     func submitAuthenticationCode(_ code: String) {
         guard !code.isEmpty, canSubmitAuthenticationCode else { return }
         guard controller?.submitVerificationCode(code) ?? true else {
-            actionMessage = uiText("No active verification request.", "当前没有等待中的验证码请求")
+            actionMessage = "No active verification request."
             return
         }
         scenario = .connecting
-        actionMessage = uiText("Code submitted. Waiting for the gateway.", "验证码已提交，等待网关确认")
+        actionMessage = "Code submitted. Waiting for the gateway."
     }
 
     func completeSetup(schoolAccount: String, vpnPassword: String) {
@@ -379,13 +367,13 @@ final class DesignModel: ObservableObject {
             isReconfiguringCredentials = false
             isServiceEnabled = true
             scenario = .connecting
-            actionMessage = uiText("Credentials saved. Starting connection.", "账号与密码已保存，正在启动连接")
+            actionMessage = "Credentials saved. Starting connection."
             return
         }
         isPerformingAction = true
         isReconfiguringCredentials = false
         scenario = .connecting
-        actionMessage = uiText("Saving credentials…", "正在保存账号与密码")
+        actionMessage = "Saving credentials…"
         controller.saveConfiguration(
             backend: backend,
             server: gatewayServer,
@@ -396,7 +384,7 @@ final class DesignModel: ObservableObject {
             switch result {
             case .success:
                 self.isServiceEnabled = true
-                self.actionMessage = uiText("Credentials saved. Starting connection.", "账号与密码已保存，正在启动连接")
+                self.actionMessage = "Credentials saved. Starting connection."
                 self.startConnection(using: controller)
             case .failure(let error):
                 self.isPerformingAction = false
@@ -427,10 +415,7 @@ final class DesignModel: ObservableObject {
             self.isPerformingAction = false
             switch result {
             case .success:
-                self.actionMessage = uiText(
-                    "Saved aTrust session forgotten. The next connection signs in again.",
-                    "已清除保存的 aTrust 会话，下次连接将重新登录"
-                )
+                self.actionMessage = "Saved aTrust session forgotten. The next connection signs in again."
             case .failure(let error):
                 self.actionMessage = error.localizedDescription
             }
@@ -446,7 +431,7 @@ final class DesignModel: ObservableObject {
     func retry() {
         scenario = .connecting
         isServiceEnabled = true
-        actionMessage = uiText("Reconnecting…", "已请求重新连接")
+        actionMessage = "Reconnecting…"
         if let controller {
             isPerformingAction = true
             startConnection(using: controller)
@@ -521,23 +506,20 @@ final class DesignModel: ObservableObject {
             verificationRequested: { [weak self] in
                 guard let self else { return }
                 self.scenario = .waitingMFA
-                self.actionMessage = uiText("Enter the verification code from the gateway.", "请输入网关发送的验证码")
+                self.actionMessage = "Enter the verification code from the gateway."
             },
             completion: { [weak self] result in
                 guard let self else { return }
                 self.isPerformingAction = false
                 switch result {
                 case .success:
-                    self.actionMessage = uiText("Connected", "已连接")
+                    self.actionMessage = "Connected"
                     self.refreshRuntimeStatus()
                 case .failure(let error):
                     self.isServiceEnabled = false
                     if error.isKeychainAccessCancellation {
                         self.scenario = .credentialAccessCancelled
-                        self.actionMessage = uiText(
-                            "Keychain access was cancelled. Retry and choose Allow.",
-                            "钥匙串访问已取消；请重试并选择“允许”"
-                        )
+                        self.actionMessage = "Keychain access was cancelled. Retry and choose Allow."
                         return
                     }
                     self.scenario = Self.isCredentialFailure(error.localizedDescription)

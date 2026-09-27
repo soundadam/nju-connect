@@ -47,16 +47,13 @@ stored.
 ## Develop
 
 ```sh
-make macos-preview                     # panel in a window with simulated states
-make macos-preview UI_LANGUAGE=zh-Hans # same, Simplified Chinese copy
-make macos-dev                         # signed build against the fresh CLI
+make macos-preview   # panel in a window with simulated states
+make macos-dev       # signed build against the fresh CLI
 swift test --package-path macos
 ```
 
 The preview window's State and Speed test menus switch between every panel
-state without a VPN. English is the default; `uiText(_:_:)` keeps each English
-string next to its Chinese one, and `NJU_CONNECT_UI_LANGUAGE=zh-Hans` selects
-Chinese at run time.
+state without a VPN. The UI is English only.
 
 ## Packaging
 

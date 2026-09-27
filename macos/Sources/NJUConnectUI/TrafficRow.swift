@@ -6,10 +6,10 @@ struct TrafficRow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack {
-                Text(uiText("Live traffic", "实时流量"))
+                Text("Live traffic")
                     .foregroundStyle(.primary)
                 Spacer(minLength: 0)
-                Text(uiText("Last 30 sec", "最近 30 秒"))
+                Text("Last 30 sec")
                     .foregroundStyle(.tertiary)
             }
 
@@ -29,15 +29,15 @@ struct TrafficRow: View {
 
             Grid(alignment: .leading, horizontalSpacing: 10, verticalSpacing: 3) {
                 GridRow {
-                    stat(uiText("Download", "下载"), formatRate(model.rates.downloadBytesPerSecond), tint: .brand)
-                    stat(uiText("Upload", "上传"), formatRate(model.rates.uploadBytesPerSecond), tint: .secondary)
+                    stat("Download", formatRate(model.rates.downloadBytesPerSecond), tint: .brand)
+                    stat("Upload", formatRate(model.rates.uploadBytesPerSecond), tint: .secondary)
                 }
                 GridRow {
                     stat(
-                        uiText("Session", "本次"),
+                        "Session",
                         "↓ \(formatBytes(model.downloadBytes))  ↑ \(formatBytes(model.uploadBytes))"
                     )
-                    stat(uiText("Conn.", "连接"), uiText("\(model.activeConnections) active", "\(model.activeConnections) 个"))
+                    stat("Conn.", "\(model.activeConnections) active")
                 }
             }
         }

@@ -11,8 +11,8 @@ struct BackendSwitch: View {
     }
 
     var body: some View {
-        Picker(uiText("VPN", "VPN"), selection: selection) {
-            Text(uiText("Off", "关闭")).tag(Selection.off)
+        Picker("VPN", selection: selection) {
+            Text("Off").tag(Selection.off)
             ForEach(NJUConnectBackend.allCases) { backend in
                 Text(backend.title).tag(Selection.backend(backend))
             }
@@ -22,8 +22,8 @@ struct BackendSwitch: View {
         .disabled(model.isPerformingAction || !model.canControlService)
         .padding(.horizontal, 12)
         .padding(.bottom, 10)
-        .accessibilityLabel(uiText("VPN backend and service", "VPN 后端与服务开关"))
-        .help(uiText("Choose Off, EasyConnect, or aTrust.", "选择关闭、EasyConnect 或 aTrust"))
+        .accessibilityLabel("VPN backend and service")
+        .help("Choose Off, EasyConnect, or aTrust.")
     }
 
     private var selection: Binding<Selection> {
