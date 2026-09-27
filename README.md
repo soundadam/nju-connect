@@ -1,6 +1,44 @@
 # nju-connect
 
-nju-connect is a native command-line client for secure campus connectivity.
+南京大学校园 VPN 的原生客户端：一个同时支持 EasyConnect 与 aTrust 的命令行程序，
+以及 macOS 菜单栏应用。连接后在本机提供 SOCKS5 代理（默认 `127.0.0.1:1081`），
+不改系统路由；密码保存在系统钥匙串里。
+
+项目主页：<https://soundadam.github.io/nju-connect/> ·
+下载：[Releases](https://github.com/soundadam/nju-connect/releases)
+
+## 安装
+
+macOS（包含菜单栏应用和 `nju-connect` 命令）：
+
+```sh
+brew install --cask soundadam/tap/nju-connect
+```
+
+应用未经 Apple 公证（ad-hoc 签名），第一次打开会被 Gatekeeper 拦截。确认信任这份构建后，
+在「系统设置 › 隐私与安全性」里点「仍要打开」，或运行：
+
+```sh
+xattr -dr com.apple.quarantine /Applications/nju-connect.app
+```
+
+Linux / Windows 从源码构建（Go 1.25+）：
+
+```sh
+go build -o nju-connect ./cmd/nju-connect
+```
+
+然后：
+
+```sh
+nju-connect setup     # 引导式设置：后端、网关、账号、密码
+nju-connect connect   # 连接；不带命令等同于 connect
+```
+
+aTrust 协议部分使用了 [mythologyli/zju-connect](https://github.com/mythologyli/zju-connect)
+的客户端核心。本项目以 AGPL-3.0 发布，与南京大学、深信服均无隶属关系。
+
+The rest of this README is developer documentation, in English.
 
 ## CLI setup and migration
 
