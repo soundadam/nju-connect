@@ -10,7 +10,7 @@ import (
 	"net/url"
 	"testing"
 
-	"github.com/soundadam/soundconnect/internal/sessiontoken"
+	"github.com/soundadam/nju-connect/internal/sessiontoken"
 )
 
 func TestTakeSessionRequiresAcceptedAuthentication(t *testing.T) {

@@ -14,7 +14,7 @@ import (
 	"github.com/charmbracelet/huh"
 	"github.com/charmbracelet/x/ansi"
 
-	"github.com/soundadam/soundconnect/internal/app"
+	"github.com/soundadam/nju-connect/internal/app"
 )
 
 // keys feeds scripted key presses to a form. Each press is a separate write

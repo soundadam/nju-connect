@@ -38,7 +38,7 @@ func (store *memoryStore) Set(secret []byte) error {
 }
 
 func TestMigrateFileImportsMissingDestinationAndPreservesSource(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "soundconnect", "credential")
+	path := filepath.Join(t.TempDir(), "nju-connect", "credential")
 	source, err := NewFileStore(path, true)
 	if err != nil {
 		t.Fatal(err)

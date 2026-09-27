@@ -1,6 +1,0 @@
-$ soundconnect account show -h
-exit: 0
---- stdout
-Usage of soundconnect account show:
-      --json   print JSON
---- stderr

@@ -12,8 +12,8 @@ import (
 	"strings"
 
 	"github.com/pelletier/go-toml/v2"
-	"github.com/soundadam/soundconnect/internal/backend"
-	"github.com/soundadam/soundconnect/internal/credential"
+	"github.com/soundadam/nju-connect/internal/backend"
+	"github.com/soundadam/nju-connect/internal/credential"
 )
 
 const (
@@ -154,7 +154,7 @@ func Replace(path string, configured Config) error {
 		return fmt.Errorf("inspect config: %w", inspectErr)
 	}
 
-	temporary, err := os.CreateTemp(directory, ".soundconnect-config-*")
+	temporary, err := os.CreateTemp(directory, ".nju-connect-config-*")
 	if err != nil {
 		return fmt.Errorf("create temporary config: %w", err)
 	}

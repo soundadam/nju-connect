@@ -4,10 +4,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/soundadam/soundconnect/internal/backend/easyconnect/session"
-	"github.com/soundadam/soundconnect/internal/runtime"
-	"github.com/soundadam/soundconnect/internal/runtimecontrol"
-	"github.com/soundadam/soundconnect/internal/traffic"
+	"github.com/soundadam/nju-connect/internal/backend/easyconnect/session"
+	"github.com/soundadam/nju-connect/internal/runtime"
+	"github.com/soundadam/nju-connect/internal/runtimecontrol"
+	"github.com/soundadam/nju-connect/internal/traffic"
 )
 
 // RuntimeStatusTracker keeps the snapshot `status` reports for a running

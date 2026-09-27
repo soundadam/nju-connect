@@ -11,7 +11,7 @@ import (
 type Server struct{}
 
 func Path(string) string {
-	return filepath.Join(os.TempDir(), "soundconnect-runtime", "runtime.sock")
+	return filepath.Join(os.TempDir(), "nju-connect-runtime", "runtime.sock")
 }
 
 func Serve(string, func() Snapshot) (*Server, error) {

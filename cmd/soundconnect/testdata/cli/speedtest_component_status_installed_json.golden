@@ -1,5 +1,0 @@
-$ soundconnect speedtest component status --json
-exit: 0
---- stdout
-{"installed":true,"version":"test","helper_version":"v1.0.13-campus.1","architecture":"$ARCH","path":"$CONFIG_DIR/components/campus-speed/test/$ARCH/librespeed-cli","download_size":470,"download_ready":true,"install_source":"download"}
---- stderr

@@ -75,7 +75,7 @@ func TestFileStoreAtomicallyWrites0600AndReadsExactBytes(t *testing.T) {
 		}
 	}
 
-	leftovers, err := filepath.Glob(filepath.Join(filepath.Dir(path), ".soundconnect-credential-*"))
+	leftovers, err := filepath.Glob(filepath.Join(filepath.Dir(path), ".nju-connect-credential-*"))
 	if err != nil {
 		t.Fatalf("Glob() error = %v", err)
 	}

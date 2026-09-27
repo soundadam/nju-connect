@@ -1,0 +1,8 @@
+$ nju-connect status --bogus
+exit: 2
+--- stdout
+--- stderr
+unknown flag: --bogus
+Usage of nju-connect status:
+      --json    print JSON
+      --watch   stream JSON status once per second

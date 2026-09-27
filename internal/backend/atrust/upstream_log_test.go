@@ -10,7 +10,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/soundadam/soundconnect/internal/backend"
+	"github.com/soundadam/nju-connect/internal/backend"
 )
 
 type lockedBuffer struct {

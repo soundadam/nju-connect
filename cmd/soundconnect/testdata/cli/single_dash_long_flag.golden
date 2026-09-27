@@ -1,7 +1,0 @@
-$ soundconnect backends -json
-exit: 2
---- stdout
---- stderr
-unknown flag: -json (long flags take two dashes: --json)
-Usage of soundconnect backends:
-      --json   write machine-readable backend metadata

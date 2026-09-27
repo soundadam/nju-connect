@@ -1,0 +1,6 @@
+$ nju-connect speedtest bogus
+exit: 2
+--- stdout
+--- stderr
+unknown speedtest command "bogus"
+speedtest commands are campus (default), component, and last

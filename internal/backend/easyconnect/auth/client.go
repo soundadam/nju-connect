@@ -19,7 +19,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/soundadam/soundconnect/internal/dial"
+	"github.com/soundadam/nju-connect/internal/dial"
 )
 
 const maxResponseBytes = 1 << 20

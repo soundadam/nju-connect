@@ -1,0 +1,7 @@
+$ nju-connect migrate --from $LEGACY_ROOT
+exit: 0
+--- stdout
+configuration_migrated: true
+credential_migrated: true
+source_preserved: true
+--- stderr

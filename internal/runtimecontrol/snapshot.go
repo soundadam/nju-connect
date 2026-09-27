@@ -1,5 +1,5 @@
 // Package runtimecontrol is the private control channel of a running
-// soundconnect runtime: the owner-only Unix socket that serves the sanitized
+// nju-connect runtime: the owner-only Unix socket that serves the sanitized
 // status snapshot and accepts a disconnect request. Both the process that
 // runs the dataplane (connect, _native-runtime) and the commands that
 // observe or stop it (status, disconnect, configure) use it.
@@ -9,7 +9,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/soundadam/soundconnect/internal/runtime"
+	"github.com/soundadam/nju-connect/internal/runtime"
 )
 
 // SchemaVersion is the version of the status JSON written by `status --json`.

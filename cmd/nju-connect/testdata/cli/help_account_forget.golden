@@ -1,0 +1,7 @@
+$ nju-connect account forget -h
+exit: 0
+--- stdout
+Usage of nju-connect account forget:
+      --password   forget the saved VPN password
+      --session    forget the saved aTrust session and OAuth browser profile
+--- stderr

@@ -3,10 +3,10 @@
 .PHONY: build
 build:
 	mkdir -p $(dir $(BINARY))
-	$(GO) build -o $(BINARY) ./cmd/soundconnect
+	$(GO) build -o $(BINARY) ./cmd/nju-connect
 	@if [ "$$(uname -s)" = "Darwin" ]; then \
-		swift build --package-path macos -c release --product soundconnect-atrust-oauth-helper; \
-		cp "$$(swift build --package-path macos -c release --show-bin-path)/soundconnect-atrust-oauth-helper" "$(dir $(BINARY))"; \
+		swift build --package-path macos -c release --product nju-connect-atrust-oauth-helper; \
+		cp "$$(swift build --package-path macos -c release --show-bin-path)/nju-connect-atrust-oauth-helper" "$(dir $(BINARY))"; \
 	fi
 
 .PHONY: build-platforms
@@ -14,7 +14,7 @@ build-platforms:
 	@set -eu; \
 	for platform in $(PLATFORMS); do \
 		os=$${platform%/*}; arch=$${platform#*/}; \
-		GOOS=$$os GOARCH=$$arch CGO_ENABLED=0 $(GO) build -o $(BINARY)-$$os-$$arch ./cmd/soundconnect; \
+		GOOS=$$os GOARCH=$$arch CGO_ENABLED=0 $(GO) build -o $(BINARY)-$$os-$$arch ./cmd/nju-connect; \
 	done
 
 .PHONY: test

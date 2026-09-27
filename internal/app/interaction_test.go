@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/soundadam/soundconnect/internal/credential"
+	"github.com/soundadam/nju-connect/internal/credential"
 )
 
 // fileInput returns a non-terminal *os.File holding content.

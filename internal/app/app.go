@@ -1,7 +1,7 @@
 // Package app holds the CLI's use cases. Each service takes its dependencies
 // explicitly through Deps, asks the user for input only through Interaction,
 // and returns a result struct or an error. Rendering text or JSON and mapping
-// errors to exit codes belong to the command layer in cmd/soundconnect.
+// errors to exit codes belong to the command layer in cmd/nju-connect.
 package app
 
 import (
@@ -12,16 +12,16 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/soundadam/soundconnect/internal/backend/atrust"
-	"github.com/soundadam/soundconnect/internal/backend/easyconnect/session"
-	"github.com/soundadam/soundconnect/internal/config"
-	"github.com/soundadam/soundconnect/internal/credential"
-	"github.com/soundadam/soundconnect/internal/speedtest"
+	"github.com/soundadam/nju-connect/internal/backend/atrust"
+	"github.com/soundadam/nju-connect/internal/backend/easyconnect/session"
+	"github.com/soundadam/nju-connect/internal/config"
+	"github.com/soundadam/nju-connect/internal/credential"
+	"github.com/soundadam/nju-connect/internal/speedtest"
 )
 
 // Deps are the side effects a service may use. Tests build their own.
 type Deps struct {
-	// Paths resolves the state directory: SOUNDCONNECT_CONFIG_DIR, or the
+	// Paths resolves the state directory: NJU_CONNECT_CONFIG_DIR, or the
 	// user configuration directory.
 	Paths func() (config.Paths, error)
 	// PasswordStore opens the long-lived VPN password shared by both

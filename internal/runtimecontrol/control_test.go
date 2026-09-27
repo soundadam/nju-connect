@@ -9,7 +9,7 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/soundadam/soundconnect/internal/runtime"
+	"github.com/soundadam/nju-connect/internal/runtime"
 )
 
 func liveSnapshot() Snapshot {

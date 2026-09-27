@@ -1,5 +1,0 @@
-$ soundconnect status --watch
-exit: 2
---- stdout
---- stderr
-status --watch requires --json

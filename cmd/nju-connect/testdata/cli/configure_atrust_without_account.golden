@@ -1,0 +1,5 @@
+$ nju-connect configure --backend atrust
+exit: 2
+--- stdout
+--- stderr
+validate profile: username is required for aTrust password authentication

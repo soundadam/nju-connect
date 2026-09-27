@@ -1,0 +1,5 @@
+$ nju-connect account set-username
+exit: 2
+--- stdout
+--- stderr
+set-username takes exactly one account name

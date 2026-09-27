@@ -17,7 +17,7 @@ import (
 	"github.com/charmbracelet/huh"
 	"golang.org/x/term"
 
-	"github.com/soundadam/soundconnect/internal/app"
+	"github.com/soundadam/nju-connect/internal/app"
 )
 
 const (
@@ -219,7 +219,7 @@ func (tui *Interaction) Wait(ctx context.Context, title string, work func(contex
 // ForCommand returns the Interaction for a command: forms when standard
 // input and standard error are terminals and no secret is piped in, and line
 // prompts otherwise. interactive reports whether a person is at the
-// terminal, which enables guided flows. TERM=dumb or SOUNDCONNECT_ACCESSIBLE=1
+// terminal, which enables guided flows. TERM=dumb or NJU_CONNECT_ACCESSIBLE=1
 // keeps a terminal user on line prompts, which screen readers follow better.
 func ForCommand(options app.LineOptions, stderr io.Writer) (interaction app.Interaction, interactive bool) {
 	options.Output = stderr
@@ -237,5 +237,5 @@ func ForCommand(options app.LineOptions, stderr io.Writer) (interaction app.Inte
 
 // Accessible reports whether the user asked for plain line prompts.
 func Accessible() bool {
-	return os.Getenv("TERM") == "dumb" || os.Getenv("SOUNDCONNECT_ACCESSIBLE") == "1"
+	return os.Getenv("TERM") == "dumb" || os.Getenv("NJU_CONNECT_ACCESSIBLE") == "1"
 }

@@ -24,7 +24,7 @@ func keyringStore(t *testing.T, account string) *KeyringStore {
 }
 
 func TestKeyringServiceIsolatesConfigDirectories(t *testing.T) {
-	if got := KeyringService("/Users/me/Library/Application Support/soundconnect", false); got != DefaultKeyringService {
+	if got := KeyringService("/Users/me/Library/Application Support/nju-connect", false); got != DefaultKeyringService {
 		t.Fatalf("default service = %q", got)
 	}
 	first, second := KeyringService("/tmp/a", true), KeyringService("/tmp/b", true)

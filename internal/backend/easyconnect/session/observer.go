@@ -7,8 +7,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/soundadam/soundconnect/internal/runtime"
-	"github.com/soundadam/soundconnect/internal/traffic"
+	"github.com/soundadam/nju-connect/internal/runtime"
+	"github.com/soundadam/nju-connect/internal/traffic"
 )
 
 type State string

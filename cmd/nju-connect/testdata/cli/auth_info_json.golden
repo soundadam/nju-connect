@@ -1,0 +1,5 @@
+$ nju-connect auth-info --json
+exit: 0
+--- stdout
+[{"domain":"oauth-domain","type":"auth/httpsOauth2","name":"Unified identity","login_url":"https://vpn.nju.edu.cn/portal/oauth-login"},{"domain":"ldap-domain","type":"auth/psw","name":"Account password"}]
+--- stderr

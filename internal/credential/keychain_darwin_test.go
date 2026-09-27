@@ -106,7 +106,7 @@ func TestLegacyKeychainItemsExistOnlyForTheDefaultService(t *testing.T) {
 		PasswordAccount: "vpn-password", ATrustSessionAccount: "atrust-client-data",
 	} {
 		store, ok := legacyKeychainStore(Location{Service: DefaultKeyringService, Account: account}).(*KeychainStore)
-		if !ok || store.service != "com.soundadam.soundconnect" || store.account != legacyAccount {
+		if !ok || store.service != LegacyKeyringService || store.account != legacyAccount {
 			t.Fatalf("legacy store for %s = %+v", account, store)
 		}
 		if legacy := legacyKeychainStore(Location{Service: KeyringService("/isolated", true), Account: account}); legacy != nil {

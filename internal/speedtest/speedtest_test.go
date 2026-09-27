@@ -1,6 +1,7 @@
 package speedtest
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -57,7 +58,7 @@ func TestProbeRouteReportsSuccessfulDirectLatency(t *testing.T) {
 	}
 }
 
-func TestAutoRouteFallsBackOnlyToConnectedSoundConnect(t *testing.T) {
+func TestAutoRouteFallsBackOnlyToConnectedNJUConnect(t *testing.T) {
 	var probes []Route
 	service := Service{
 		Probe: func(_ context.Context, route Route, socks string) error {
@@ -75,21 +76,21 @@ func TestAutoRouteFallsBackOnlyToConnectedSoundConnect(t *testing.T) {
 		},
 	}
 	route, socks, err := service.selectRoute(context.Background(), RouteAuto, nil)
-	if err != nil || route != RouteSoundConnect || socks != "127.0.0.1:1081" {
+	if err != nil || route != RouteNJUConnect || socks != "127.0.0.1:1081" {
 		t.Fatalf("route=%s socks=%q err=%v", route, socks, err)
 	}
-	if !reflect.DeepEqual(probes, []Route{RouteDirect, RouteSoundConnect}) {
+	if !reflect.DeepEqual(probes, []Route{RouteDirect, RouteNJUConnect}) {
 		t.Fatalf("probes = %v", probes)
 	}
 }
 
-func TestAutoRouteRequiresSoundConnectWhenDirectFails(t *testing.T) {
+func TestAutoRouteRequiresNJUConnectWhenDirectFails(t *testing.T) {
 	service := Service{
 		Probe:         func(context.Context, Route, string) error { return errors.New("unreachable") },
 		RuntimeStatus: func() (RuntimeState, error) { return RuntimeState{}, nil },
 	}
 	_, _, err := service.selectRoute(context.Background(), RouteAuto, nil)
-	if !errors.Is(err, ErrSoundConnectRequired) {
+	if !errors.Is(err, ErrNJUConnectRequired) {
 		t.Fatalf("error = %v", err)
 	}
 }
@@ -97,7 +98,7 @@ func TestAutoRouteRequiresSoundConnectWhenDirectFails(t *testing.T) {
 func TestRunHelperUsesPinnedArgumentsAndExplicitProxy(t *testing.T) {
 	helper, argsPath := fakeHelper(t)
 	result, err := runHelper(context.Background(), helperRunOptions{
-		Path: helper, Route: RouteSoundConnect, SOCKSListen: "127.0.0.1:1081",
+		Path: helper, Route: RouteNJUConnect, SOCKSListen: "127.0.0.1:1081",
 		// Generous timeouts: the fake helper exits immediately, but race-mode
 		// process startup latency must not expire the measurement window.
 		Timeout: 30 * time.Second, VersionTimeout: 30 * time.Second, StartedAt: time.Unix(100, 0),
@@ -106,7 +107,7 @@ func TestRunHelperUsesPinnedArgumentsAndExplicitProxy(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if result.Status != StatusSuccess || result.Route != RouteSoundConnect || result.DownloadMbps == nil || *result.DownloadMbps != 50 {
+	if result.Status != StatusSuccess || result.Route != RouteNJUConnect || result.DownloadMbps == nil || *result.DownloadMbps != 50 {
 		t.Fatalf("result = %#v", result)
 	}
 	data, err := os.ReadFile(argsPath)
@@ -227,7 +228,7 @@ func TestStoreAtomicallyKeepsOnlyLastResult(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "state", "last-v1.json")
 	store := Store{Path: path}
 	first := successfulResult(RouteDirect, 10)
-	second := successfulResult(RouteSoundConnect, 20)
+	second := successfulResult(RouteNJUConnect, 20)
 	if err := store.Save(first); err != nil {
 		t.Fatal(err)
 	}
@@ -235,12 +236,34 @@ func TestStoreAtomicallyKeepsOnlyLastResult(t *testing.T) {
 		t.Fatal(err)
 	}
 	loaded, err := store.Load()
-	if err != nil || loaded.Route != RouteSoundConnect || loaded.DownloadMbps == nil || *loaded.DownloadMbps != 20 {
+	if err != nil || loaded.Route != RouteNJUConnect || loaded.DownloadMbps == nil || *loaded.DownloadMbps != 20 {
 		t.Fatalf("loaded=%#v err=%v", loaded, err)
 	}
 	info, _ := os.Stat(path)
 	if info.Mode().Perm() != 0o600 {
 		t.Fatalf("mode = %o", info.Mode().Perm())
+	}
+}
+
+func TestStoreReadsTheRouteNameOfEarlierReleases(t *testing.T) {
+	store := Store{Path: filepath.Join(t.TempDir(), "state", "last-v1.json")}
+	if err := store.Save(successfulResult(RouteNJUConnect, 20)); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(store.Path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	legacy := bytes.ReplaceAll(data, []byte(`"nju-connect"`), []byte(`"soundconnect"`))
+	if bytes.Equal(legacy, data) {
+		t.Fatal("saved result did not contain the route")
+	}
+	if err := os.WriteFile(store.Path, legacy, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	loaded, err := store.Load()
+	if err != nil || loaded.Route != RouteNJUConnect {
+		t.Fatalf("loaded route=%q err=%v", loaded.Route, err)
 	}
 }
 

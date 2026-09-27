@@ -16,7 +16,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/soundadam/soundconnect/internal/runtime"
+	"github.com/soundadam/nju-connect/internal/runtime"
 )
 
 const maximumRuntimeStatus = 16 << 10
@@ -34,7 +34,7 @@ type runtimeControlResponse struct {
 // directory root. It lives in a private per-user directory under TMPDIR.
 func Path(root string) string {
 	digest := sha256.Sum256([]byte(filepath.Clean(root)))
-	directory := filepath.Join(os.TempDir(), fmt.Sprintf("soundconnect-runtime-%d", os.Geteuid()))
+	directory := filepath.Join(os.TempDir(), fmt.Sprintf("nju-connect-runtime-%d", os.Geteuid()))
 	return filepath.Join(directory, fmt.Sprintf("%x.sock", digest[:12]))
 }
 

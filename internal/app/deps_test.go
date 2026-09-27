@@ -6,9 +6,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/soundadam/soundconnect/internal/backend/atrust"
-	"github.com/soundadam/soundconnect/internal/config"
-	"github.com/soundadam/soundconnect/internal/credential"
+	"github.com/soundadam/nju-connect/internal/backend/atrust"
+	"github.com/soundadam/nju-connect/internal/config"
+	"github.com/soundadam/nju-connect/internal/credential"
 )
 
 // testEnv is an isolated state directory with owner-only file stores. It
@@ -21,7 +21,7 @@ type testEnv struct {
 
 func newTestEnv(t *testing.T) *testEnv {
 	t.Helper()
-	root := filepath.Join(t.TempDir(), "soundconnect")
+	root := filepath.Join(t.TempDir(), "nju-connect")
 	paths := config.Paths{
 		Root:             root,
 		Config:           filepath.Join(root, "config.toml"),

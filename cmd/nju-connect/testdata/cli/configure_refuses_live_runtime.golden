@@ -1,0 +1,5 @@
+$ nju-connect configure --backend atrust
+exit: 1
+--- stdout
+--- stderr
+configure profile: another native runtime is already active

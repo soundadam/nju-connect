@@ -1,7 +1,0 @@
-$ soundconnect setup --backend atrust --server vpn.nju.edu.cn
-exit: 0
---- stdout
-configuration: $CONFIG_DIR/config.toml
-backend: atrust
-credential: browser_oauth
---- stderr

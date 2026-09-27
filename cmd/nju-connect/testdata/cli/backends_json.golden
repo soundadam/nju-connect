@@ -1,0 +1,5 @@
+$ nju-connect backends --json
+exit: 0
+--- stdout
+{"schema_version":1,"socks_listen":"127.0.0.1:1081","backends":[{"id":"easyconnect","display_name":"EasyConnect","short_name":"easyconnect","default_gateway":"vpn.nju.edu.cn","authentication":["shared_password","verification_code"]},{"id":"atrust","display_name":"aTrust","short_name":"aTrust","default_gateway":"vpn.nju.edu.cn","authentication":["shared_password","verification_code","oauth"]}]}
+--- stderr

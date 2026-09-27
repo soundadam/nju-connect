@@ -1,5 +1,0 @@
-$ soundconnect speedtest campus --route auto --json-events
-exit: 1
---- stdout
-{"error":{"code":"component_missing","message":"campus speed-test component is not installed"},"schema_version":1,"type":"error"}
---- stderr

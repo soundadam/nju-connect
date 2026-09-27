@@ -4,35 +4,35 @@
 #   1.0.2-alpha.1 -> 1.0.2-beta.1 -> 1.0.2-rc.1 -> 1.0.2
 # Git tags add a leading v; embedded product versions do not.
 
-soundconnect_parse_version() {
+nju_connect_parse_version() {
   local input="${1#v}"
   if [[ ! "$input" =~ '^([0-9]+)\.([0-9]+)\.([0-9]+)(-(alpha|beta|rc)\.([0-9]+))?$' ]]; then
     print -u2 -- "invalid version: ${1}"
     return 64
   fi
-  typeset -g SOUNDCONNECT_VERSION="$input"
-  typeset -g SOUNDCONNECT_VERSION_MAJOR="${match[1]}"
-  typeset -g SOUNDCONNECT_VERSION_MINOR="${match[2]}"
-  typeset -g SOUNDCONNECT_VERSION_PATCH="${match[3]}"
-  typeset -g SOUNDCONNECT_VERSION_CHANNEL="${match[5]}"
-  typeset -g SOUNDCONNECT_VERSION_SEQUENCE="${match[6]}"
+  typeset -g NJU_CONNECT_VERSION="$input"
+  typeset -g NJU_CONNECT_VERSION_MAJOR="${match[1]}"
+  typeset -g NJU_CONNECT_VERSION_MINOR="${match[2]}"
+  typeset -g NJU_CONNECT_VERSION_PATCH="${match[3]}"
+  typeset -g NJU_CONNECT_VERSION_CHANNEL="${match[5]}"
+  typeset -g NJU_CONNECT_VERSION_SEQUENCE="${match[6]}"
 }
 
-soundconnect_next_version() {
+nju_connect_next_version() {
   local current="${1#v}"
   local requested_channel="${2:-alpha}"
-  soundconnect_parse_version "$current" || return
+  nju_connect_parse_version "$current" || return
   [[ "$requested_channel" == alpha || "$requested_channel" == beta || \
      "$requested_channel" == rc || "$requested_channel" == stable ]] || {
     print -u2 -- "channel must be alpha, beta, rc, or stable"
     return 64
   }
 
-  local major="$SOUNDCONNECT_VERSION_MAJOR"
-  local minor="$SOUNDCONNECT_VERSION_MINOR"
-  local patch="$SOUNDCONNECT_VERSION_PATCH"
-  local current_channel="$SOUNDCONNECT_VERSION_CHANNEL"
-  local current_sequence="${SOUNDCONNECT_VERSION_SEQUENCE:-0}"
+  local major="$NJU_CONNECT_VERSION_MAJOR"
+  local minor="$NJU_CONNECT_VERSION_MINOR"
+  local patch="$NJU_CONNECT_VERSION_PATCH"
+  local current_channel="$NJU_CONNECT_VERSION_CHANNEL"
+  local current_sequence="${NJU_CONNECT_VERSION_SEQUENCE:-0}"
 
   if [[ -z "$current_channel" ]]; then
     if [[ "$requested_channel" == stable ]]; then
@@ -69,20 +69,20 @@ soundconnect_next_version() {
   fi
 }
 
-soundconnect_bundle_version() {
-  soundconnect_parse_version "$1" || return
+nju_connect_bundle_version() {
+  nju_connect_parse_version "$1" || return
   local channel_code sequence
-  case "$SOUNDCONNECT_VERSION_CHANNEL" in
+  case "$NJU_CONNECT_VERSION_CHANNEL" in
     alpha) channel_code=1 ;;
     beta) channel_code=2 ;;
     rc) channel_code=3 ;;
     "") channel_code=9 ;;
   esac
-  sequence="${SOUNDCONNECT_VERSION_SEQUENCE:-0}"
+  sequence="${NJU_CONNECT_VERSION_SEQUENCE:-0}"
   printf '%d%03d%03d%d%03d\n' \
-    "$SOUNDCONNECT_VERSION_MAJOR" \
-    "$SOUNDCONNECT_VERSION_MINOR" \
-    "$SOUNDCONNECT_VERSION_PATCH" \
+    "$NJU_CONNECT_VERSION_MAJOR" \
+    "$NJU_CONNECT_VERSION_MINOR" \
+    "$NJU_CONNECT_VERSION_PATCH" \
     "$channel_code" \
     "$sequence"
 }

@@ -11,17 +11,17 @@ usage() {
 readonly version="${1#v}"
 readonly repo_root="${0:A:h:h}"
 readonly output_root="${2:-${repo_root}/dist}"
-readonly app_name="soundconnect.app"
-readonly archive_name="soundconnect-${version}-macos-universal.zip"
+readonly app_name="nju-connect.app"
+readonly archive_name="nju-connect-${version}-macos-universal.zip"
 readonly stage_root="${repo_root}/.stage/macos-release-${version}"
 readonly app_root="${stage_root}/${app_name}"
 readonly contents_root="${app_root}/Contents"
 readonly release_dir="${output_root}/${version}"
-readonly allow_dirty="${SOUNDCONNECT_ALLOW_DIRTY:-0}"
+readonly allow_dirty="${NJU_CONNECT_ALLOW_DIRTY:-0}"
 source "${repo_root}/scripts/versioning.zsh"
 
-soundconnect_parse_version "$version"
-readonly bundle_version="$(soundconnect_bundle_version "$version")"
+nju_connect_parse_version "$version"
+readonly bundle_version="$(nju_connect_bundle_version "$version")"
 
 for tool in go swift ditto lipo codesign plutil shasum git; do
   command -v "$tool" >/dev/null || {
@@ -61,35 +61,35 @@ swift build \
   -c release \
   --arch arm64 \
   --arch x86_64 \
-  --product soundconnect-menu
+  --product nju-connect-menu
 
 swift build \
   --package-path "${repo_root}/macos" \
   -c release \
   --arch arm64 \
   --arch x86_64 \
-  --product soundconnect-atrust-oauth-helper
+  --product nju-connect-atrust-oauth-helper
 
 install -m 0755 \
-  "${repo_root}/macos/.build/apple/Products/Release/soundconnect-menu" \
-  "${contents_root}/MacOS/soundconnect-menu"
+  "${repo_root}/macos/.build/apple/Products/Release/nju-connect-menu" \
+  "${contents_root}/MacOS/nju-connect-menu"
 
 install -m 0755 \
-  "${repo_root}/macos/.build/apple/Products/Release/soundconnect-atrust-oauth-helper" \
-  "${contents_root}/Helpers/soundconnect-atrust-oauth-helper"
+  "${repo_root}/macos/.build/apple/Products/Release/nju-connect-atrust-oauth-helper" \
+  "${contents_root}/Helpers/nju-connect-atrust-oauth-helper"
 
 for arch in arm64 amd64; do
   GOOS=darwin GOARCH="$arch" CGO_ENABLED=1 go build \
     -trimpath \
     -ldflags "-s -w -X main.version=${version}" \
-    -o "${stage_root}/soundconnect-${arch}" \
-    ./cmd/soundconnect
+    -o "${stage_root}/nju-connect-${arch}" \
+    ./cmd/nju-connect
 done
 lipo -create \
-  "${stage_root}/soundconnect-arm64" \
-  "${stage_root}/soundconnect-amd64" \
-  -output "${contents_root}/Helpers/soundconnect"
-chmod 0755 "${contents_root}/Helpers/soundconnect"
+  "${stage_root}/nju-connect-arm64" \
+  "${stage_root}/nju-connect-amd64" \
+  -output "${contents_root}/Helpers/nju-connect"
+chmod 0755 "${contents_root}/Helpers/nju-connect"
 
 install -m 0644 "${repo_root}/packaging/macos/Info.plist" "${contents_root}/Info.plist"
 install -m 0644 "${repo_root}/packaging/macos/AppIcon.icns" \
@@ -105,7 +105,7 @@ install -m 0644 "${repo_root}/packaging/licenses/librespeed-cli-LGPL-3.0.txt" \
 typeset -A copied_license_paths
 while IFS='|' read -r module_path module_dir; do
   [[ -n "$module_path" && -d "$module_dir" ]] || continue
-  [[ "$module_path" != "github.com/soundadam/soundconnect" ]] || continue
+  [[ "$module_path" != "github.com/soundadam/nju-connect" ]] || continue
   while IFS= read -r license_path; do
     relative_path="${license_path#${module_dir}/}"
     destination_name="${module_path//\//_}__${relative_path//\//_}"
@@ -117,7 +117,7 @@ while IFS='|' read -r module_path module_dir; do
     \( -iname 'LICENSE*' -o -iname 'NOTICE*' \) -print | LC_ALL=C sort)
 done < <(
   cd "$repo_root"
-  go list -deps -f '{{with .Module}}{{.Path}}|{{.Dir}}{{end}}' ./cmd/soundconnect | \
+  go list -deps -f '{{with .Module}}{{.Path}}|{{.Dir}}{{end}}' ./cmd/nju-connect | \
     awk 'NF' | LC_ALL=C sort -u
 )
 
@@ -126,31 +126,31 @@ done < <(
   exit 65
 }
 
-codesign --force --sign - --timestamp=none "${contents_root}/Helpers/soundconnect"
-codesign --force --sign - --timestamp=none "${contents_root}/Helpers/soundconnect-atrust-oauth-helper"
-codesign --force --sign - --timestamp=none "${contents_root}/MacOS/soundconnect-menu"
+codesign --force --sign - --timestamp=none "${contents_root}/Helpers/nju-connect"
+codesign --force --sign - --timestamp=none "${contents_root}/Helpers/nju-connect-atrust-oauth-helper"
+codesign --force --sign - --timestamp=none "${contents_root}/MacOS/nju-connect-menu"
 codesign --force --sign - --timestamp=none "$app_root"
 
 codesign --verify --deep --strict --verbose=2 "$app_root"
 plutil -lint "${contents_root}/Info.plist"
-[[ "$("${contents_root}/Helpers/soundconnect" version)" == "soundconnect ${version}" ]]
-file "${contents_root}/MacOS/soundconnect-menu" | grep -q 'universal binary'
-file "${contents_root}/Helpers/soundconnect" | grep -q 'universal binary'
-file "${contents_root}/Helpers/soundconnect-atrust-oauth-helper" | grep -q 'universal binary'
+[[ "$("${contents_root}/Helpers/nju-connect" version)" == "nju-connect ${version}" ]]
+file "${contents_root}/MacOS/nju-connect-menu" | grep -q 'universal binary'
+file "${contents_root}/Helpers/nju-connect" | grep -q 'universal binary'
+file "${contents_root}/Helpers/nju-connect-atrust-oauth-helper" | grep -q 'universal binary'
 
 rm -f -- "${release_dir}/${archive_name}"
 COPYFILE_DISABLE=1 ditto -c -k --keepParent "$app_root" "${release_dir}/${archive_name}"
 
 readonly source_commit="$(git -C "$repo_root" rev-parse HEAD)"
 readonly archive_sha256="$(shasum -a 256 "${release_dir}/${archive_name}" | awk '{print $1}')"
-readonly manifest_path="${release_dir}/soundconnect-${version}-manifest.txt"
-readonly release_notes_path="${release_dir}/soundconnect-${version}-release-notes.md"
+readonly manifest_path="${release_dir}/nju-connect-${version}-manifest.txt"
+readonly release_notes_path="${release_dir}/nju-connect-${version}-release-notes.md"
 
 {
-  print -- "product=soundconnect"
+  print -- "product=nju-connect"
   print -- "version=${version}"
   print -- "bundle_version=${bundle_version}"
-  print -- "source_repository=https://github.com/soundadam/soundconnect"
+  print -- "source_repository=https://github.com/soundadam/nju-connect"
   print -- "source_commit=${source_commit}"
   print -- "source_dirty=${source_dirty}"
   print -- "asset=${archive_name}"
@@ -166,7 +166,7 @@ readonly release_notes_path="${release_dir}/soundconnect-${version}-release-note
 } > "$manifest_path"
 
 {
-  print -- "# soundconnect ${version} macOS release"
+  print -- "# nju-connect ${version} macOS release"
   print
   print -- "This release contains a universal macOS menu-bar app and the bundled native CLI."
   print
@@ -175,12 +175,12 @@ readonly release_notes_path="${release_dir}/soundconnect-${version}-release-note
   print -- "- VPN setup, background runtime control, status, traffic, and campus speed testing use the bundled CLI."
   print -- "- Campus speed testing requires the separate librespeed-cli-soundconnect Homebrew Formula."
   print -- "- The app and CLI are ad-hoc signed and are not Apple-notarized."
-  print -- "- soundconnect is available under AGPL-3.0; corresponding source is published with each release."
+  print -- "- nju-connect is available under AGPL-3.0; corresponding source is published with each release."
   print -- "- The Cask does not remove quarantine or bypass Gatekeeper."
   print
   print -- "Provenance:"
   print
-  print -- "- Source repository: https://github.com/soundadam/soundconnect"
+  print -- "- Source repository: https://github.com/soundadam/nju-connect"
   print -- "- Source commit: \`${source_commit}\`"
   print -- "- Dirty source tree: \`${source_dirty}\`"
   print -- "- Asset SHA-256: \`${archive_sha256}\`"

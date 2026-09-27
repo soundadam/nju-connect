@@ -1,6 +1,0 @@
-$ soundconnect backends -h
-exit: 0
---- stdout
-Usage of soundconnect backends:
-      --json   write machine-readable backend metadata
---- stderr

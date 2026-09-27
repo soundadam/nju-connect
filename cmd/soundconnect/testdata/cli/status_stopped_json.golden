@@ -1,5 +1,0 @@
-$ soundconnect status --json
-exit: 1
---- stdout
-{"schema_version":1,"running":false,"state":"stopped","access_evidence":"unknown"}
---- stderr

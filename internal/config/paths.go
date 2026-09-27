@@ -6,17 +6,20 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/soundadam/soundconnect/internal/credential"
+	"github.com/soundadam/nju-connect/internal/credential"
 )
 
 const (
-	applicationDirectory = "soundconnect"
-	legacyLocalDirectory = ".config"
-	configDirectoryEnv   = "SOUNDCONNECT_CONFIG_DIR"
+	applicationDirectory = "nju-connect"
+	// legacyApplicationDirectory is the state directory of releases named
+	// soundconnect. DefaultPaths moves it into place once.
+	legacyApplicationDirectory = "soundconnect"
+	legacyLocalDirectory       = ".config"
+	configDirectoryEnv         = "NJU_CONNECT_CONFIG_DIR"
 )
 
 // Paths names the user configuration and credential files owned by
-// soundconnect.
+// nju-connect.
 type Paths struct {
 	Root             string
 	Config           string
@@ -42,7 +45,34 @@ func DefaultPaths() (Paths, error) {
 	if err != nil {
 		return Paths{}, fmt.Errorf("resolve user config directory: %w", err)
 	}
-	return pathsAt(filepath.Join(configDir, applicationDirectory)), nil
+	root := filepath.Join(configDir, applicationDirectory)
+	if err := adoptLegacyDirectory(filepath.Join(configDir, legacyApplicationDirectory), root); err != nil {
+		return Paths{}, err
+	}
+	return pathsAt(root), nil
+}
+
+// adoptLegacyDirectory moves the state directory an earlier release left at
+// legacy to root, but only while root does not exist, so it runs once and
+// never merges two directories.
+func adoptLegacyDirectory(legacy, root string) error {
+	if _, err := os.Lstat(root); !errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	info, err := os.Lstat(legacy)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("inspect earlier state directory: %w", err)
+	}
+	if !info.IsDir() {
+		return nil
+	}
+	if err := os.Rename(legacy, root); err != nil {
+		return fmt.Errorf("move earlier state directory %s to %s: %w", legacy, root, err)
+	}
+	return nil
 }
 
 // LegacyPaths resolves the pre-release worktree-local layout. It exists only

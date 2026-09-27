@@ -1,6 +1,0 @@
-$ soundconnect backends
-exit: 0
---- stdout
-easyconnect	EasyConnect	vpn.nju.edu.cn
-atrust	aTrust	vpn.nju.edu.cn
---- stderr

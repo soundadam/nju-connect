@@ -1,5 +1,0 @@
-$ soundconnect connect --background
-exit: 2
---- stdout
---- stderr
---background is EasyConnect only; run "soundconnect connect" in the foreground for aTrust

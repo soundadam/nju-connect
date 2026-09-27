@@ -1,5 +1,0 @@
-$ soundconnect setup --backend openvpn
-exit: 2
---- stdout
---- stderr
-select protocol backend: unsupported protocol backend

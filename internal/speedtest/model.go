@@ -18,15 +18,19 @@ const (
 type Route string
 
 const (
-	RouteAuto         Route = "auto"
-	RouteDirect       Route = "direct"
-	RouteSoundConnect Route = "soundconnect"
+	RouteAuto       Route = "auto"
+	RouteDirect     Route = "direct"
+	RouteNJUConnect Route = "nju-connect"
+
+	// legacyRouteSoundconnect is RouteNJUConnect in results saved before the
+	// rename; Store.Load reads it as RouteNJUConnect.
+	legacyRouteSoundconnect Route = "soundconnect"
 )
 
 func ParseRoute(value string) (Route, error) {
 	route := Route(value)
 	switch route {
-	case RouteAuto, RouteDirect, RouteSoundConnect:
+	case RouteAuto, RouteDirect, RouteNJUConnect:
 		return route, nil
 	default:
 		return "", fmt.Errorf("unsupported speed-test route %q", value)
@@ -81,7 +85,7 @@ func (result Result) Validate() error {
 	if result.Target != TargetHost || result.Family != "ipv4" {
 		return errors.New("speed-test target identity is invalid")
 	}
-	if result.Route != RouteDirect && result.Route != RouteSoundConnect {
+	if result.Route != RouteDirect && result.Route != RouteNJUConnect {
 		return errors.New("speed-test result route is invalid")
 	}
 	for name, value := range map[string]*float64{

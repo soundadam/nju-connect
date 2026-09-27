@@ -6,9 +6,9 @@ import (
 	"os"
 	"strings"
 
-	"github.com/soundadam/soundconnect/internal/backend"
-	"github.com/soundadam/soundconnect/internal/config"
-	"github.com/soundadam/soundconnect/internal/runtimecontrol"
+	"github.com/soundadam/nju-connect/internal/backend"
+	"github.com/soundadam/nju-connect/internal/config"
+	"github.com/soundadam/nju-connect/internal/runtimecontrol"
 )
 
 // ConfigureRequest changes non-secret connection settings. Empty fields keep

@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/soundadam/soundconnect/internal/runtime"
-	"github.com/soundadam/soundconnect/internal/traffic"
+	"github.com/soundadam/nju-connect/internal/runtime"
+	"github.com/soundadam/nju-connect/internal/traffic"
 )
 
 func TestObserverAllowsOnlyNamedStateAndLoopbackListener(t *testing.T) {

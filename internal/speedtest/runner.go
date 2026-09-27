@@ -26,9 +26,9 @@ const pinnedServerJSON = `[{"id":1,"name":"NJU Campus IPv4","server":"http://spe
 var helperVersionPattern = regexp.MustCompile(`(?m)^librespeed-cli\s+(v?[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?)\s`)
 
 var (
-	ErrDirectUnavailable    = errors.New("NJU campus speed-test service is not directly reachable")
-	ErrSoundConnectRequired = errors.New("soundconnect must be connected to reach the NJU campus speed-test service")
-	ErrSoundConnectNotReady = errors.New("soundconnect is not ready for campus speed testing")
+	ErrDirectUnavailable  = errors.New("NJU campus speed-test service is not directly reachable")
+	ErrNJUConnectRequired = errors.New("nju-connect must be connected to reach the NJU campus speed-test service")
+	ErrNJUConnectNotReady = errors.New("nju-connect is not ready for campus speed testing")
 )
 
 type RuntimeState struct {
@@ -130,24 +130,24 @@ func (service Service) selectRoute(ctx context.Context, requested Route, sink Pr
 		}
 	}
 	if service.RuntimeStatus == nil {
-		return "", "", ErrSoundConnectRequired
+		return "", "", ErrNJUConnectRequired
 	}
 	state, err := service.RuntimeStatus()
 	if err != nil || !state.Connected {
-		return "", "", ErrSoundConnectRequired
+		return "", "", ErrNJUConnectRequired
 	}
 	if err := validateSOCKSAddress(state.SOCKSListen); err != nil {
-		return "", "", fmt.Errorf("%w: %v", ErrSoundConnectNotReady, err)
+		return "", "", fmt.Errorf("%w: %v", ErrNJUConnectNotReady, err)
 	}
-	report(sink, Event{Type: "measurement_progress", Phase: "probing", Route: RouteSoundConnect})
-	if err := service.Probe(ctx, RouteSoundConnect, state.SOCKSListen); err != nil {
+	report(sink, Event{Type: "measurement_progress", Phase: "probing", Route: RouteNJUConnect})
+	if err := service.Probe(ctx, RouteNJUConnect, state.SOCKSListen); err != nil {
 		if ctx.Err() != nil {
 			return "", "", ctx.Err()
 		}
-		return "", "", fmt.Errorf("%w: %v", ErrSoundConnectNotReady, err)
+		return "", "", fmt.Errorf("%w: %v", ErrNJUConnectNotReady, err)
 	}
-	report(sink, Event{Type: "measurement_progress", Phase: "route_selected", Route: RouteSoundConnect})
-	return RouteSoundConnect, state.SOCKSListen, nil
+	report(sink, Event{Type: "measurement_progress", Phase: "route_selected", Route: RouteNJUConnect})
+	return RouteNJUConnect, state.SOCKSListen, nil
 }
 
 func ProbeReachability(ctx context.Context, route Route, socksListen string) error {
@@ -160,7 +160,7 @@ func ProbeReachability(ctx context.Context, route Route, socksListen string) err
 		transport.DialContext = func(ctx context.Context, _, address string) (net.Conn, error) {
 			return dialer.DialContext(ctx, "tcp4", address)
 		}
-	case RouteSoundConnect:
+	case RouteNJUConnect:
 		if err := validateSOCKSAddress(socksListen); err != nil {
 			return err
 		}
@@ -242,7 +242,7 @@ func runHelper(ctx context.Context, options helperRunOptions) (Result, error) {
 		"--local-json", "-", "--server", "1", "--duration", "10", "--concurrent", "3",
 		"--no-icmp", "--telemetry-level", "disabled", "--json", "--progress-json", "--ipv4",
 	}
-	if options.Route == RouteSoundConnect {
+	if options.Route == RouteNJUConnect {
 		args = append(args, "--proxy", "socks5h://"+options.SOCKSListen)
 	}
 	measurementCtx, cancel := context.WithTimeout(ctx, options.Timeout)

@@ -9,7 +9,7 @@ import (
 
 // The pinned upstream client narrates every request, prompt and node probe
 // through the standard logger, whose default output is the terminal. That
-// output is not SoundConnect's to show: it would interleave with forms,
+// output is not nju-connect's to show: it would interleave with forms,
 // duplicate prompts, and break the one-line stderr contract of a rejected
 // credential. upstreamLog therefore owns the standard logger from the first
 // upstream call on. It hands each complete line to the active stdio bridge,
@@ -39,7 +39,7 @@ func SetUpstreamDebugLog(output io.Writer) {
 
 // captureUpstreamLog points the standard logger at upstreamLog. It is called
 // before every upstream call, so a caller that swapped the logger output in
-// between cannot let upstream lines reach the terminal. SoundConnect itself
+// between cannot let upstream lines reach the terminal. nju-connect itself
 // never writes through the standard logger.
 func captureUpstreamLog() {
 	if log.Writer() != io.Writer(upstreamLog) {

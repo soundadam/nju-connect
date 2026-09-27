@@ -13,7 +13,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/soundadam/soundconnect/internal/traffic"
+	"github.com/soundadam/nju-connect/internal/traffic"
 	"golang.org/x/net/proxy"
 )
 

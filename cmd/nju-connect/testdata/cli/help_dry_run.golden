@@ -1,0 +1,5 @@
+$ nju-connect dry-run -h
+exit: 0
+--- stdout
+Usage of nju-connect dry-run:
+--- stderr

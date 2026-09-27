@@ -1,0 +1,5 @@
+$ nju-connect setup
+exit: 1
+--- stdout
+--- stderr
+Gateway [vpn.nju.edu.cn]: Account: setup failed: read password: hidden prompt requires a terminal

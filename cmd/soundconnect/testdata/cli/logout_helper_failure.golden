@@ -1,5 +1,0 @@
-$ soundconnect logout
-exit: 1
---- stdout
---- stderr
-clear OAuth profile: exit status 3

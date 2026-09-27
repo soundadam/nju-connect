@@ -1,0 +1,5 @@
+$ nju-connect account set-username -h
+exit: 0
+--- stdout
+usage: nju-connect account set-username <name>
+--- stderr

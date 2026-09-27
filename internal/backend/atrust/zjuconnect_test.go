@@ -15,8 +15,8 @@ import (
 
 	upstreamclient "github.com/mythologyli/zju-connect/client"
 	upstreamresolve "github.com/mythologyli/zju-connect/resolve"
-	"github.com/soundadam/soundconnect/internal/backend"
-	"github.com/soundadam/soundconnect/internal/runtime"
+	"github.com/soundadam/nju-connect/internal/backend"
+	"github.com/soundadam/nju-connect/internal/runtime"
 )
 
 type fakeUpstream struct {

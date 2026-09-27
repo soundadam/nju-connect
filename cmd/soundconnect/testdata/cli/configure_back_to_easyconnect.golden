@@ -1,8 +1,0 @@
-$ soundconnect configure --backend easyconnect
-exit: 0
---- stdout
-configuration: $CONFIG_DIR/config.toml
-backend: easyconnect
-server: vpn.nju.edu.cn
-socks_listen: 127.0.0.1:1081
---- stderr

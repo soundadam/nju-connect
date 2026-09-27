@@ -1,0 +1,5 @@
+$ nju-connect connect
+exit: 1
+--- stdout
+--- stderr
+load configuration: no configuration yet; run "nju-connect setup" first

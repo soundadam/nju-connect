@@ -6,14 +6,14 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/soundadam/soundconnect/internal/backend"
-	"github.com/soundadam/soundconnect/internal/config"
-	"github.com/soundadam/soundconnect/internal/runtime"
+	"github.com/soundadam/nju-connect/internal/backend"
+	"github.com/soundadam/nju-connect/internal/config"
+	"github.com/soundadam/nju-connect/internal/runtime"
 )
 
 func TestRunResultAsksForRenewalWithoutReauthenticating(t *testing.T) {
 	err := runResult(context.Background(), &runtime.RenewalRequired{Reason: runtime.RenewalGatewayRejected})
-	if err == nil || err.Error() != `renewal_required: run "soundconnect connect" to sign in again` {
+	if err == nil || err.Error() != `renewal_required: run "nju-connect connect" to sign in again` {
 		t.Fatalf("runResult() = %v", err)
 	}
 }
