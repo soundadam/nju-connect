@@ -20,7 +20,7 @@ The panel is 292pt wide and stacks fixed sections top to bottom:
    local SOCKS5 port while connected (its tooltip names the gateway).
 2. **VPN** — a native segmented control: Off, EasyConnect, aTrust. Choosing a
    backend while another runs stops the runtime first, then starts the new
-   one; both share the CLI's SOCKS5 listener and Keychain password.
+   one; both share the CLI's SOCKS5 listener and saved password.
 3. **speed.nju.edu.cn** — always one fixed-height row, in every state, so the
    sections below never move it. Its icon reports campus reachability and
    latency, not VPN state. Clicking it opens the speed-test inspector.

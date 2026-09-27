@@ -43,17 +43,6 @@ struct NJUConnectBackendError: LocalizedError, Sendable {
     let message: String
 
     var errorDescription: String? { message }
-
-    /// True when macOS reported that the user cancelled Keychain access to
-    /// the saved VPN password; retrying and choosing Allow resolves it.
-    var isKeychainAccessCancellation: Bool {
-        Self.isKeychainAccessCancellation(message)
-    }
-
-    static func isKeychainAccessCancellation(_ text: String) -> Bool {
-        text.localizedCaseInsensitiveContains("Keychain access was cancelled")
-            || text.localizedCaseInsensitiveContains("OSStatus -128")
-    }
 }
 
 typealias NJUConnectStatusCompletion = @MainActor @Sendable (Result<NJUConnectRuntimeSnapshot, NJUConnectBackendError>) -> Void

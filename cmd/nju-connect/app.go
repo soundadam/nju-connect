@@ -14,8 +14,8 @@ import (
 	"github.com/soundadam/nju-connect/internal/tui"
 )
 
-// productionDeps are the real side effects: the user's state directory,
-// the system keyring, the linked aTrust core, and this process's stdin.
+// productionDeps are the real side effects: the user's state directory and
+// its secret files, the linked aTrust core, and this process's stdin.
 func productionDeps() app.Deps {
 	return app.Deps{
 		Paths:              config.DefaultPaths,
@@ -35,8 +35,8 @@ func productionDeps() app.Deps {
 	}
 }
 
-func openCredentialStore(location credential.Location) (credential.Store, error) {
-	return credential.Open(location)
+func openCredentialStore(path string) (credential.Store, error) {
+	return credential.NewFileStore(path)
 }
 
 // withInteraction picks how a command asks questions: forms for a person at

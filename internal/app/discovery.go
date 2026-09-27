@@ -31,7 +31,7 @@ func Doctor(deps Deps) (doctor.Report, error) {
 	if err != nil {
 		return doctor.Report{}, fmt.Errorf("resolve local state: %w", err)
 	}
-	store, err := deps.PasswordStore(PasswordLocation(paths, savedCredentialBackend(paths)))
+	store, err := deps.PasswordStore(paths.Credential)
 	if err != nil {
 		return doctor.Report{}, fmt.Errorf("prepare credential store: %w", err)
 	}

@@ -132,29 +132,6 @@ final class SpeedTestModelTests: XCTestCase {
         XCTAssertNil(snapshot(nil).backend)
     }
 
-    func testKeychainCancellationIsRecognized() {
-        XCTAssertTrue(NJUConnectBackendError(message: "read Keychain credential: OSStatus -128").isKeychainAccessCancellation)
-        XCTAssertTrue(NJUConnectBackendError(message: "Keychain access was cancelled; retry").isKeychainAccessCancellation)
-        XCTAssertFalse(NJUConnectBackendError(message: "authentication rejected").isKeychainAccessCancellation)
-    }
-
-    @MainActor
-    func testKeychainCancellationIsPresentedAsItsOwnState() {
-        let controller = FakeNJUConnectController()
-        controller.snapshot = NJUConnectRuntimeSnapshot(
-            configured: true, running: false, state: "stopped", socksListen: "", traffic: nil
-        )
-        controller.connectError = NJUConnectBackendError(message: "read credential: read Keychain credential: Keychain access was cancelled")
-        let model = DesignModel(controller: controller)
-
-        model.setServiceEnabled(true)
-
-        XCTAssertEqual(model.scenario, .credentialAccessCancelled)
-        XCTAssertEqual(model.statusTitle, "Keychain access cancelled")
-        XCTAssertEqual(model.retryTitle, "Retry")
-        XCTAssertFalse(model.isServiceEnabled)
-    }
-
     @MainActor
     func testSelectingBackendWhileStoppedStartsIt() {
         let controller = FakeNJUConnectController()

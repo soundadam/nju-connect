@@ -9,19 +9,15 @@ import (
 	"path/filepath"
 )
 
-// FileStore keeps the credential in a separate plaintext file. Construction
-// requires an explicit opt-in, and every operation enforces regular-file and
-// owner-only permission requirements.
+// FileStore keeps one secret in its own file inside the private state
+// directory. Every operation requires an owner-only (0600) regular file in an
+// owner-only directory, and writes replace the file atomically.
 type FileStore struct {
 	path string
 }
 
-// NewFileStore creates a plaintext file backend only when allowPlaintext is
-// explicitly true.
-func NewFileStore(path string, allowPlaintext bool) (*FileStore, error) {
-	if !allowPlaintext {
-		return nil, ErrPlaintextOptIn
-	}
+// NewFileStore returns the store for the secret at path.
+func NewFileStore(path string) (*FileStore, error) {
 	if path == "" {
 		return nil, errors.New("credential file path is empty")
 	}

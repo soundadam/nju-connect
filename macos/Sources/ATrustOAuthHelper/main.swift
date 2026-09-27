@@ -52,8 +52,8 @@ private final class OAuthWindowController: NSObject, NSApplicationDelegate, NSWi
     func applicationDidFinishLaunching(_ notification: Notification) {
         let configuration = WKWebViewConfiguration()
         // Keep this profile isolated from Safari and other applications while
-        // retaining the NJU SSO cookies between aTrust reconnects. The Go
-        // side still stores the aTrust client data separately in Keychain.
+        // retaining the NJU SSO cookies between aTrust reconnects. The CLI
+        // keeps the aTrust client data separately.
         if #available(macOS 14.0, *) {
             configuration.websiteDataStore = WKWebsiteDataStore(forIdentifier: njuConnectOAuthStoreIdentifier)
         } else {

@@ -2,7 +2,7 @@
 
 南京大学校园 VPN 的原生客户端：一个同时支持 EasyConnect 与 aTrust 的命令行程序，
 以及 macOS 菜单栏应用。连接后在本机提供 SOCKS5 代理（默认 `127.0.0.1:1081`），
-不改系统路由；密码保存在系统钥匙串里。
+不改系统路由；密码保存在本机仅本人可读的文件里，不依赖系统钥匙串。
 
 项目主页：<https://soundadam.github.io/nju-connect/> ·
 下载：[Releases](https://github.com/soundadam/nju-connect/releases)
@@ -42,16 +42,13 @@ aTrust 协议部分使用了 [mythologyli/zju-connect](https://github.com/mythol
 
 The rest of this README is developer documentation, in English.
 
-## CLI setup and migration
+## CLI setup
 
-`nju-connect setup` stores non-secret configuration in the operating system's
-user configuration directory. The long-lived VPN password and the aTrust
-session are kept in the system keyring under service
-`com.soundadam.nju-connect`: the login Keychain on macOS, the Secret Service
-on Linux, or the Windows Credential Manager. They are never written to the
-TOML configuration. On a host without a keyring, such as a headless Linux box
-over SSH, add `credential_store = "file"` to `config.toml` to keep them in
-owner-only files instead.
+`nju-connect setup` keeps everything in one state directory,
+`os.UserConfigDir()/nju-connect`: `config.toml` for non-secret settings, and
+the long-lived VPN password and the aTrust session in their own owner-only
+(`0600`) files next to it. nju-connect does not use the OS keyring on any
+platform (see [`docs/cli-contract.md`](docs/cli-contract.md#credential-storage)).
 
 Run in a terminal, `nju-connect setup` is a guided wizard: it asks for the
 backend, the gateway, the aTrust sign-in method it discovers, the account and

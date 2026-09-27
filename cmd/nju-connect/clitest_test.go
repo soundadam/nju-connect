@@ -29,9 +29,8 @@ import (
 var updateGolden = flag.Bool("update", false, "rewrite CLI golden files and shared JSON contract fixtures")
 
 // cliHarness runs the real command dispatcher against an isolated
-// NJU_CONNECT_CONFIG_DIR. Secret stores are owner-only files and the aTrust
-// protocol core is a fake, so no test touches the user's Keychain, the
-// network, or a real gateway.
+// NJU_CONNECT_CONFIG_DIR, and the aTrust protocol core is a fake, so no test
+// touches the user's saved secrets, the network, or a real gateway.
 type cliHarness struct {
 	t     *testing.T
 	root  string
@@ -84,7 +83,7 @@ func (harness *cliHarness) writeConfig(configured config.Config) {
 
 func (harness *cliHarness) writeSecret(path string, secret string) {
 	harness.t.Helper()
-	store, err := credential.NewFileStore(path, true)
+	store, err := credential.NewFileStore(path)
 	if err != nil {
 		harness.t.Fatal(err)
 	}
@@ -95,7 +94,7 @@ func (harness *cliHarness) writeSecret(path string, secret string) {
 
 func (harness *cliHarness) readSecret(path string) (string, error) {
 	harness.t.Helper()
-	store, err := credential.NewFileStore(path, true)
+	store, err := credential.NewFileStore(path)
 	if err != nil {
 		harness.t.Fatal(err)
 	}

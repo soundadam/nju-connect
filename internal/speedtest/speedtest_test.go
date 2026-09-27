@@ -1,7 +1,6 @@
 package speedtest
 
 import (
-	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -242,28 +241,6 @@ func TestStoreAtomicallyKeepsOnlyLastResult(t *testing.T) {
 	info, _ := os.Stat(path)
 	if info.Mode().Perm() != 0o600 {
 		t.Fatalf("mode = %o", info.Mode().Perm())
-	}
-}
-
-func TestStoreReadsTheRouteNameOfEarlierReleases(t *testing.T) {
-	store := Store{Path: filepath.Join(t.TempDir(), "state", "last-v1.json")}
-	if err := store.Save(successfulResult(RouteNJUConnect, 20)); err != nil {
-		t.Fatal(err)
-	}
-	data, err := os.ReadFile(store.Path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	legacy := bytes.ReplaceAll(data, []byte(`"nju-connect"`), []byte(`"soundconnect"`))
-	if bytes.Equal(legacy, data) {
-		t.Fatal("saved result did not contain the route")
-	}
-	if err := os.WriteFile(store.Path, legacy, 0o600); err != nil {
-		t.Fatal(err)
-	}
-	loaded, err := store.Load()
-	if err != nil || loaded.Route != RouteNJUConnect {
-		t.Fatalf("loaded route=%q err=%v", loaded.Route, err)
 	}
 }
 

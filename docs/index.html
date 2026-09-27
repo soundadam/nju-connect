@@ -337,7 +337,7 @@ footer nav { display: flex; gap: 18px; flex-wrap: wrap; }
           <a class="btn" href="https://github.com/soundadam/nju-connect">在 GitHub 查看源码</a>
         </div>
         <ul class="facts">
-          <li>密码存进系统钥匙串</li>
+          <li>密码只存在本机，仅本人可读</li>
           <li>本地 SOCKS5 代理，不改系统路由</li>
           <li>macOS / Linux / Windows</li>
         </ul>
@@ -444,10 +444,10 @@ nju-connect
         </article>
 
         <article class="cmd">
-          <div class="sig">密码存进系统钥匙串</div>
-          <p>VPN 密码和 aTrust 会话保存在系统的凭据存储里：macOS 的登录钥匙串、Linux 的 Secret Service、Windows 凭据管理器。配置文件里只有账号和网关这类非敏感信息。没有钥匙串的服务器（比如通过 SSH 登录的 Linux）可以改用仅本人可读的文件。</p>
-<pre><span class="dim"># config.toml</span>
-credential_store = "file"</pre>
+          <div class="sig">密码只存在本机</div>
+          <p>VPN 密码和 aTrust 会话由 nju-connect 自己保存在配置目录里，每项一个仅本人可读（0600）的文件，所有平台都一样，不依赖系统钥匙串，也不会弹出钥匙串授权。配置文件里只有账号和网关这类非敏感信息。</p>
+<pre><span class="dim"># 清除保存的密码和会话</span>
+nju-connect account forget --password --session</pre>
         </article>
 
         <article class="cmd">
@@ -480,7 +480,7 @@ credential_store = "file"</pre>
             <p>面板里可以直接对 speed.nju.edu.cn 测速，显示延迟和带宽，并标出走的是校园网直连还是 VPN。展开详情可以看到最近几次的延迟和带宽曲线。</p>
           </li>
         </ul>
-        <p class="note">应用的所有操作都通过内置的 nju-connect 命令行完成，密码经由命令行存入钥匙串，验证码通过私有的本地管道传递，不会被保存。需要 macOS 13 Ventura 或更高版本。</p>
+        <p class="note">应用的所有操作都通过内置的 nju-connect 命令行完成，密码经由命令行保存到本机，验证码通过私有的本地管道传递，不会被保存。需要 macOS 13 Ventura 或更高版本。</p>
       </div>
 
       <div class="panel-hang" style="justify-content:center">
@@ -574,7 +574,7 @@ go build -o nju-connect ./cmd/nju-connect</pre><button class="copy" type="button
             <div class="body">
               <div class="code"><pre>./nju-connect setup
 ./nju-connect connect</pre><button class="copy" type="button">复制</button></div>
-              <p>在没有 Secret Service 的 Linux 主机上，在 <code>config.toml</code> 里加入 <code>credential_store = "file"</code>。aTrust 的浏览器登录助手只在 macOS 上提供；其他平台使用 OAuth 登录时，命令行会打印登录链接，请把浏览器跳转后的回调地址粘贴回终端。</p>
+              <p>aTrust 的浏览器登录助手只在 macOS 上提供；其他平台使用 OAuth 登录时，命令行会打印登录链接，请把浏览器跳转后的回调地址粘贴回终端。</p>
             </div>
           </li>
           <li>

@@ -21,10 +21,6 @@ const (
 	RouteAuto       Route = "auto"
 	RouteDirect     Route = "direct"
 	RouteNJUConnect Route = "nju-connect"
-
-	// legacyRouteSoundconnect is RouteNJUConnect in results saved before the
-	// rename; Store.Load reads it as RouteNJUConnect.
-	legacyRouteSoundconnect Route = "soundconnect"
 )
 
 func ParseRoute(value string) (Route, error) {

@@ -25,7 +25,7 @@ func TestFlowAccountShow(t *testing.T) {
 	harness.golden("account_show_text", harness.run("account").expect(t, 0))
 	result := harness.run("account", "show", "--json").expect(t, 0)
 	harness.golden("account_show_json", result)
-	if result.stdout != `{"schema_version":1,"configuration":"ready","backend":"atrust","server":"vpn.nju.edu.cn","username":"student","auth_type":"auth/psw","credential_store":"keyring","password":"saved","atrust_session":"missing"}`+"\n" {
+	if result.stdout != `{"schema_version":1,"configuration":"ready","backend":"atrust","server":"vpn.nju.edu.cn","username":"student","auth_type":"auth/psw","password":"saved","atrust_session":"missing"}`+"\n" {
 		t.Fatalf("stdout = %q", result.stdout)
 	}
 }

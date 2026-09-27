@@ -9,7 +9,6 @@ enum DesignScenario: String, CaseIterable, Identifiable, Hashable {
     case connected
     case reconnecting
     case credentialRejected
-    case credentialAccessCancelled
     case transportFailed
 
     var id: String { rawValue }
@@ -23,7 +22,6 @@ enum DesignScenario: String, CaseIterable, Identifiable, Hashable {
         case .connected: return "Connected"
         case .reconnecting: return "Reconnecting"
         case .credentialRejected: return "Authentication failed"
-        case .credentialAccessCancelled: return "Keychain cancelled"
         case .transportFailed: return "Transport failed"
         }
     }
@@ -151,7 +149,7 @@ final class DesignModel: ObservableObject {
         case .waitingMFA: return .waitingMFA
         case .connected: return .connected
         case .reconnecting: return .reconnecting
-        case .credentialRejected, .credentialAccessCancelled, .transportFailed: return .degraded
+        case .credentialRejected, .transportFailed: return .degraded
         }
     }
 
@@ -167,7 +165,6 @@ final class DesignModel: ObservableObject {
         case .connected: return "\(backend.title) · Connected"
         case .reconnecting: return "\(backend.title) · Reconnecting…"
         case .credentialRejected: return "Authentication failed"
-        case .credentialAccessCancelled: return "Keychain access cancelled"
         case .transportFailed: return "VPN transport failed"
         }
     }
@@ -187,8 +184,6 @@ final class DesignModel: ObservableObject {
             return "The verification code is not saved or logged."
         case .reconnecting:
             return "Restoring the VPN session. Sign-in will restart if recovery takes over two minutes."
-        case .credentialAccessCancelled:
-            return "Retry, then choose Allow when macOS asks to access the saved VPN password."
         case .transportFailed:
             return "The proxy or VPN transport failed. Fix the issue and retry."
         }
@@ -251,7 +246,7 @@ final class DesignModel: ObservableObject {
 
     var menuBarIconState: MenuBarIconState {
         switch scenario {
-        case .setup, .credentialRejected, .credentialAccessCancelled, .transportFailed:
+        case .setup, .credentialRejected, .transportFailed:
             return .needsAttention
         case .connecting, .waitingMFA, .reconnecting:
             return .inProgress
@@ -270,8 +265,6 @@ final class DesignModel: ObservableObject {
         switch scenario {
         case .credentialRejected:
             return "Gateway rejected the account or password."
-        case .credentialAccessCancelled:
-            return "Allow Keychain access on the next attempt."
         default:
             return "Reconnect after fixing the issue."
         }
@@ -517,11 +510,6 @@ final class DesignModel: ObservableObject {
                     self.refreshRuntimeStatus()
                 case .failure(let error):
                     self.isServiceEnabled = false
-                    if error.isKeychainAccessCancellation {
-                        self.scenario = .credentialAccessCancelled
-                        self.actionMessage = "Keychain access was cancelled. Retry and choose Allow."
-                        return
-                    }
                     self.scenario = Self.isCredentialFailure(error.localizedDescription)
                         ? .credentialRejected
                         : .transportFailed

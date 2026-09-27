@@ -28,8 +28,8 @@ func newTestEnv(t *testing.T) *testEnv {
 		Credential:       filepath.Join(root, "credential"),
 		ATrustClientData: filepath.Join(root, "atrust-client-data"),
 	}
-	fileStore := func(location credential.Location) (credential.Store, error) {
-		return credential.NewFileStore(location.File, true)
+	fileStore := func(path string) (credential.Store, error) {
+		return credential.NewFileStore(path)
 	}
 	return &testEnv{t: t, paths: paths, deps: Deps{
 		Paths:              func() (config.Paths, error) { return paths, nil },
@@ -51,7 +51,7 @@ func (env *testEnv) writeConfig(configured config.Config) {
 
 func (env *testEnv) setSecret(path, value string) {
 	env.t.Helper()
-	store, err := credential.NewFileStore(path, true)
+	store, err := credential.NewFileStore(path)
 	if err != nil {
 		env.t.Fatal(err)
 	}
@@ -61,7 +61,7 @@ func (env *testEnv) setSecret(path, value string) {
 }
 
 func (env *testEnv) secret(path string) (string, error) {
-	store, err := credential.NewFileStore(path, true)
+	store, err := credential.NewFileStore(path)
 	if err != nil {
 		return "", err
 	}

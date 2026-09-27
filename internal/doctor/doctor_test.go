@@ -20,7 +20,7 @@ func TestBuildReportsReadyLocalState(t *testing.T) {
 	if err := config.Replace(paths.Config, configured); err != nil {
 		t.Fatal(err)
 	}
-	store, err := credential.NewFileStore(paths.Credential, true)
+	store, err := credential.NewFileStore(paths.Credential)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -61,7 +61,7 @@ func TestBuildDoesNotRequirePasswordForATrustOAuth(t *testing.T) {
 func TestBuildNamesTheNextStep(t *testing.T) {
 	root := filepath.Join(t.TempDir(), "nju-connect")
 	paths := config.Paths{Root: root, Config: filepath.Join(root, "config.toml"), Credential: filepath.Join(root, "credential")}
-	store, err := credential.NewFileStore(paths.Credential, true)
+	store, err := credential.NewFileStore(paths.Credential)
 	if err != nil {
 		t.Fatal(err)
 	}

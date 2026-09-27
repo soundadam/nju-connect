@@ -144,6 +144,6 @@ final class CLIContractFixtureTests: XCTestCase {
             XCTAssertTrue(DesignModel.isCredentialFailure(stderr), name)
         }
         XCTAssertFalse(DesignModel.isCredentialFailure("native transport: runtime_stopped"))
-        XCTAssertFalse(DesignModel.isCredentialFailure("open credential: keyring is locked"))
+        XCTAssertFalse(DesignModel.isCredentialFailure("open credential: permission denied"))
     }
 }

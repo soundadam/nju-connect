@@ -25,11 +25,11 @@ type Deps struct {
 	// user configuration directory.
 	Paths func() (config.Paths, error)
 	// PasswordStore opens the long-lived VPN password shared by both
-	// backends, at PasswordLocation.
-	PasswordStore func(credential.Location) (credential.Store, error)
+	// backends, at config.Paths.Credential.
+	PasswordStore func(path string) (credential.Store, error)
 	// ATrustSessionStore opens the saved aTrust client data, at
-	// ATrustSessionLocation.
-	ATrustSessionStore func(credential.Location) (credential.Store, error)
+	// config.Paths.ATrustClientData.
+	ATrustSessionStore func(path string) (credential.Store, error)
 	// ATrustCore constructs the aTrust protocol core linked into this build.
 	ATrustCore func() atrustbackend.Core
 	// OAuthHelper locates the bundled aTrust OAuth helper, if any.
@@ -66,31 +66,6 @@ type SpeedtestDeps struct {
 	HTTPClient func() *http.Client
 	// Probe checks that the campus target is reachable over a route.
 	Probe func(ctx context.Context, route speedtest.Route, socksListen string) error
-}
-
-// PasswordLocation is where the shared password lives. backend is the
-// configuration's credential_store.
-func PasswordLocation(paths config.Paths, backend string) credential.Location {
-	return credential.Location{
-		Backend: backend, Service: paths.KeyringService, Account: credential.PasswordAccount, File: paths.Credential,
-	}
-}
-
-// ATrustSessionLocation is where the aTrust client data lives.
-func ATrustSessionLocation(paths config.Paths, backend string) credential.Location {
-	return credential.Location{
-		Backend: backend, Service: paths.KeyringService, Account: credential.ATrustSessionAccount, File: paths.ATrustClientData,
-	}
-}
-
-// savedCredentialBackend is the credential_store of the saved configuration,
-// or the default when there is none to read.
-func savedCredentialBackend(paths config.Paths) string {
-	configured, err := config.Load(paths.Config)
-	if err != nil {
-		return ""
-	}
-	return configured.CredentialStore
 }
 
 func (deps Deps) diagnostics() io.Writer {

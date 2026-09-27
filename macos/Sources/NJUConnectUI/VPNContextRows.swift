@@ -151,7 +151,7 @@ struct VPNContextRows: View {
             setupFieldFocused = .schoolAccount
         }
         .help(
-            "The account is saved in nju-connect's settings; the long-lived password stays in Keychain and is shared by both backends. Verification codes are never saved."
+            "The account is saved in nju-connect's settings; the long-lived password is saved by the CLI in an owner-only file and shared by both backends. Verification codes are never saved."
         )
     }
 
