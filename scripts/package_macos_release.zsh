@@ -161,7 +161,7 @@ readonly release_notes_path="${release_dir}/nju-connect-${version}-release-notes
   print -- "notarized=false"
   print -- "ui_backend=native-cli-control"
   print -- "campus_speed_helper=external-homebrew-formula"
-  print -- "campus_speed_helper_formula=librespeed-cli-soundconnect"
+  print -- "campus_speed_helper_formula=librespeed-cli-nju-connect"
   print -- "license=AGPL-3.0"
 } > "$manifest_path"
 
@@ -173,7 +173,7 @@ readonly release_notes_path="${release_dir}/nju-connect-${version}-release-notes
   print -- "Release boundary:"
   print
   print -- "- VPN setup, background runtime control, status, traffic, and campus speed testing use the bundled CLI."
-  print -- "- Campus speed testing requires the separate librespeed-cli-soundconnect Homebrew Formula."
+  print -- "- Campus speed testing requires the separate librespeed-cli-nju-connect Homebrew Formula."
   print -- "- The app and CLI are ad-hoc signed and are not Apple-notarized."
   print -- "- nju-connect is available under AGPL-3.0; corresponding source is published with each release."
   print -- "- The Cask does not remove quarantine or bypass Gatekeeper."

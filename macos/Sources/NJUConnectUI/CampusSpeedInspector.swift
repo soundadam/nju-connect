@@ -229,8 +229,8 @@ private struct BandwidthSection: View {
     private var componentDownloadDescription: String {
         guard !speedTest.componentInstallSource.isEmpty else {
             return uiText(
-                "Install with: brew install soundadam/local/librespeed-cli-soundconnect",
-                "请运行：brew install soundadam/local/librespeed-cli-soundconnect"
+                "Install with: brew install soundadam/tap/librespeed-cli-nju-connect",
+                "请运行：brew install soundadam/tap/librespeed-cli-nju-connect"
             )
         }
         return "\(speedTest.componentVersion) · Homebrew"

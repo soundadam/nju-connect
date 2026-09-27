@@ -291,7 +291,7 @@ final class SpeedTestController: ObservableObject, @unchecked Sendable {
                 self.phase = .componentRequired
                 self.message = status.downloadReady
                     ? uiText("The external speed-test helper is ready.", "外部测速依赖已就绪")
-                    : uiText("Install librespeed-cli-soundconnect with Homebrew first.", "请先通过 Homebrew 安装测速依赖")
+                    : uiText("Install librespeed-cli-nju-connect with Homebrew first.", "请先通过 Homebrew 安装测速依赖")
             }
         }
     }
