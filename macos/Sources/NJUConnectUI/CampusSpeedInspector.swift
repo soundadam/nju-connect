@@ -1,35 +1,71 @@
 import Foundation
 import SwiftUI
 
+/// The speed-test popover, built from the same rows as the panel: a status
+/// header, then latency and bandwidth sections split by hairlines.
 struct CampusSpeedInspector: View {
     @ObservedObject var speedTest: SpeedTestController
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack(alignment: .firstTextBaseline) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Campus speed")
-                        .font(.headline)
-                    Text("speed.nju.edu.cn")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                }
-
-                Spacer()
-
-                Text(speedTest.routeLabel)
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-            }
-
-            LatencySection(speedTest: speedTest)
-
+        VStack(spacing: 0) {
+            InspectorHeader(speedTest: speedTest)
             Divider()
-
+            LatencySection(speedTest: speedTest)
+            Divider()
             BandwidthSection(speedTest: speedTest)
         }
-        .padding(14)
-        .frame(width: 312)
+        .frame(width: 292)
+        .tint(.brand)
+    }
+}
+
+private struct InspectorHeader: View {
+    @ObservedObject var speedTest: SpeedTestController
+
+    var body: some View {
+        HStack(spacing: 8) {
+            let summary = campusSpeedSummary(for: speedTest)
+            Group {
+                if summary.showsProgress {
+                    ProgressView()
+                        .controlSize(.mini)
+                } else {
+                    StatusDot(tint: summary.tint)
+                }
+            }
+            .frame(width: 12)
+
+            VStack(alignment: .leading, spacing: 1) {
+                Text("Campus speed")
+                    .font(.system(size: 13, weight: .semibold))
+                Text(subtitle)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+
+            Spacer(minLength: 6)
+
+            Button {
+                speedTest.refreshReachability()
+            } label: {
+                Image(systemName: "arrow.clockwise")
+                    .font(.system(size: 11, weight: .semibold))
+            }
+            .buttonStyle(.borderless)
+            .foregroundStyle(.secondary)
+            .disabled(speedTest.isLatencySampling || speedTest.isRunning)
+            .help("Probe speed.nju.edu.cn again")
+            .accessibilityLabel("Probe again")
+        }
+        .padding(.horizontal, 12)
+        .padding(.top, 10)
+        .padding(.bottom, 8)
+    }
+
+    private var subtitle: String {
+        let route = speedTest.route.map(campusRouteTitle) ?? "Route pending"
+        return "speed.nju.edu.cn · \(route)"
     }
 }
 
@@ -37,72 +73,28 @@ private struct LatencySection: View {
     @ObservedObject var speedTest: SpeedTestController
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 7) {
-                Text("Ping")
-                    .font(.caption.weight(.semibold))
-                Text(speedTest.routeLabel)
-                    .font(.caption2)
-                    .foregroundStyle(
-                        speedTest.reachabilityState == .failed
-                            ? Color.secondary
-                            : Color.green
-                    )
-                Spacer()
-                Text(compactLatency)
-                    .font(.caption.weight(.semibold))
-                    .monospacedDigit()
-                Button("Refresh") {
-                    speedTest.beginLatencySampling(force: true)
-                }
-                .controlSize(.small)
-                .disabled(speedTest.isLatencySampling || speedTest.isRunning)
-            }
+        VStack(alignment: .leading, spacing: 7) {
+            PanelSectionTitle("Latency", caption: "HTTP · last 10")
 
-            ZStack {
-                if speedTest.latencySamples.isEmpty {
-                    Text("No successful samples yet.")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                } else {
-                    MetricSparkline(samples: speedTest.latencySamples, color: .blue)
-                        .padding(.horizontal, 5)
-                }
-            }
-            .frame(height: 48)
-            .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 6))
+            PanelChart(
+                series: [
+                    MetricSparklineSeries(id: "latency", samples: speedTest.latencySamples, color: .brand, filled: true),
+                ],
+                placeholder: "No successful probes yet"
+            )
 
-            HStack {
-                Text(latencyStatistics)
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                    .monospacedDigit()
-                Spacer()
-                Text("HTTP · last 10")
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
+            HStack(alignment: .top, spacing: 8) {
+                PanelStat(label: "Median", value: milliseconds(median(of: speedTest.latencySamples)))
+                PanelStat(label: "Min", value: milliseconds(speedTest.latencySamples.min()))
+                PanelStat(label: "Max", value: milliseconds(speedTest.latencySamples.max()))
             }
         }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 9)
     }
 
-    private var compactLatency: String {
-        guard let latency = speedTest.latencyMs else { return "— ms" }
-        return "\(String(format: "%.0f", latency)) ms"
-    }
-
-    private var latencyStatistics: String {
-        guard let minimum = speedTest.latencySamples.min(),
-              let maximum = speedTest.latencySamples.max(),
-              let median = speedTest.latencyMs
-        else {
-            return "No samples"
-        }
-        return String(
-            format: "min %.0f · median %.0f · max %.0f ms",
-            minimum,
-            median,
-            maximum
-        )
+    private func milliseconds(_ value: Double?) -> String {
+        value.map { String(format: "%.0f ms", $0) } ?? "—"
     }
 }
 
@@ -110,69 +102,50 @@ private struct BandwidthSection: View {
     @ObservedObject var speedTest: SpeedTestController
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 7) {
-                Text("Bandwidth")
-                    .font(.caption.weight(.semibold))
-                Text(bandwidthStatus)
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                    .monospacedDigit()
-                Spacer()
+        VStack(alignment: .leading, spacing: 7) {
+            PanelSectionTitle(title: "Bandwidth") {
                 bandwidthAction
             }
 
-            let maximum = max(
-                max(
-                    speedTest.downloadSamples.max() ?? 0,
-                    speedTest.uploadSamples.max() ?? 0
-                ),
-                1
+            PanelChart(
+                series: [
+                    MetricSparklineSeries(id: "download", samples: speedTest.downloadSamples, color: .brand, filled: true),
+                    MetricSparklineSeries(id: "upload", samples: speedTest.uploadSamples, color: .secondary),
+                ],
+                placeholder: "No bandwidth run yet"
             )
-            ZStack {
-                if speedTest.downloadSamples.isEmpty && speedTest.uploadSamples.isEmpty {
-                    Text("No bandwidth samples yet.")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                } else {
-                    MetricSparklineChart(
-                        series: [
-                            MetricSparklineSeries(
-                                id: "download",
-                                samples: speedTest.downloadSamples,
-                                color: .blue
-                            ),
-                            MetricSparklineSeries(
-                                id: "upload",
-                                samples: speedTest.uploadSamples,
-                                color: .green
-                            ),
-                        ],
-                        minimum: 0,
-                        maximum: maximum
-                    )
-                    .padding(.horizontal, 5)
-                }
-            }
-            .frame(height: 62)
-            .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 6))
 
-            HStack(spacing: 12) {
-                MetricValue(
+            HStack(alignment: .top, spacing: 8) {
+                PanelStat(
                     label: "Download",
-                    value: speedTest.downloadMbps ?? speedTest.lastResult?.downloadMbps,
-                    color: .blue,
-                    systemImage: "arrow.down"
+                    value: mbps(speedTest.downloadMbps ?? speedTest.lastResult?.downloadMbps),
+                    tint: .brand
                 )
-                MetricValue(
+                PanelStat(
                     label: "Upload",
-                    value: speedTest.uploadMbps ?? speedTest.lastResult?.uploadMbps,
-                    color: .green,
-                    systemImage: "arrow.up"
+                    value: mbps(speedTest.uploadMbps ?? speedTest.lastResult?.uploadMbps),
+                    tint: .secondary
                 )
-                Spacer()
+                PanelStat(
+                    label: "Ping",
+                    value: speedTest.lastResult?.pingMs.map { String(format: "%.0f ms", $0) } ?? "—"
+                )
+            }
+
+            if let status {
+                Text(status)
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
+        .padding(.horizontal, 12)
+        .padding(.top, 9)
+        .padding(.bottom, 10)
+    }
+
+    private func mbps(_ value: Double?) -> String {
+        value.map { String(format: "%.0f Mbps", $0) } ?? "—"
     }
 
     @ViewBuilder
@@ -190,36 +163,34 @@ private struct BandwidthSection: View {
                 .controlSize(.small)
         } else if speedTest.phase == .connectionRequired {
             Text("Waiting for VPN")
-                .font(.caption2)
-                .foregroundStyle(.secondary)
+                .font(.system(size: 11))
+                .foregroundStyle(.tertiary)
         } else {
             Button(
-                campusSpeedResultText(for: speedTest) == nil
-                    ? "Start"
-                    : "Test Again",
+                campusSpeedResultText(for: speedTest) == nil ? "Start" : "Test Again",
                 action: speedTest.start
             )
             .controlSize(.small)
         }
     }
 
-    private var bandwidthStatus: String {
+    /// What the run is doing, or why it cannot run; nothing once it has a
+    /// result, since the figures above already say it.
+    private var status: String? {
         if let live = campusLiveMeasurementText(for: speedTest) {
-            return live
+            return "Measuring \(live)"
         }
         switch speedTest.phase {
         case .downloading:
-            return "Installing helper"
+            return "Installing helper…"
         case .probing:
-            return "Probing route"
+            return "Probing route…"
         case .measuring:
-            return "Measuring"
+            return "Measuring…"
         case .componentRequired, .connectionRequired, .failed:
             return speedTest.message
-        case .idle:
-            return campusSpeedResultText(for: speedTest) ?? "Not tested"
-        case .completed:
-            return campusSpeedResultText(for: speedTest) ?? "Complete"
+        case .idle, .completed:
+            return nil
         }
     }
 
@@ -228,33 +199,5 @@ private struct BandwidthSection: View {
             return "Install with: brew install soundadam/tap/librespeed-cli-nju-connect"
         }
         return "\(speedTest.componentVersion) · Homebrew"
-    }
-}
-
-private struct MetricValue: View {
-    let label: String
-    let value: Double?
-    let color: Color
-    let systemImage: String
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Label(label, systemImage: systemImage)
-                .foregroundStyle(color)
-            Text(value.map { "\(String(format: "%.0f", $0)) Mbps" } ?? "—")
-                .font(.caption.weight(.semibold))
-                .monospacedDigit()
-        }
-        .font(.caption2)
-    }
-}
-
-private extension SpeedTestController {
-    var routeLabel: String {
-        switch route {
-        case "direct": return "→ Direct"
-        case "nju-connect": return "→ Via VPN"
-        default: return "Route pending"
-        }
     }
 }

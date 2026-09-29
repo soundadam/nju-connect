@@ -22,13 +22,16 @@ The panel is 292pt wide and stacks fixed sections top to bottom:
    backend while another runs stops the runtime first, then starts the new
    one; both share the CLI's SOCKS5 listener and saved password.
 3. **speed.nju.edu.cn** — always one fixed-height row, in every state, so the
-   sections below never move it. Its icon reports campus reachability and
-   latency, not VPN state. Clicking it opens the speed-test inspector.
+   sections below never move it. Its dot reports whether speed.nju.edu.cn
+   answers over the path in use: green, amber when slow, red when
+   unreachable, a hollow ring before the first probe, and a spinner while a
+   fresh verdict is pending. Clicking it opens the speed-test inspector, which
+   uses the panel's own header, section and figure styles.
 4. **Current task** — first-run account and password, a verification-code
    field, a retry or credential-reset row, or nothing.
 5. **Live traffic** — while connected or reconnecting: a 30-second chart
-   (download filled, upload as a line), current rates, session totals and
-   active connections.
+   (download filled, upload as a line) over three equal columns — download
+   and upload rates with session totals, and active connections.
 
 The menu-bar item is one SF Symbol template image whose shape follows the
 state: a checkmark shield when connected, a half-filled shield that pulses
@@ -41,14 +44,22 @@ status colors are system green, orange and red.
 
 ### Speed test
 
-`--route auto` probes the direct campus path first and falls back to the
-nju-connect SOCKS5 path only when the direct path fails, so a failed VPN
-sign-in does not disable the speed test on campus. Each time the panel opens
-and the last sample is older than 10 seconds, the app takes three latency
-probes 400 ms apart; 200 ms or more shows the amber "slow" icon. The inspector
-shows the last ten latency samples and the last bandwidth run, and keeps them
-in the app's preferences across launches. The client's public IP is never
-stored.
+Latency probes follow the VPN. While it is connected they use
+`--route nju-connect`, so a tunnel whose session has ended turns the dot red
+even when the direct path would still answer; otherwise they use
+`--route auto`, which tries the direct campus path first. A bandwidth run
+always uses `--route auto`, so a failed VPN sign-in does not disable the speed
+test on campus.
+
+A probe round is three probes 400 ms apart. One runs when the panel opens and
+the last round is older than 10 seconds, every 30 seconds while it stays open,
+and at once whenever the VPN connects or stops being connected; that last one
+discards the old verdict first. The dot reflects the median of the latest
+round only (the slow threshold and its reason sit next to
+`SpeedTestController.slowLatencyMs`). The inspector shows the last ten latency
+samples and the last bandwidth run, and keeps them in the app's preferences
+across launches; the verdict itself is never restored. The client's public IP
+is never stored.
 
 ## Develop
 

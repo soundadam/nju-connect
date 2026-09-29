@@ -3,8 +3,8 @@ import SwiftUI
 
 struct CampusSpeedSummary {
     let label: String
-    let symbol: String
-    let tint: Color
+    /// `nil` while there is no fresh verdict.
+    let tint: Color?
     let showsProgress: Bool
 }
 
@@ -65,8 +65,7 @@ struct CampusSpeedSummaryRow: View {
                 .controlSize(.mini)
                 .frame(width: 13)
         } else {
-            Image(systemName: summary.symbol)
-                .foregroundStyle(summary.tint)
+            StatusDot(tint: summary.tint, size: 7)
                 .frame(width: 13)
         }
     }
@@ -93,40 +92,37 @@ func campusSpeedSummary(for speedTest: SpeedTestController) -> CampusSpeedSummar
         default:
             label = "Working"
         }
-        return CampusSpeedSummary(
-            label: label,
-            symbol: "arrow.triangle.2.circlepath",
-            tint: .secondary,
-            showsProgress: true
-        )
+        return CampusSpeedSummary(label: label, tint: nil, showsProgress: true)
     }
 
     let label: String
-    switch speedTest.phase {
-    case .componentRequired:
+    switch (speedTest.phase, speedTest.reachabilityState) {
+    case (.componentRequired, _):
         label = "Setup needed"
-    case .connectionRequired:
+    case (.connectionRequired, _):
         label = "VPN needed"
-    case .failed:
-        label = "Unavailable"
+    case (.failed, _), (_, .failed):
+        label = "Unreachable"
+    case (_, .probing):
+        label = "Checking"
     default:
         label = campusSpeedResultText(for: speedTest)
             ?? (speedTest.latencyMs.map {
-                String(format: "Ping %.0f ms", $0)
+                String(format: "%.0f ms", $0)
             } ?? "Not tested")
     }
 
     switch speedTest.reachabilityState {
     case .reachable:
-        return CampusSpeedSummary(label: label, symbol: "checkmark.circle.fill", tint: .green, showsProgress: false)
+        return CampusSpeedSummary(label: label, tint: .green, showsProgress: false)
     case .slow:
-        return CampusSpeedSummary(label: label, symbol: "exclamationmark.circle.fill", tint: .orange, showsProgress: false)
+        return CampusSpeedSummary(label: label, tint: .orange, showsProgress: false)
     case .failed:
-        return CampusSpeedSummary(label: label, symbol: "circle.fill", tint: .red, showsProgress: false)
+        return CampusSpeedSummary(label: label, tint: .red, showsProgress: false)
     case .probing:
-        return CampusSpeedSummary(label: label, symbol: "network", tint: .secondary, showsProgress: true)
+        return CampusSpeedSummary(label: label, tint: nil, showsProgress: true)
     case .unknown:
-        return CampusSpeedSummary(label: label, symbol: "questionmark.circle", tint: .secondary, showsProgress: false)
+        return CampusSpeedSummary(label: label, tint: nil, showsProgress: false)
     }
 }
 
@@ -160,14 +156,14 @@ func campusLiveMeasurementText(for speedTest: SpeedTestController) -> String? {
 func campusSpeedHelp(for speedTest: SpeedTestController) -> String {
     var details = [speedTest.message]
     if let route = speedTest.route {
-        details.append(
-            route == "direct"
-                ? "Direct campus route"
-                : "Via nju-connect"
-        )
+        details.append(campusRouteTitle(route))
     }
     if let latencyMs = speedTest.latencyMs {
         details.append(String(format: "Latency %.0f ms", latencyMs))
     }
     return details.joined(separator: " · ")
+}
+
+func campusRouteTitle(_ route: String) -> String {
+    route == "direct" ? "Direct campus route" : "Via nju-connect"
 }

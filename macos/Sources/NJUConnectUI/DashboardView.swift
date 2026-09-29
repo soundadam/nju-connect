@@ -32,15 +32,22 @@ struct DashboardView: View {
         .tint(.brand)
         .onAppear {
             model.setTrafficMonitoringActive(true)
+            speedTest.setVPNConnected(model.phase == .connected)
             speedTest.beginLatencySamplingIfNeeded()
         }
         .onDisappear {
             model.setTrafficMonitoringActive(false)
         }
-        .onChange(of: model.phase) { phase in
-            if phase == .connected {
-                speedTest.beginLatencySampling(force: true)
+        .task {
+            // Keeps the speed row's verdict current while the panel stays
+            // open, so a tunnel that drops shows up without reopening it.
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(30))
+                speedTest.beginLatencySamplingIfNeeded(maxAge: 30)
             }
+        }
+        .onChange(of: model.phase) { phase in
+            speedTest.setVPNConnected(phase == .connected)
         }
     }
 }

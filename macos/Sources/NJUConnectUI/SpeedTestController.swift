@@ -197,6 +197,9 @@ final class SpeedTestController: ObservableObject, @unchecked Sendable {
     private var pollTask: Task<Void, Never>?
     private var latencySamplingTask: Task<Void, Never>?
     private var lastLatencySamplingAt: Date?
+    /// `nju-connect` while the VPN is connected, so a dead tunnel reads as
+    /// unreachable instead of silently falling back to the direct path.
+    private var probeRoute = "auto"
     private var outputBuffer = Data()
     private let decoder: JSONDecoder
     private let historyEncoder: JSONEncoder
@@ -345,15 +348,16 @@ final class SpeedTestController: ObservableObject, @unchecked Sendable {
         }
 
         isLatencySampling = true
-        if latencySamples.isEmpty {
+        if latencySamples.isEmpty || reachabilityState == .unknown {
             reachabilityState = .probing
         }
+        let route = probeRoute
         latencySamplingTask = Task { [weak self] in
             guard let self else { return }
-            var successfulSamples = 0
+            var roundSamples: [Double] = []
             for sampleIndex in 0..<3 {
                 guard !Task.isCancelled else { return }
-                let (result, code) = await self.captureLatencyProbe()
+                let (result, code) = await self.captureLatencyProbe(route: route)
                 guard !Task.isCancelled else { return }
                 if let result,
                    result.schemaVersion == 1,
@@ -367,10 +371,10 @@ final class SpeedTestController: ObservableObject, @unchecked Sendable {
                     if self.latencySamples.count > 10 {
                         self.latencySamples.removeFirst(self.latencySamples.count - 10)
                     }
+                    roundSamples.append(result.latencyMs)
                     self.latencyMs = self.medianLatency
-                    self.reachabilityState = self.classifiedReachability(for: self.latencyMs)
+                    self.reachabilityState = self.classifiedReachability(for: median(of: roundSamples))
                     self.message = "Campus speed-test route reachable."
-                    successfulSamples += 1
                 } else if code == 127, self.latencySamples.isEmpty {
                     self.reachabilityState = .unknown
                 }
@@ -378,11 +382,13 @@ final class SpeedTestController: ObservableObject, @unchecked Sendable {
                     try? await Task.sleep(for: .milliseconds(400))
                 }
             }
-            if successfulSamples == 0 {
+            if roundSamples.isEmpty {
                 self.reachabilityState = .failed
                 self.latencyMs = nil
                 self.route = nil
-                self.message = "Campus speed-test route unavailable."
+                self.message = route == "nju-connect"
+                    ? "speed.nju.edu.cn is unreachable through nju-connect."
+                    : "Campus speed-test route unavailable."
             }
             self.persistHistory()
             self.lastLatencySamplingAt = Date()
@@ -391,13 +397,29 @@ final class SpeedTestController: ObservableObject, @unchecked Sendable {
         }
     }
 
+    /// Follows the VPN: while it is connected, probes go through the tunnel.
+    /// A change discards the current verdict and probes again at once.
+    func setVPNConnected(_ connected: Bool) {
+        let route = connected ? "nju-connect" : "auto"
+        guard route != probeRoute else { return }
+        probeRoute = route
+        refreshReachability()
+    }
+
+    /// Drops the current verdict and probes again, restarting any round
+    /// already in flight.
     func refreshReachability() {
+        guard !isPreviewMode, !isRunning else { return }
+        latencySamplingTask?.cancel()
+        latencySamplingTask = nil
+        isLatencySampling = false
+        reachabilityState = .probing
         beginLatencySampling(force: true)
     }
 
-    private func captureLatencyProbe() async -> (CampusProbeResult?, Int32) {
+    private func captureLatencyProbe(route: String) async -> (CampusProbeResult?, Int32) {
         await withCheckedContinuation { continuation in
-            runCapture(arguments: ["speedtest", "probe", "--route", "auto", "--json"]) { [weak self] data, code in
+            runCapture(arguments: ["speedtest", "probe", "--route", route, "--json"]) { [weak self] data, code in
                 guard let self else {
                     continuation.resume(returning: (nil, code))
                     return
@@ -420,7 +442,6 @@ final class SpeedTestController: ObservableObject, @unchecked Sendable {
 
             if result.status == "success" {
                 self.phase = .completed
-                self.reachabilityState = self.classifiedReachability(for: result.pingMs)
                 self.message = "Campus speed test complete."
 
                 if self.restoredHistoryEndedAt != result.endedAt {
@@ -432,7 +453,6 @@ final class SpeedTestController: ObservableObject, @unchecked Sendable {
                 self.persistHistory(endedAt: result.endedAt)
             } else {
                 self.phase = .failed
-                self.reachabilityState = .failed
                 self.message = result.failure?.message
                     ?? "Campus speed test failed."
             }
@@ -681,9 +701,6 @@ final class SpeedTestController: ObservableObject, @unchecked Sendable {
         downloadSamples = validatedSamples(history.downloadSamples, maximumCount: 30)
         uploadSamples = validatedSamples(history.uploadSamples, maximumCount: 30)
 
-        if !latencySamples.isEmpty {
-            reachabilityState = classifiedReachability(for: latencyMs ?? medianLatency)
-        }
         if history.endedAt != nil || downloadMbps != nil || uploadMbps != nil {
             phase = .completed
             message = "Previous campus speed test restored."
@@ -738,13 +755,7 @@ final class SpeedTestController: ObservableObject, @unchecked Sendable {
     }
 
     private var medianLatency: Double? {
-        guard !latencySamples.isEmpty else { return nil }
-        let sorted = latencySamples.sorted()
-        let middle = sorted.count / 2
-        if sorted.count.isMultiple(of: 2) {
-            return (sorted[middle - 1] + sorted[middle]) / 2
-        }
-        return sorted[middle]
+        median(of: latencySamples)
     }
 
     private func appendMeasurement(_ value: Double?, to samples: inout [Double]) {
@@ -755,8 +766,23 @@ final class SpeedTestController: ObservableObject, @unchecked Sendable {
         }
     }
 
+    /// A probe times one cold HTTP request: connection setup plus the
+    /// server's reply, which alone takes about 250 ms on a healthy path
+    /// (direct or through the tunnel). Three times that is slow.
+    private static let slowLatencyMs: Double = 750
+
     private func classifiedReachability(for latencyMs: Double?) -> CampusReachabilityState {
         guard let latencyMs else { return .reachable }
-        return latencyMs >= 200 ? .slow : .reachable
+        return latencyMs >= Self.slowLatencyMs ? .slow : .reachable
     }
+}
+
+func median(of samples: [Double]) -> Double? {
+    guard !samples.isEmpty else { return nil }
+    let sorted = samples.sorted()
+    let middle = sorted.count / 2
+    if sorted.count.isMultiple(of: 2) {
+        return (sorted[middle - 1] + sorted[middle]) / 2
+    }
+    return sorted[middle]
 }

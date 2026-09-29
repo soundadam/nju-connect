@@ -5,12 +5,8 @@ struct DashboardHeader: View {
 
     var body: some View {
         HStack(spacing: 8) {
-            Circle()
-                .fill(model.statusTint)
-                .frame(width: 8, height: 8)
-                .background(Circle().fill(model.statusTint.opacity(0.22)).padding(-3))
+            StatusDot(tint: model.statusTint)
                 .padding(.leading, 2)
-                .animation(.easeOut(duration: 0.2), value: model.statusTint)
 
             VStack(alignment: .leading, spacing: 1) {
                 Text("nju-connect")
