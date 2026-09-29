@@ -162,7 +162,7 @@ readonly release_notes_path="${release_dir}/nju-connect-${version}-release-notes
   print -- "ui_backend=native-cli-control"
   print -- "campus_speed_helper=external-homebrew-formula"
   print -- "campus_speed_helper_formula=librespeed-cli-nju-connect"
-  print -- "license=AGPL-3.0"
+  print -- "license=AGPL-3.0-or-later"
 } > "$manifest_path"
 
 {
