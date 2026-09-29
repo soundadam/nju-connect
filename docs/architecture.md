@@ -189,8 +189,8 @@ well.
 
 ## Releases and dependencies
 
-nju-connect is AGPL-3.0 because it links zju-connect; `sing-tun` and `sing`
-are GPL-3.0-or-later. `THIRD_PARTY_NOTICES` indexes every linked module, and
+nju-connect is AGPL-3.0-or-later; it must be AGPL because it links
+zju-connect, and `sing-tun` and `sing` are GPL-3.0-or-later. `THIRD_PARTY_NOTICES` indexes every linked module, and
 a binary release must ship their license texts and the corresponding source.
 Re-derive the linked set with `go list -deps ./cmd/nju-connect` for each OS
 when imports change.
