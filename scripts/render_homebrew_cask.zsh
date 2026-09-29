@@ -30,7 +30,11 @@ nju_connect_parse_version "$version"
   exit 64
 }
 
-typeset escaped_url="${url//\\/\\\\}"
+# brew audit rejects a url that repeats the version literally; interpolating
+# #{version} yields the same string, so any caller-supplied URL stays valid.
+readonly version_ref='#{version}'
+typeset escaped_url="${url//${version}/${version_ref}}"
+escaped_url="${escaped_url//\\/\\\\}"
 escaped_url="${escaped_url//&/\\&}"
 escaped_url="${escaped_url//|/\\|}"
 typeset escaped_homepage="${homepage//\\/\\\\}"
