@@ -22,7 +22,10 @@ brew install --cask soundadam/tap/nju-connect
 xattr -dr com.apple.quarantine /Applications/nju-connect.app
 ```
 
-Linux / Windows 从源码构建（Go 1.25+）：
+Linux / Windows：从 [Releases](https://github.com/soundadam/nju-connect/releases/latest)
+下载对应平台的 `nju-connect_<版本>_<linux|windows>_<amd64|arm64>` 压缩包（用 `SHA256SUMS` 校验），
+把里面的 `nju-connect`（Windows 上是 `nju-connect.exe`）放进 `PATH`。各平台能力差异见
+[`docs/architecture.md`](docs/architecture.md#platforms)。也可以从源码构建（Go 1.25+）：
 
 ```sh
 go build -o nju-connect ./cmd/nju-connect
@@ -134,7 +137,7 @@ the previous curve; the client public IP is not stored.
 ## Packaging
 
 ```sh
-make cli-release VERSION=v1.0.0          # darwin CLI archives + SHA256SUMS, clean tree only
+make cli-release VERSION=v1.0.0          # CLI archives for every platform + SHA256SUMS, clean tree only
 make package-macos VERSION=1.0.0         # menu-bar app + universal CLI as a Cask ZIP
 make package-macos-local VERSION=1.0.0   # same, from a dirty tree, into the local tap
 ```

@@ -48,27 +48,37 @@ if (( ${#copied_license_paths} == 0 )); then
   exit 1
 fi
 
-for arch in amd64 arm64; do
-  artifact="nju-connect_${release_version}_darwin_${arch}"
+for platform in darwin/amd64 darwin/arm64 linux/amd64 linux/arm64 windows/amd64 windows/arm64; do
+  os=${platform%/*}
+  arch=${platform#*/}
+  artifact="nju-connect_${release_version}_${os}_${arch}"
   stage_dir=${stage_root}/${artifact}
+  binary=nju-connect
+  [[ ${os} != windows ]] || binary=nju-connect.exe
+  cgo=0
+  [[ ${os} != darwin ]] || cgo=1
   mkdir -p "${stage_dir}"
   (
     cd "${project_root}"
-    CGO_ENABLED=1 GOOS=darwin GOARCH=${arch} go build \
+    CGO_ENABLED=${cgo} GOOS=${os} GOARCH=${arch} go build \
       -trimpath \
       -buildvcs=true \
       -ldflags "-s -w -X main.version=${release_version}" \
-      -o "${stage_dir}/nju-connect" \
+      -o "${stage_dir}/${binary}" \
       ./cmd/nju-connect
   )
   cp "${project_root}/LICENSE" "${project_root}/THIRD_PARTY_NOTICES" "${stage_dir}/"
   cp -R "${license_dir}" "${stage_dir}/"
-  COPYFILE_DISABLE=1 tar -czf "${dist_dir}/${artifact}.tar.gz" -C "${stage_root}" "${artifact}"
+  if [[ ${os} == windows ]]; then
+    (cd "${stage_root}" && zip -qrX "${dist_dir}/${artifact}.zip" "${artifact}")
+  else
+    COPYFILE_DISABLE=1 tar -czf "${dist_dir}/${artifact}.tar.gz" -C "${stage_root}" "${artifact}"
+  fi
 done
 
 (
   cd "${dist_dir}"
-  shasum -a 256 ./*.tar.gz > SHA256SUMS
+  shasum -a 256 ./*.tar.gz ./*.zip > SHA256SUMS
 )
 
 print "version: ${release_version}"
