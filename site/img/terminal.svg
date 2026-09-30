@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 340" role="img" aria-labelledby="sc-terminal-title">
+  <title id="sc-terminal-title">Terminal session: nju-connect status and a campus speed test</title>
+  <defs>
+    <linearGradient id="desk2" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f5f3fa"/>
+      <stop offset="0.55" stop-color="#edebf5"/>
+      <stop offset="1" stop-color="#e4e6f0"/>
+    </linearGradient>
+    <filter id="win-shadow" x="-30%" y="-20%" width="160%" height="150%">
+      <feDropShadow dx="0" dy="14" stdDeviation="18" flood-color="#1a1440" flood-opacity="0.24"/>
+    </filter>
+    <style>
+      .t { font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace; font-size: 10.5px; }
+      .ui2 { font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', system-ui, sans-serif; }
+      .cmd { fill: #f2f2f7; font-weight: 600; }
+      .out { fill: #9aa2b1; }
+      .p { fill: #7ee787; font-weight: 600; }
+      .hi { fill: #79c0ff; }
+    </style>
+  </defs>
+
+  <rect width="600" height="340" fill="url(#desk2)"/>
+
+  <g filter="url(#win-shadow)">
+    <rect x="57" y="22" width="486" height="296" rx="10" fill="#17171f"/>
+  </g>
+  <rect x="57" y="22" width="486" height="296" rx="10" fill="#17171f" stroke="#000000" stroke-opacity="0.35" stroke-width="0.75"/>
+  <path d="M 57 32 A 10 10 0 0 1 67 22 L 533 22 A 10 10 0 0 1 543 32 L 543 50 L 57 50 Z" fill="#26262f"/>
+  <circle cx="77" cy="36" r="5.6" fill="#ff5f57"/>
+  <circle cx="96" cy="36" r="5.6" fill="#febc2e"/>
+  <circle cx="115" cy="36" r="5.6" fill="#28c840"/>
+  <text x="300" y="40" class="ui2" font-size="11" fill="#9a9aa4" text-anchor="middle">nju-connect &#8212; zsh</text>
+
+  <g class="t">
+    <text x="75" y="70"><tspan class="p">$</tspan><tspan dx="7" class="cmd">nju-connect status</tspan></text>
+    <text x="75" y="86" class="out">running: true</text>
+    <text x="75" y="102" class="out">state: <tspan fill="#7ee787">connected</tspan></text>
+    <text x="75" y="118" class="out">profile: community</text>
+    <text x="75" y="134" class="out">socks_listen: <tspan class="hi">127.0.0.1:1081</tspan></text>
+    <text x="75" y="150" class="out">traffic: upload=4812880 download=86243521 active=3</text>
+
+    <text x="75" y="182"><tspan class="p">$</tspan><tspan dx="7" class="cmd">nju-connect speedtest campus</tspan></text>
+    <text x="75" y="198" class="out">Campus speed test upload&#160;&#160;&#160;&#160;617.42 Mbps</text>
+    <text x="75" y="214" class="out">status: <tspan fill="#7ee787">complete</tspan></text>
+    <text x="75" y="230" class="out">route: direct</text>
+    <text x="75" y="246" class="out">target: speed.nju.edu.cn</text>
+    <text x="75" y="262" class="out">download_mbps: <tspan class="hi">842.13</tspan></text>
+    <text x="75" y="278" class="out">upload_mbps: <tspan class="hi">617.42</tspan></text>
+    <text x="75" y="294" class="out">ping_ms: <tspan class="hi">3.87</tspan></text>
+  </g>
+</svg>

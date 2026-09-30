@@ -1,0 +1,117 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 340" role="img" aria-labelledby="sc-menubar-title">
+  <title id="sc-menubar-title">nju-connect menu bar panel on macOS: campus VPN connected with live traffic</title>
+  <defs>
+    <linearGradient id="desk" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f5f3fa"/>
+      <stop offset="0.55" stop-color="#edebf5"/>
+      <stop offset="1" stop-color="#e4e6f0"/>
+    </linearGradient>
+    <linearGradient id="dl-fill" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0a84ff" stop-opacity="0.22"/>
+      <stop offset="1" stop-color="#0a84ff" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="ul-fill" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#30b350" stop-opacity="0.20"/>
+      <stop offset="1" stop-color="#30b350" stop-opacity="0"/>
+    </linearGradient>
+    <filter id="panel-shadow" x="-30%" y="-20%" width="160%" height="150%">
+      <feDropShadow dx="0" dy="14" stdDeviation="18" flood-color="#1a1440" flood-opacity="0.22"/>
+    </filter>
+    <style>
+      .ui { font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', system-ui, sans-serif; }
+      .mono { font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace; }
+    </style>
+  </defs>
+
+  <!-- desktop backdrop -->
+  <rect width="600" height="340" fill="url(#desk)"/>
+
+  <!-- menu bar -->
+  <rect width="600" height="26" fill="#fbfbfd" fill-opacity="0.86"/>
+  <line x1="0" y1="26.25" x2="600" y2="26.25" stroke="#c9c9d1" stroke-width="0.5"/>
+  <g class="ui" font-size="12" fill="#3a3a40">
+    <text x="20" y="17.5" font-weight="600">Finder</text>
+    <text x="72" y="17.5">File</text>
+    <text x="102" y="17.5">Edit</text>
+    <text x="134" y="17.5">View</text>
+    <text x="172" y="17.5">Go</text>
+  </g>
+  <!-- status items: shield (nju-connect), wifi, battery, clock -->
+  <g stroke="#1d1d1f" stroke-width="1.3" fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <!-- nju-connect shield, connected badge -->
+    <path d="M 437.5 5.5 L 443.9 7.8 L 443.0 14.4 C 442.6 17.0 439.9 18.8 437.5 19.6 C 435.1 18.8 432.4 17.0 432.0 14.4 L 431.1 7.8 Z"/>
+    <path d="M 433.6 15.3 L 433.6 11.5 M 441.4 15.3 L 441.4 11.5 M 435.4 15.4 L 435.4 12.4 C 435.4 11.2 436.3 10.4 437.5 10.4 C 438.7 10.4 439.6 11.2 439.6 12.4 L 439.6 15.4"/>
+    <circle cx="443.2" cy="18.2" r="2" fill="#1d1d1f" stroke="none"/>
+    <!-- wifi -->
+    <path d="M 466 10.5 C 470 7.2 476 7.2 480 10.5 M 468.6 13.6 C 471.4 11.4 474.6 11.4 477.4 13.6 M 471.3 16.6 C 472.4 15.8 473.6 15.8 474.7 16.6"/>
+    <circle cx="473" cy="18.6" r="0.9" fill="#1d1d1f" stroke="none"/>
+    <!-- battery -->
+    <rect x="496" y="8.5" width="21" height="9.5" rx="2.6"/>
+    <path d="M 518.6 11.4 C 519.7 11.7 519.7 14.8 518.6 15.1"/>
+    <rect x="497.6" y="10.1" width="14" height="6.3" rx="1.4" fill="#1d1d1f" stroke="none"/>
+  </g>
+  <text x="536" y="17.5" class="ui" font-size="12" fill="#1d1d1f">9:41</text>
+
+  <!-- panel -->
+  <g filter="url(#panel-shadow)">
+    <rect x="165" y="36" width="292" height="238" rx="11" fill="#ffffff"/>
+  </g>
+  <rect x="165" y="36" width="292" height="238" rx="11" fill="#ffffff" stroke="#d8d8de" stroke-width="0.75"/>
+
+  <!-- header -->
+  <circle cx="181" cy="57" r="3.2" fill="#28c840"/>
+  <text x="191" y="55" class="ui" font-size="13" font-weight="600" fill="#1d1d1f">nju-connect</text>
+  <text x="191" y="67.5" class="ui" font-size="9.5" fill="#71717a">Campus VPN connected</text>
+  <!-- toggle on -->
+  <rect x="409" y="47" width="36" height="21" rx="10.5" fill="#34c759"/>
+  <circle cx="435.5" cy="57.5" r="8.6" fill="#ffffff"/>
+  <line x1="165" y1="78.25" x2="457" y2="78.25" stroke="#e7e7ec" stroke-width="0.75"/>
+
+  <!-- campus speed row -->
+  <g>
+    <circle cx="183.5" cy="94" r="6.4" fill="#34c759"/>
+    <path d="M 180.6 94.1 L 182.8 96.3 L 186.6 91.9" stroke="#ffffff" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+    <text x="196" y="97.8" class="ui" font-size="11" font-weight="500" fill="#1d1d1f">speed.nju.edu.cn</text>
+    <text x="425" y="97.4" class="mono" font-size="9.5" fill="#71717a" text-anchor="end">&#8595;842 &#8593;618 Mbps</text>
+    <path d="M 432 97 L 436 92.6 L 439 95 L 443.5 89.8" stroke="#a3a3ac" stroke-width="1.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+  <line x1="165" y1="110.25" x2="457" y2="110.25" stroke="#e7e7ec" stroke-width="0.75"/>
+
+  <!-- traffic block -->
+  <text x="177" y="127" class="ui" font-size="11" font-weight="600" fill="#52525b">SOCKS5</text>
+  <text x="228" y="127" class="mono" font-size="10.5" fill="#71717a">127.0.0.1:1081</text>
+
+  <text x="177" y="145" class="ui" font-size="11" font-weight="600" fill="#52525b">Live traffic</text>
+  <text x="445" y="144.5" class="ui" font-size="9" fill="#a1a1aa" text-anchor="end">Last 30 sec</text>
+
+  <!-- download card -->
+  <rect x="177" y="151" width="131" height="64" rx="6" fill="#f3f3f6"/>
+  <path d="M 185 162.5 L 185 168 M 182.6 165.6 L 185 168.2 L 187.4 165.6" stroke="#0a84ff" stroke-width="1.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="192" y="169" class="ui" font-size="9.5" font-weight="500" fill="#0a84ff">Download</text>
+  <text x="302" y="169" class="ui" font-size="9.5" font-weight="600" fill="#52525b" text-anchor="end">1.2 MB/s</text>
+  <polyline points="183,204 191,201 199,203 207,196 215,199 223,190 231,193 239,184 247,188 255,180 263,186 271,178 279,183 287,176 295,181 302,177"
+    fill="none" stroke="#0a84ff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <polygon points="183,204 191,201 199,203 207,196 215,199 223,190 231,193 239,184 247,188 255,180 263,186 271,178 279,183 287,176 295,181 302,177 302,209 183,209"
+    fill="url(#dl-fill)" stroke="none"/>
+
+  <!-- upload card -->
+  <rect x="314" y="151" width="131" height="64" rx="6" fill="#f3f3f6"/>
+  <path d="M 322 168 L 322 162.5 M 319.6 165 L 322 162.3 L 324.4 165" stroke="#30b350" stroke-width="1.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="329" y="169" class="ui" font-size="9.5" font-weight="500" fill="#30b350">Upload</text>
+  <text x="439" y="169" class="ui" font-size="9.5" font-weight="600" fill="#52525b" text-anchor="end">128 KB/s</text>
+  <polyline points="320,206 328,205 336,206 344,203 352,205 360,202 368,204 376,200 384,203 392,199 400,202 408,198 416,201 424,197 432,200 439,198"
+    fill="none" stroke="#30b350" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <polygon points="320,206 328,205 336,206 344,203 352,205 360,202 368,204 376,200 384,203 392,199 400,202 408,198 416,201 424,197 432,200 439,198 439,209 320,209"
+    fill="url(#ul-fill)" stroke="none"/>
+
+  <!-- session + connections -->
+  <g class="ui" font-size="10.5" fill="#71717a">
+    <text x="177" y="234" font-weight="500">Session</text>
+    <path d="M 231 227.6 L 231 232.6 M 228.9 230.4 L 231 232.8 L 233.1 230.4" stroke="#71717a" stroke-width="1.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+    <text x="237" y="234">82.4 MB</text>
+    <path d="M 291 232.6 L 291 227.6 M 288.9 229.9 L 291 227.4 L 293.1 229.9" stroke="#71717a" stroke-width="1.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+    <text x="297" y="234">4.7 MB</text>
+    <text x="177" y="253" font-weight="500">Conn.</text>
+    <text x="237" y="253">3 active</text>
+  </g>
+</svg>
