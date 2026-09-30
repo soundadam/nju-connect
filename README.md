@@ -4,6 +4,11 @@
 以及 macOS 菜单栏应用。连接后在本机提供 SOCKS5 代理（默认 `127.0.0.1:1081`），
 不改系统路由；密码保存在本机仅本人可读的文件里，不依赖系统钥匙串。
 
+为什么不用深信服的官方客户端：EasyConnect / aTrust 连上后会接管整机网络，改写系统路由表和 DNS，
+并在后台常驻服务，整台机器的流量走向跟着 VPN 变，容易和代理、Tailscale、Docker 网络冲突。
+nju-connect 只在本机回环地址上开一个稳定的 SOCKS5 端口，哪个应用需要校园网就指向它，
+系统路由、DNS、防火墙都不碰，退出即结束。
+
 项目主页：<https://soundadam.github.io/nju-connect/> ·
 下载：[Releases](https://github.com/soundadam/nju-connect/releases)
 
