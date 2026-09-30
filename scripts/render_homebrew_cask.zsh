@@ -13,7 +13,7 @@ readonly sha256="$2"
 readonly output="$3"
 readonly template="${0:A:h:h}/packaging/Casks/nju-connect.rb.in"
 readonly url="${4:-https://github.com/soundadam/nju-connect/releases/download/v${version}/nju-connect-${version}-macos-universal.zip}"
-readonly homepage="${5:-https://soundadam.github.io/nju-connect/}"
+readonly homepage="${5:-https://soundadam.com/zh/projects/nju-connect/}"
 source "${0:A:h}/versioning.zsh"
 
 nju_connect_parse_version "$version"

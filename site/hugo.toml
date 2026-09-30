@@ -1,0 +1,10 @@
+# soundadam.com imports this directory as a Hugo module and renders it as
+# /projects/nju-connect/ (Chinese at /zh/projects/nju-connect/). The page
+# schema is www-src's .claude/rules/content-schema.md.
+[module]
+  [[module.mounts]]
+    source = "content"
+    target = "content/projects/nju-connect"
+  [[module.mounts]]
+    source = "img"
+    target = "assets/img/projects/nju-connect"

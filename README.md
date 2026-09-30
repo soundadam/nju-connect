@@ -9,7 +9,7 @@
 nju-connect 只在本机回环地址上开一个稳定的 SOCKS5 端口，哪个应用需要校园网就指向它，
 系统路由、DNS、防火墙都不碰，退出即结束。
 
-项目主页：<https://soundadam.github.io/nju-connect/> ·
+项目主页：<https://soundadam.com/zh/projects/nju-connect/> ·
 下载：[Releases](https://github.com/soundadam/nju-connect/releases)
 
 ## 安装
@@ -152,6 +152,19 @@ license texts. The app is ad-hoc signed, not notarized; the Cask says so.
 `package-macos-local` records `source_dirty=true`, writes a `file://` Cask into
 the installed `soundadam/local` tap checkout (or
 `~/workspaces/soundadam/homebrew-local`), and publishes nothing.
+
+## Project page
+
+The page at <https://soundadam.com/zh/projects/nju-connect/> is written here,
+in [`site/`](site/): `site/content/index.<lang>.md` is the copy (schema:
+`.claude/rules/content-schema.md` in `soundadam/www-src`), `site/img/` the
+screenshots it names. soundadam.com imports `site/` as a Hugo module and
+renders it with the site's own layout. A push to `main` that touches `site/`
+sends `project-site` to `soundadam/www-src`, whose build takes this
+repository's newest `main` and publishes. A release that changes the version
+also bumps `release.version` there. An English page is `index.en.md`.
+
+`docs/index.html` only redirects the former GitHub Pages address there.
 
 ## Versioning and local iteration
 

@@ -1,0 +1,25 @@
+name: site
+
+# site/ is this project's page on soundadam.com. The site imports it as a Hugo
+# module at build time; this tells soundadam/www-src to build and publish
+# again when the copy changes on main.
+#
+# WWW_SRC_DISPATCH_TOKEN: fine-grained token, repository soundadam/www-src
+# only, permission "Contents: read and write" (what repository_dispatch needs).
+
+on:
+  push:
+    branches: [main]
+    paths: ["site/**"]
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ask soundadam.com to publish
+        env:
+          GH_TOKEN: ${{ secrets.WWW_SRC_DISPATCH_TOKEN }}
+        run: gh api repos/soundadam/www-src/dispatches -f event_type=project-site
