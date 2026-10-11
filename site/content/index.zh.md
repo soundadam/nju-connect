@@ -13,7 +13,7 @@ registry:
   github: soundadam/nju-connect
   docs: https://github.com/soundadam/nju-connect#readme
 release:
-  version: "1.1.1"
+  version: "1.2.0"
   license: AGPL-3.0
 modules:
   - type: promo
