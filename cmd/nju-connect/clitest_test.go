@@ -110,7 +110,7 @@ func (harness *cliHarness) serveStatus(snapshot runtimecontrol.Snapshot) *fakeRu
 	if err != nil {
 		harness.t.Fatal(err)
 	}
-	control := &fakeRuntimeControl{server: server}
+	control := &fakeRuntimeControl{server: server, stops: make(chan struct{}, 8)}
 	server.SetStop(control.stop)
 	harness.t.Cleanup(func() { _ = server.Close() })
 	return control
@@ -118,20 +118,21 @@ func (harness *cliHarness) serveStatus(snapshot runtimecontrol.Snapshot) *fakeRu
 
 type fakeRuntimeControl struct {
 	server *runtimecontrol.Server
-	mu     sync.Mutex
-	stops  int
+	stops  chan struct{}
 }
 
-func (control *fakeRuntimeControl) stop() {
-	control.mu.Lock()
-	control.stops++
-	control.mu.Unlock()
-}
+func (control *fakeRuntimeControl) stop() { control.stops <- struct{}{} }
 
-func (control *fakeRuntimeControl) stopCount() int {
-	control.mu.Lock()
-	defer control.mu.Unlock()
-	return control.stops
+// waitForStop waits for one disconnect request. The runtime acknowledges a
+// disconnect before it stops, so the request can arrive after the command
+// has already returned.
+func (control *fakeRuntimeControl) waitForStop(t *testing.T) {
+	t.Helper()
+	select {
+	case <-control.stops:
+	case <-time.After(2 * time.Second):
+		t.Fatal("the runtime received no stop request")
+	}
 }
 
 // fixedRunningSnapshot is a deterministic, fully populated live snapshot.
