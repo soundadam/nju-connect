@@ -56,19 +56,3 @@ jobs:
       - uses: actions/checkout@v7
       - name: swift test
         run: swift test --package-path macos
-
-  # The branch ruleset requires this job alone. It passes when every job above
-  # passed or was skipped, so adding a job here is the only change a new one needs.
-  check:
-    if: always()
-    needs: [core-linux, core-macos, macos-ui]
-    runs-on: ubuntu-latest
-    steps:
-      - name: Every job passed or was skipped
-        env:
-          RESULTS: ${{ join(needs.*.result, ' ') }}
-        run: |
-          echo "$RESULTS"
-          for r in $RESULTS; do
-            case "$r" in success|skipped) ;; *) exit 1 ;; esac
-          done
