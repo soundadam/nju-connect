@@ -2,5 +2,6 @@ $ nju-connect update -h
 exit: 0
 --- stdout
 Usage of nju-connect update:
-      --check   Only report whether a newer release exists
+      --auto string   Turn automatic update checks on or off
+      --check         Only report whether a newer release exists
 --- stderr

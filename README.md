@@ -58,6 +58,7 @@ aTrust 协议部分使用了 [mythologyli/zju-connect](https://github.com/mythol
 ```sh
 nju-connect update          # 更新到最新版
 nju-connect update --check  # 只看有没有新版
+nju-connect update --auto off  # 关掉自动检查（on 再打开）
 nju-connect --version
 ```
 

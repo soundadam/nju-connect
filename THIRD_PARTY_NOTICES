@@ -36,8 +36,8 @@ github.com/scjalliance/comshim                 v0.0.0-20251021001035-b69f3cdad6f
 github.com/vishvananda/netns                   v0.0.5                                       linux          Apache-2.0
 go4.org/intern                                  v0.0.0-20230525184215-6c62f75575cb         indirect       BSD-3-Clause
 go4.org/unsafe/assume-no-moving-gc             v0.0.0-20231121144256-b99613f794b6         indirect       BSD-3-Clause
-golang.org/x/crypto                             v0.54.0                                      indirect       Go BSD-style
-golang.org/x/net                                v0.57.0                                      direct         Go BSD-style
+golang.org/x/crypto                             v0.55.0                                      indirect       Go BSD-style
+golang.org/x/net                                v0.58.0                                      direct         Go BSD-style
 golang.org/x/sys                                v0.47.0                                      indirect       Go BSD-style
 golang.org/x/term                               v0.45.0                                      direct         Go BSD-style
 golang.org/x/time                               v0.15.0                                      indirect       Go BSD-style
@@ -78,7 +78,7 @@ github.com/muesli/termenv                      v0.16.0                          
 github.com/rivo/uniseg                         v0.4.7                                       indirect       MIT
 github.com/xo/terminfo                         v0.0.0-20220910002029-abceb7e1c41e         indirect       MIT
 golang.org/x/sync                              v0.22.0                                      indirect       Go BSD-style
-golang.org/x/text                              v0.40.0                                      windows        Go BSD-style
+golang.org/x/text                              v0.41.0                                      windows        Go BSD-style
 
 mattn/go-localereader ships no license file; confirm its terms with upstream
 before a Windows release.
@@ -102,8 +102,8 @@ Version reporting, update checks and self-update (`nju-connect update`).
 
 Component                                      Version                                      Link-time use  License
 ---------------------------------------------- -------------------------------------------- --------------  -------------------------------
-github.com/soundadam/appkit/go                 v0.2.0                                       direct         MIT OR Apache-2.0
-golang.org/x/mod                               v0.37.0                                      indirect       Go BSD-style
+github.com/soundadam/appkit/go                 v0.3.0                                       direct         MIT OR Apache-2.0
+golang.org/x/mod                               v0.40.0                                      indirect       Go BSD-style
 
 Required release obligations
 ----------------------------
@@ -158,8 +158,7 @@ The audit found these files in the exact pinned module roots:
 * github.com/go-ole/go-ole, github.com/scjalliance/comshim: LICENSE
 * github.com/sagernet/netlink, github.com/vishvananda/netns: LICENSE
 * golang.org/x/mod: LICENSE
-* github.com/soundadam/appkit/go: none in the module; the licenses are
-  LICENSE-MIT and LICENSE-APACHE at the root of github.com/soundadam/appkit
+* github.com/soundadam/appkit/go: LICENSE-MIT, LICENSE-APACHE
 
 The release packager should copy these files verbatim, preserving their
 copyright and disclaimer text.
@@ -193,8 +192,8 @@ Source and license references
 * sagernet/sing v0.7.18: https://github.com/SagerNet/sing/blob/v0.7.18/LICENSE
 * go4.org/intern pinned license: https://github.com/go4org/intern/blob/6c62f75575cb/LICENSE
 * go4.org/unsafe/assume-no-moving-gc pinned license: https://github.com/go4org/unsafe-assume-no-moving-gc/blob/b99613f794b6/LICENSE
-* x/crypto v0.54.0: https://github.com/golang/crypto/blob/v0.54.0/LICENSE
-* x/net v0.57.0: https://github.com/golang/net/blob/v0.57.0/LICENSE
+* x/crypto v0.55.0: https://github.com/golang/crypto/blob/v0.55.0/LICENSE
+* x/net v0.58.0: https://github.com/golang/net/blob/v0.58.0/LICENSE
 * x/sys v0.47.0: https://github.com/golang/sys/blob/v0.47.0/LICENSE
 * x/term v0.45.0: https://github.com/golang/term/blob/v0.45.0/LICENSE
 * x/time v0.15.0: https://github.com/golang/time/blob/v0.15.0/LICENSE
@@ -207,8 +206,8 @@ Source and license references
 * comshim pinned license: https://pkg.go.dev/github.com/scjalliance/comshim@v0.0.0-20251021001035-b69f3cdad6f3?tab=licenses
 * sagernet/netlink pinned license: https://pkg.go.dev/github.com/sagernet/netlink@v0.0.0-20240916134442-83396419aa8b?tab=licenses
 * netns v0.0.5: https://github.com/vishvananda/netns/blob/v0.0.5/LICENSE
-* x/mod v0.37.0: https://github.com/golang/mod/blob/v0.37.0/LICENSE
-* appkit go/v0.2.0: https://github.com/soundadam/appkit/tree/go/v0.2.0
+* x/mod v0.40.0: https://github.com/golang/mod/blob/v0.40.0/LICENSE
+* appkit go/v0.3.0: https://github.com/soundadam/appkit/tree/go/v0.3.0
 
 Terminal UI modules: the license of each is at
 https://pkg.go.dev/<module>@<version>?tab=licenses for the versions listed
