@@ -1,0 +1,102 @@
+name: release
+
+# 推 v* tag：构建各平台产物、发 GitHub Release、把 Cask 推到 soundadam/homebrew-tap。
+# 手动触发只构建，产物留在 Actions 里。产物与 Cask 的约定见 https://github.com/soundadam/appkit
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version to stamp into the build, without the leading v
+        required: true
+        default: 0.0.0-alpha.1
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    name: package (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        # Linux 上交叉编译 Linux 与 Windows 的命令行；macOS 上构建 .app
+        os: [ubuntu-latest, macos-15]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      # 版本只有 tag 这一处；package.sh 核对构建出的 nju-connect --version 与它一致
+      - name: Package
+        env:
+          VERSION: ${{ github.event_name == 'push' && github.ref_name || inputs.version }}
+        run: bash scripts/package.sh "${VERSION#v}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist-${{ matrix.os }}
+          path: dist/*
+
+  release:
+    needs: package
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      # 仓库开了 release immutability：带着产物一次建好，发布后就改不了
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          prerelease=()
+          [[ $GITHUB_REF_NAME != *-* ]] || prerelease=(--prerelease)
+          gh release create "$GITHUB_REF_NAME" dist/* --repo "$GITHUB_REPOSITORY" --verify-tag \
+            --title "nju-connect ${GITHUB_REF_NAME#v}" --generate-notes "${prerelease[@]}"
+
+  # 把 packaging/homebrew/nju-connect.rb 填上版本与 SHA-256，推到 soundadam/homebrew-tap 的 main。
+  # 带 `-` 的预发布 tag 不更新 Cask。
+  # HOMEBREW_TAP_GITHUB_TOKEN：fine-grained token，只给 soundadam/homebrew-tap 的 Contents: read and write；
+  # 自带的 GITHUB_TOKEN 推不了别的仓。
+  homebrew:
+    needs: release
+    if: startsWith(github.ref, 'refs/tags/') && !contains(github.ref_name, '-')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Render the Cask
+        run: |
+          version=${GITHUB_REF_NAME#v}
+          sha() { test -f "dist/nju-connect-$version-$1" && sha256sum "dist/nju-connect-$version-$1" | cut -d' ' -f1; }
+          macos=$(sha macos-universal.zip)
+          linux_x86_64=$(sha linux-x86_64.tar.gz)
+          linux_aarch64=$(sha linux-aarch64.tar.gz)
+          sed -e "s/@VERSION@/$version/" \
+            -e "s/@MACOS_SHA256@/$macos/" \
+            -e "s/@LINUX_X86_64_SHA256@/$linux_x86_64/" \
+            -e "s/@LINUX_AARCH64_SHA256@/$linux_aarch64/" \
+            packaging/homebrew/nju-connect.rb >nju-connect.rb
+          ! grep -n '@[A-Z0-9_]*@' nju-connect.rb
+      - name: Push to soundadam/homebrew-tap
+        env:
+          TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
+        run: |
+          test -n "$TOKEN" || { echo "::error::HOMEBREW_TAP_GITHUB_TOKEN is not set"; exit 1; }
+          git clone --depth 1 "https://x-access-token:$TOKEN@github.com/soundadam/homebrew-tap.git" tap
+          cp nju-connect.rb tap/Casks/nju-connect.rb
+          cd tap
+          git add Casks/nju-connect.rb
+          git diff --cached --quiet && exit 0
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+            commit -m "nju-connect ${GITHUB_REF_NAME#v}"
+          git push origin HEAD:main

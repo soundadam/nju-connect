@@ -1,13 +1,9 @@
-# Packaging, local install, and release-check targets.
+# Packaging, macOS development, and release-check targets.
 
-.PHONY: cli-release
-cli-release:
-	@./scripts/package-cli-release.sh "$(VERSION)"
-
-.PHONY: package-macos
-package-macos:
-	@test -n "$(VERSION)" || { echo "VERSION is required (for example: make package-macos VERSION=1.0.0)" >&2; exit 64; }
-	./scripts/package_macos_release.zsh "$(VERSION)"
+.PHONY: package
+package:
+	@test -n "$(VERSION)" || { echo "VERSION is required (for example: make package VERSION=1.2.0)" >&2; exit 64; }
+	./scripts/package.sh "$(VERSION)"
 
 .PHONY: macos-preview
 macos-preview: build
@@ -21,29 +17,8 @@ macos-dev-build:
 macos-dev:
 	./scripts/run_macos_development.zsh
 
-.PHONY: package-macos-local
-package-macos-local:
-	@test -n "$(VERSION)" || { echo "VERSION is required (for example: make package-macos-local VERSION=1.1.0-alpha.1)" >&2; exit 64; }
-	./scripts/package_local_macos.zsh "$(VERSION)"
-
-.PHONY: versioning-test
-versioning-test:
-	@./scripts/test_versioning.zsh
-
-.PHONY: local-update
-local-update:
-	@CHANNEL="$(or $(CHANNEL),alpha)" \
-	 VERSION="$(VERSION)" \
-	 COMMIT_TAP="$(or $(COMMIT_TAP),1)" \
-	 PUSH_TAP="$(or $(PUSH_TAP),0)" \
-	 INSTALL_UPDATE="$(or $(INSTALL_UPDATE),1)" \
-	 ./scripts/local_update.zsh
-
 .PHONY: release-check
-release-check: fmt-check versioning-test test vet
+release-check: fmt-check test vet
 	@swift test --package-path macos
 	@git diff --check
 	@echo "release checks passed; no artifact was published"
-
-.PHONY: release-preview
-release-preview: release-check package-macos-local

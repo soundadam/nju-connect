@@ -14,23 +14,28 @@ nju-connect 只在本机回环地址上开一个稳定的 SOCKS5 端口，哪个
 
 ## 安装
 
-macOS（包含菜单栏应用和 `nju-connect` 命令）：
+macOS 与 Linux 用 Homebrew（macOS 上是菜单栏应用加 `nju-connect` 命令，Linux 上是 `nju-connect` 命令）：
 
 ```sh
 brew install --cask soundadam/tap/nju-connect
 ```
 
-应用未经 Apple 公证（ad-hoc 签名），第一次打开会被 Gatekeeper 拦截。确认信任这份构建后，
-在「系统设置 › 隐私与安全性」里点「仍要打开」，或运行：
+也可以从 [Releases](https://github.com/soundadam/nju-connect/releases/latest) 直接下载，Release 页面上列着每个文件的 SHA-256：
+
+- macOS：`nju-connect-<版本>-macos-universal.zip`，解压出的 `nju-connect.app` 放进「应用程序」；
+  命令行是 `nju-connect.app/Contents/Helpers/nju-connect`。
+- Linux：`nju-connect-<版本>-linux-<x86_64|aarch64>.tar.gz`；Windows：`nju-connect-<版本>-windows-<x86_64|aarch64>.zip`。
+  把里面的 `nju-connect`（Windows 上是 `nju-connect.exe`）放进 `PATH`。
+
+macOS 应用只有 ad-hoc 签名、未经 Apple 公证。Homebrew 装的直接能打开；直接下载的第一次打开会被 Gatekeeper 拦下，
+到「系统设置 › 隐私与安全性」里点「仍要打开」，或者去掉隔离属性：
 
 ```sh
-xattr -dr com.apple.quarantine /Applications/nju-connect.app
+xattr -dr com.apple.quarantine <解压出来的 nju-connect.app>
 ```
 
-Linux / Windows：从 [Releases](https://github.com/soundadam/nju-connect/releases/latest)
-下载对应平台的 `nju-connect_<版本>_<linux|windows>_<amd64|arm64>` 压缩包（用 `SHA256SUMS` 校验），
-把里面的 `nju-connect`（Windows 上是 `nju-connect.exe`）放进 `PATH`。各平台能力差异见
-[`docs/architecture.md`](docs/architecture.md#platforms)。也可以从源码构建（Go 1.25+）：
+Windows 版没有签名，SmartScreen 第一次运行时会警告。各平台能力差异见
+[`docs/architecture.md`](docs/architecture.md#platforms)。也可以从源码构建：
 
 ```sh
 go build -o nju-connect ./cmd/nju-connect
@@ -47,6 +52,18 @@ aTrust 协议部分使用了 [mythologyli/zju-connect](https://github.com/mythol
 的客户端核心；EasyConnect 部分参考了
 [lyc8503/NJUConnect](https://github.com/lyc8503/NJUConnect) 的实现。感谢两个项目的作者和贡献者。
 本项目以 AGPL-3.0-or-later（AGPL 第 3 版或任何更新版本）发布，与南京大学、深信服均无隶属关系。
+
+## 更新
+
+```sh
+nju-connect update          # 更新到最新版
+nju-connect update --check  # 只看有没有新版
+nju-connect --version
+```
+
+Homebrew 装的交给 `brew upgrade --cask`；直接下载的原地替换自己，`.app` 里的命令行连同整个 `nju-connect.app` 一起换，
+菜单栏应用重启后是新版。命令在终端里跑完时，知道有新版就在 stderr 提示一行，每天至多查一次。
+怎么判断安装方式、会发哪些网络请求见 [appkit](https://github.com/soundadam/appkit#更新)。
 
 The rest of this README is developer documentation, in English.
 
@@ -121,10 +138,10 @@ nju-connect runtime may provide its owner-only loopback SOCKS5 path; otherwise
 the command asks the user to connect nju-connect and retry. Results always
 identify the selected path and never infer it from connection state alone.
 
-LibreSpeed is a separate third-party executable. On macOS the Cask depends on
-the `librespeed-cli-nju-connect` Formula, which builds the pinned upstream
-source with the SOCKS and structured-progress patches nju-connect needs; the
-app neither embeds nor downloads it. On other platforms, point
+LibreSpeed is a separate third-party executable. The Cask depends on the
+`librespeed-cli-nju-connect` Formula, which builds the pinned upstream
+source with the SOCKS and structured-progress patches nju-connect needs;
+nju-connect neither embeds nor downloads it. Without Homebrew, point
 `NJU_CONNECT_LIBRESPEED_CLI` at a compatible absolute helper path. JSON and
 redirected modes fail closed instead of waiting for input. Useful machine
 interfaces are:
@@ -139,19 +156,28 @@ The CLI retains only the latest compact result. The macOS UI separately keeps
 bounded local graph samples in its own preferences so the inspector can restore
 the previous curve; the client public IP is not stored.
 
-## Packaging
+## Releases
+
+Artifact names, the Cask and the `update` / `version` commands follow
+[appkit](https://github.com/soundadam/appkit). Pushing a `v*` tag runs the
+[release workflow](.github/workflows/release.yml): `scripts/package.sh`
+builds the universal macOS app on macOS and the Linux and Windows CLI
+archives on Linux, the workflow publishes them as one GitHub Release, and
+fills [`packaging/homebrew/nju-connect.rb`](packaging/homebrew/nju-connect.rb)
+with the version and SHA-256 for
+[soundadam/homebrew-tap](https://github.com/soundadam/homebrew-tap). The tag
+is the only version: release builds inject it as `main.version`. A tag with
+`-` is a prerelease and leaves the Cask alone; prerelease tags are
+`-alpha.N`, `-beta.N` or `-rc.N`, because the app's `CFBundleVersion` is
+derived from them (see `scripts/package.sh`).
+
+Every archive carries `README.md`, `LICENSE`, `THIRD_PARTY_NOTICES` and the
+linked modules' license texts in `third_party_licenses/`; the app keeps the
+same files in `Contents/Resources`. The app is ad-hoc signed, not notarized.
 
 ```sh
-make cli-release VERSION=v1.0.0          # CLI archives for every platform + SHA256SUMS, clean tree only
-make package-macos VERSION=1.0.0         # menu-bar app + universal CLI as a Cask ZIP
-make package-macos-local VERSION=1.0.0   # same, from a dirty tree, into the local tap
+make package VERSION=1.2.0   # this platform's release artifacts into dist/
 ```
-
-The archives include `LICENSE`, `THIRD_PARTY_NOTICES`, and the linked modules'
-license texts. The app is ad-hoc signed, not notarized; the Cask says so.
-`package-macos-local` records `source_dirty=true`, writes a `file://` Cask into
-the installed `soundadam/local` tap checkout (or
-`~/workspaces/soundadam/homebrew-local`), and publishes nothing.
 
 ## Project page
 
@@ -166,34 +192,7 @@ also bumps `release.version` there. An English page is `index.en.md`.
 
 `docs/index.html` only redirects the former GitHub Pages address there.
 
-## Versioning and local iteration
-
-nju-connect follows the sing-box prerelease sequence. Git tags add a leading
-`v`, while the version embedded in the app and CLI does not:
-
-```text
-v1.1.0-alpha.1 -> v1.1.0-beta.1 -> v1.1.0-rc.1 -> v1.1.0
-```
-
-Repeated builds in one channel increment its sequence number. By default, a
-local update from installed stable version `1.0.0` starts the next feature train
-as `1.1.0-alpha.1`, and the next local update becomes `1.1.0-alpha.2`. Stable
-maintenance releases remain on the patch line, so the stable successor to
-`1.0.0` is `1.0.1`:
-
-```sh
-make local-update
-make local-update CHANNEL=beta
-make local-update CHANNEL=rc
-make local-update CHANNEL=stable
-```
-
-`local-update` resolves the active tap with `brew --repo soundadam/local`. It
-runs the release checks, builds the universal app, updates and commits the local
-Cask, reinstalls it, removes quarantine only from the installed development
-preview, and verifies the installed app, embedded CLI, code signature, and
-helper hash. Set `PUSH_TAP=1` to push the resulting private-tap commit. Use
-`INSTALL_UPDATE=0` when only packaging and committing the Cask is desired.
+## macOS development
 
 `make macos-dev` builds the CLI, menu-bar app, and aTrust OAuth helper, signs
 them with a local Apple Development identity, and runs the app against the

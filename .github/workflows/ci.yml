@@ -56,5 +56,3 @@ jobs:
       - uses: actions/checkout@v7
       - name: swift test
         run: swift test --package-path macos
-      - name: versioning
-        run: make versioning-test

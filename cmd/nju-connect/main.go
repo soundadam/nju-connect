@@ -6,17 +6,28 @@ import (
 	"io"
 	"os"
 
+	appkit "github.com/soundadam/appkit/go"
+	"github.com/soundadam/appkit/go/cli"
 	"github.com/spf13/cobra"
 
 	"github.com/soundadam/nju-connect/internal/app"
 	"github.com/soundadam/nju-connect/internal/backend/atrust"
 )
 
+// version is injected by release builds with -ldflags "-X main.version=<ver>".
 var version = "dev"
+
+// identity is what appkit needs for version, update and install detection.
+func identity() appkit.App {
+	return appkit.App{Name: "nju-connect", Version: version, Repo: "soundadam/nju-connect"}
+}
 
 func main() {
 	atrustbackend.SetUpstreamDebugLog(upstreamDebugLog(os.Getenv, os.Stderr))
-	os.Exit(run(productionDeps(), os.Args[1:], os.Stdout, os.Stderr))
+	notice := cli.StartNotice(identity())
+	status := run(productionDeps(), os.Args[1:], os.Stdout, os.Stderr)
+	notice.Print(os.Stderr)
+	os.Exit(status)
 }
 
 // upstreamDebugLog is where the linked aTrust core's own log lines go:
@@ -60,6 +71,7 @@ commands:
   status     print sanitized runtime status
   speedtest  measure the NJU campus IPv4 path
   doctor     inspect the local nju-connect configuration
+  update     update to the latest release (--check only reports)
   version    print build identity
 
 Run "nju-connect <command> -h" for command flags.`
@@ -113,15 +125,16 @@ func newRootCommand(deps app.Deps) *cobra.Command {
 		newStatusCommand(deps),
 		newSpeedtestCommand(deps),
 		newDoctorCommand(deps),
-		&cobra.Command{
-			Use: "version",
-			RunE: func(cmd *cobra.Command, _ []string) error {
-				fmt.Fprintf(cmd.OutOrStdout(), "nju-connect %s\n", version)
-				return nil
-			},
-		},
 		newBackgroundRuntimeCommand(deps),
 	)
+	cli.AddCommands(root, identity())
+	// appkit's update and version take no arguments either; an extra one is a
+	// usage error (exit 2) like everywhere else.
+	for _, command := range root.Commands() {
+		if name := command.Name(); name == "update" || name == "version" {
+			command.Args = noArgs
+		}
+	}
 	finishCommands(root)
 	return root
 }

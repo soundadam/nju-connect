@@ -2,14 +2,17 @@ module github.com/soundadam/nju-connect
 
 go 1.25.6
 
+toolchain go1.27.2
+
 require (
 	github.com/charmbracelet/bubbletea v1.3.6
 	github.com/charmbracelet/huh v1.0.0
-	github.com/charmbracelet/x/ansi v0.9.3
+	github.com/charmbracelet/x/ansi v0.11.7
 	github.com/mythologyli/zju-connect v1.2.3-0.20260803141543-cb3a819c9bcc
 	github.com/pelletier/go-toml/v2 v2.4.3
 	github.com/refraction-networking/utls v1.8.2
 	github.com/sagernet/gvisor v0.0.0-20250811-sing-box-mod.1
+	github.com/soundadam/appkit/go v0.2.0
 	github.com/spf13/cobra v1.10.2
 	golang.org/x/net v0.57.0
 	golang.org/x/sys v0.47.0
@@ -22,11 +25,13 @@ require (
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
 	github.com/catppuccin/go v0.3.0 // indirect
 	github.com/charmbracelet/bubbles v0.21.1-0.20250623103423-23b8fd6302d7 // indirect
-	github.com/charmbracelet/colorprofile v0.2.3-0.20250311203215-f60798e515dc // indirect
+	github.com/charmbracelet/colorprofile v0.4.3 // indirect
 	github.com/charmbracelet/lipgloss v1.1.0 // indirect
-	github.com/charmbracelet/x/cellbuf v0.0.13 // indirect
+	github.com/charmbracelet/x/cellbuf v0.0.15 // indirect
 	github.com/charmbracelet/x/exp/strings v0.0.0-20240722160745-212f7b056ed0 // indirect
-	github.com/charmbracelet/x/term v0.2.1 // indirect
+	github.com/charmbracelet/x/term v0.2.2 // indirect
+	github.com/clipperhouse/displaywidth v0.11.0 // indirect
+	github.com/clipperhouse/uax29/v2 v2.7.0 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/erikgeiser/coninput v0.0.0-20211004153227-1c3628e74d0f // indirect
 	github.com/fsnotify/fsnotify v1.10.1 // indirect
@@ -35,10 +40,10 @@ require (
 	github.com/google/go-cmp v0.7.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/klauspost/compress v1.18.6 // indirect
-	github.com/lucasb-eyer/go-colorful v1.2.0 // indirect
+	github.com/lucasb-eyer/go-colorful v1.4.0 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/mattn/go-localereader v0.0.1 // indirect
-	github.com/mattn/go-runewidth v0.0.16 // indirect
+	github.com/mattn/go-runewidth v0.0.23 // indirect
 	github.com/metacubex/gvisor v0.0.0-20251227095601-261ec1326fe8 // indirect
 	github.com/miekg/dns v1.1.72 // indirect
 	github.com/mitchellh/hashstructure/v2 v2.0.2 // indirect

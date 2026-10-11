@@ -30,6 +30,7 @@ func TestContractUsageAndDispatch(t *testing.T) {
 		{"usage_help_command", []string{"help", "status"}, 0},
 		{"usage_help_unknown_command", []string{"help", "bogus"}, 2},
 		{"version", []string{"version"}, 0},
+		{"version_flag", []string{"--version"}, 0},
 		{"native_runtime_rejects_arguments", []string{"_native-runtime", "extra"}, 2},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
@@ -66,6 +67,7 @@ func TestContractCommandHelp(t *testing.T) {
 		{"speedtest_component_status", []string{"speedtest", "component", "status", "-h"}},
 		{"speedtest_component_install", []string{"speedtest", "component", "install", "-h"}},
 		{"status_long_help", []string{"status", "--help"}},
+		{"update", []string{"update", "-h"}},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
 			harness.golden("help_"+testCase.name, harness.run(testCase.args...).expect(t, 0))
@@ -97,6 +99,7 @@ func TestContractUsageErrors(t *testing.T) {
 		{"unknown_flag_before_command", []string{"--bogus"}},
 		{"account_show_positional_argument", []string{"account", "show", "extra"}},
 		{"speedtest_component_status_positional_argument", []string{"speedtest", "component", "status", "extra"}},
+		{"update_positional_argument", []string{"update", "extra"}},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
 			result := harness.run(testCase.args...).expect(t, 2)

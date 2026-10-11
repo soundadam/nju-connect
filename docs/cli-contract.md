@@ -39,6 +39,10 @@ Cobra) are checked against the same surface.
   positional arguments. Cobra's own messages, `completion` command and
   `Error:` prefix are switched off; `exitStatus` still owns every exit code
   and error line.
+- After any command, when standard error is a terminal and a newer release
+  is known, one line on stderr suggests `nju-connect update`
+  ([appkit](https://github.com/soundadam/appkit#命令行)). A piped stderr,
+  such as the macOS app's, never gets it.
 - Secrets never appear in argv, the environment, stdout or stderr. Passwords
   and verification codes arrive only through a hidden terminal prompt or an
   explicit `--*-stdin` pipe.
@@ -116,7 +120,8 @@ is the one place that turns errors into exit codes and stderr lines.
 | `speedtest last` | `--json` | Last saved result | |
 | `speedtest component status` | `--json` | Component status | Exit 1 when not installed. `--yes` and `--json-events` are accepted by the parser but exit 2. |
 | `speedtest component install` | `--yes`, `--json-events` | NDJSON progress, or a final line | Needs `--yes` outside a terminal. `--json` exits 2. |
-| `version` | — | `nju-connect <version>` | |
+| `version`, `--version` | — | `nju-connect <version>` | |
+| `update` | `--check` | Latest-release report, then `Updated to …` | Provided by [appkit](https://github.com/soundadam/appkit#命令行); download progress on stderr. |
 | `_native-runtime` | *(hidden)* | Runtime log | See below. |
 
 In JSON and NDJSON modes, speed-test failures are reported on **stdout** as
