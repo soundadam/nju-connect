@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-# release workflow 的 homebrew job 把 @VERSION@ 与各平台的 SHA-256 填好，写到 soundadam/homebrew-tap 的 Casks/nju-connect.rb
+# release workflow 的 homebrew job 填好版本号与各平台的 SHA-256，写到 soundadam/homebrew-tap 的 Casks/nju-connect.rb
 cask "nju-connect" do
   version "@VERSION@"
 
