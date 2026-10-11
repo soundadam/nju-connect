@@ -188,9 +188,7 @@ func TestContractDisconnect(t *testing.T) {
 
 	control := harness.serveStatus(fixedRunningSnapshot(runtime.ProfileCommunityUTLSCompat))
 	harness.golden("disconnect_running", harness.run("disconnect").expect(t, 0))
-	if control.stopCount() != 1 {
-		t.Fatalf("runtime stop requests = %d", control.stopCount())
-	}
+	control.waitForStop(t)
 }
 
 func TestContractConfigure(t *testing.T) {
