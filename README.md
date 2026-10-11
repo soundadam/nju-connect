@@ -17,7 +17,7 @@ nju-connect 只在本机回环地址上开一个稳定的 SOCKS5 端口，哪个
 macOS 与 Linux 用 Homebrew（macOS 上是菜单栏应用加 `nju-connect` 命令，Linux 上是 `nju-connect` 命令）：
 
 ```sh
-brew trust --formula soundadam/tap/librespeed-cli-nju-connect   # 校园测速用的依赖，Homebrew 只信任点名装的那一个
+brew trust --tap soundadam/tap   # 信任整个 tap，校园测速依赖的 librespeed-cli-nju-connect 也在里面
 brew install --cask soundadam/tap/nju-connect
 ```
 

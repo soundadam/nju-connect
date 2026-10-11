@@ -7,7 +7,9 @@ weight: 20
 presentation:
   category: Campus network / CLI + macOS
   label: Install with Homebrew
-  command: brew install --cask soundadam/tap/nju-connect
+  command:
+    - brew trust --tap soundadam/tap
+    - brew install --cask soundadam/tap/nju-connect
   note: No route changes. No DNS changes. No background service.
 registry:
   github: soundadam/nju-connect
