@@ -20,6 +20,7 @@ commands:
   status     print sanitized runtime status
   speedtest  measure the NJU campus IPv4 path
   doctor     inspect the local nju-connect configuration
+  update     update to the latest release (--check only reports)
   version    print build identity
 
 Run "nju-connect <command> -h" for command flags.

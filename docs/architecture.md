@@ -200,10 +200,9 @@ Before a release, from a clean worktree:
 ```sh
 make check              # fmt-check, test, test-race, vet, leak-check
 make build build-platforms
-make release-check      # adds versioning tests and swift test
+make release-check      # adds swift test
 ```
 
-`make cli-release VERSION=vX.Y.Z` builds the darwin CLI archives with their
-licenses and checksums. `make package-macos VERSION=X.Y.Z` builds the app
-archive. Developer ID signing and notarization are not configured, so app
-builds are ad-hoc signed.
+The tag then drives the build; see [Releases](../README.md#releases).
+Developer ID signing and notarization are not configured, so app builds are
+ad-hoc signed.

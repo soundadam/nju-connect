@@ -74,7 +74,9 @@ state without a VPN. The UI is English only.
 
 ## Packaging
 
-`scripts/package_macos_release.zsh` builds a Cask ZIP with the app and a
-universal CLI. The LibreSpeed helper is a separate Homebrew Formula that the
-app neither embeds nor downloads. The app is ad-hoc signed and not notarized;
-the Cask and release notes state this.
+`scripts/package.sh`, run on macOS, builds `nju-connect.app` with the
+menu-bar app in `Contents/MacOS` and the universal CLI and OAuth helper in
+`Contents/Helpers`, ad-hoc signed; see [Releases](../README.md#releases).
+`nju-connect update` from the bundled CLI replaces the whole app. The
+LibreSpeed helper is a separate Homebrew Formula that the app neither embeds
+nor downloads.
