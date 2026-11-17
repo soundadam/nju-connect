@@ -49,7 +49,7 @@ modules:
     title: Only the traffic you choose goes to campus
     index: 1/3
     lede: >-
-      Whichever browser, terminal or download tool needs the library databases or a campus service gets `127.0.0.1:1081`; everything else stays direct, and existing proxies and overlay networks are unaffected. The menu bar shows connection state and live traffic, and runs a campus speed test in one click.
+      Whichever browser, terminal or download tool needs the library databases or a campus service gets `127.0.0.1:1081`; everything else stays direct, and existing proxies and overlay networks are unaffected. The menu bar shows connection state and live traffic, and can run a campus speed test.
 
   - type: media
     image: menubar.svg
